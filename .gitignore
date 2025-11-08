@@ -12,6 +12,7 @@ dump/
 *.wav
 node_modules
 yarn.lock
+omiGlass/firmware/ideasglass_arduino/wifi_credentials.h
 
 # General
 .idea/

@@ -1,0 +1,109 @@
+---
+title: IdeasGlass Object Analysis
+description: Deep dive on the current OmiGlass stack to inform the redesigned Arduino + Tornado system.
+---
+
+# 1. Executive summary
+
+- The synced `OmiGlass` repo is a full-stack wearable platform that already spans custom hardware (`omiGlass/hardware`), an embedded firmware stack (`omiGlass/firmware`), a cross-platform Flutter app (`app/`), a FastAPI backend (`backend/`), and public-facing docs (`docs/`).
+- The reference hardware centers on the Seeed XIAO ESP32-S3 camera module + OV2640 sensor with dual 250 mAh LiPo cells and a BLE + photo capture workload tuned for ~6–8 h battery life.
+- Firmware exposes an Omi BLE service (UUID `19B1…1214`) for audio/photo data, battery status, and device management while implementing aggressive power management, scheduled imaging, and button/LED UX.
+- The Flutter client already targets Android/iOS/Web/Desktop, talks to the wearable over BLE (`flutter_blue_plus` etc.), then syncs up to a FastAPI service that leans on Firebase, Redis, Pinecone, OpenAI/Deepgram, Ngrok, and Modal serverless workers.
+- To redesign for a bespoke IdeasGlass flow we need: (1) a hardware abstraction that can run on Arduino-class MCUs, (2) firmware hooks that buffer/send multi-modal data, (3) a Tornado + Postgres ingestion surface, (4) a PWA build of the Flutter app (or interoperable web shell) that can subscribe to the backend, and (5) a data contract that keeps BLE/device telemetry, cloud state, and mobile experiences in sync.
+
+# 2. Object inventory
+
+| Layer | Location | Notes |
+| --- | --- | --- |
+| Industrial & mechanical | `omiGlass/hardware/*.stl`, `working files/*.step`, Frame/back/front assemblies | Printable STLs for temples, covers, and camera frame plus Fusion 360 STEP sources for iteration. |
+| Firmware | `omiGlass/firmware/src` (`app.cpp`, `config.h`, etc.), `platformio.ini`, UF2 scripts | Arduino/PlatformIO stack targeting Seeed XIAO ESP32-S3 Sense with camera + BLE + battery services. |
+| Companion app | `app/` | Flutter 3.x project with Android/iOS/macOS/Windows/Linux/Web targets, BlueTooth LE comms, Firebase auth, Mixpanel analytics, etc. |
+| Cloud backend | `backend/` | FastAPI service aggregated under `main.py`, modular routers, Modal deployments, GCP/Firebase integration, Redis, Pinecone. |
+| Web/PWA assets | `web/`, `docs/`, `omiGlass/App.tsx` | React/Next-based marketing site + docs and an Expo/React Native glass controller for browser. |
+| SDKs + Plugins | `sdks/`, `community-plugins.json`, `plugins/` | Edge integrations, persona definitions, and plugin registry. |
+
+# 3. Hardware assessment
+
+## 3.1 Electronics platform
+- `config.h` pins match the **Seeed XIAO ESP32-S3 Sense** (integrated OV2640 + 8 MB PSRAM) with BLE, Wi-Fi, and USB-C programming.
+- Battery sensing uses `ADC0 (GPIO2)` with a calibrated divider (169 kΩ/110 kΩ) ensuring the firmware reports accurate levels (`VOLTAGE_DIVIDER_RATIO 6.086f`).
+- Power + UI: dedicated button on GPIO1 (active-low), status LED on GPIO21 supporting boot, capture, sleep, and power-off patterns.
+- Camera settings: VGA frames (640×480), JPEG quality 25, 6 MHz XCLK to save ~15 mA, fixed 180° orientation to account for inverted mounting.
+
+## 3.2 Mechanical envelope
+- STL/STEP set in `omiGlass/hardware` covers front frame, temples, ear covers, and clip accessories. Files are optimized for resin/SLS printing and match the Xiao camera board footprint.
+- `working files/glasses_frame_*` hold editable Fusion 360 geometry for future revisions (temple cavities, battery pockets, strap interface, etc.).
+- Existing design assumes dual 250 mAh pouch cells distributed across the temples; cable routing and strain relief are handled via channel cutouts in the STLs.
+
+## 3.3 Observed gaps for the redesign
+- Electronics BOM is tied to the Seeed Xiao; to support broader Arduino-compatible MCUs we need abstracted pin/driver layers (camera, IMU, touch) and allowances for boards without integrated cameras.
+- No explicit flexible PCB drawings or wiring harness files are present—only the enclosure and high-level board selection.
+- Thermal considerations, environmental sealing, and optical alignment steps are not documented, which matters for production-ready IdeasGlass variants.
+
+# 4. Firmware assessment
+
+## 4.1 Architecture
+- `app.cpp` orchestrates BLE services, periodic camera capture (`PHOTO_CAPTURE_INTERVAL_MS`), battery sampling, power-state transitions, and the push-button UX.
+- BLE uses the Nordic UART-like custom service defined in `config.h`, exposing `PHOTO_DATA_UUID` and `PHOTO_CONTROL_UUID` characteristics plus a standard 0x180F battery service.
+- Tasks are scheduled with FreeRTOS primitives: camera task (priority 2), BLE task (1), battery + power tasks (1/0). CPU frequency scaling (40–100 MHz) and light sleep (50 ms intervals) extend runtime.
+- Firmware build system: PlatformIO with multiple environments + UF2 builder scripts for plug-and-play flashing; `firmware.ino` provides an Arduino entrypoint for simple builds.
+
+## 4.2 Capabilities
+- Captures compressed frames to PSRAM, chunks them to 500-byte BLE packets (MTU 517) for streaming to the mobile app.
+- Supports OTA through third-party libs (see Flutter deps `nordic_dfu`, `mcumgr_flutter`).
+- Battery service reports percentage thresholds, triggers low/critical states, and can enter deep sleep (after 5 min inactivity) with button wake-up.
+
+## 4.3 Pain points
+- Firmware is tightly coupled to the Seeed camera pin map and BLE UUIDs; porting to other Arduino boards requires manual edits scattered across files.
+- Audio capture and motion sensing are not enabled even though the ESP32-S3 could support I2S mics/IMUs—limiting multi-modal insights.
+- BLE-only transport means no Wi-Fi fallback or direct cloud sync; all data must funnel through the mobile app.
+
+# 5. Companion app and experience layer
+
+## 5.1 Flutter super-app (`app/`)
+- Multi-platform (Android/iOS/Web/Desktop) already by virtue of Flutter; `web/` build target is present but PWA settings, offline caching, and installability need refinement.
+- Uses `flutter_blue_plus` for BLE comms, Firebase Auth/Messaging/Crashlytics, speech/audio libs (opus, just_audio, flutter_sound), DFU packages, Mixpanel analytics, Intercom support, etc.
+- State is managed via Provider; there are flavors (`flavorizr.yaml`), release automation scripts, and CLI tasks in `scripts/`.
+- Current UX focuses on pairing, capturing transcripts/audio, generating insights, and pushing data to `chat.lazying.art`.
+
+## 5.2 React/Expo glass controller (`omiGlass/App.tsx`)
+- A lightweight React Native/Expo experience that can run as a web client (`omiGlass/App.tsx` + `web/`) to control the glasses without the full Flutter app.
+
+# 6. Cloud/backend services
+
+- `backend/main.py` spins up a FastAPI app with dozens of routers (transcription, conversations, workflows, auth, payments, MCP integration, etc.).
+- Deployment story mixes Modal serverless (`modal_app`), Ngrok for local tunneling, Firebase Admin SDK, and GCP secrets.
+- Data persistence spans Firebase (firestore/auth), Redis/Upstash for queues, Pinecone for vector search, OpenAI/Deepgram for AI tasks, plus optional Typesense/Datadog.
+- Existing database scripts (`backend/database`, `migration/`, `migrations/`) target Postgres for some features, but the production reference leans heavily on managed Firebase services.
+
+# 7. Data flow recap
+
+1. **Capture:** ESP32-S3 firmware samples imagery/battery data and advertises over BLE.
+2. **Pairing:** Flutter app connects via BLE, requests frames/audio, handles DFU, and shows live status.
+3. **Sync:** App uploads transcripts/media to the FastAPI backend via HTTPS (ngrok/Modal), which then pushes data into Firebase/Pinecone/OpenAI pipelines.
+4. **Surfacing:** Docs (`docs/`, `web/`) and ecosystem clients consume API responses to fuel EchoMind, OnlyIdeas, etc.
+
+# 8. Redesign levers for IdeasGlass
+
+- **Arduino-first hardware layer:** Introduce a board-support abstraction (`/hardware/bsp/<board>.md`) and reference schematics that map sensors, battery monitor, IMU, haptics, etc. to Arduino Nano ESP32, Nicla Vision, or Xiao S3. Provide dimensioned STEP + wiring harness drawings.
+- **Modular firmware kits:** Refactor firmware into drivers (camera, BLE, telemetry) that can compile under Arduino IDE/CLI. Add a HAL for sensor selection, binary logging, and OTA hooks.
+- **Tornado + Postgres backend:** Spin up a lightweight ingestion service (Tornado) with async endpoints, WebSockets, and persistence in a dedicated `ideasglass_db`. Provide SQL migrations, role grants, and event schemas for BLE/firmware data and AI outputs.
+- **Unified PWA/iOS/Android client:** Harden the Flutter web target into a proper PWA (manifest icons, service worker caching) plus keep the existing Android/iOS builds. Expose WebSocket listeners to receive Tornado push events so that captured data appears instantly across devices.
+- **Data contracts:** Define protobuf/JSON schemas for telemetry, media references, and AI artifacts so the Arduino firmware, Tornado services, and Flutter client share the same expectations.
+
+# 9. Immediate blockers & risks
+
+- No current CAD for PCB/flex cabling—requires electrical design work that is absent from the repo.
+- Transitioning from FastAPI/Firebase to Tornado/Postgres involves auth, queueing, and AI workload migrations; we must decide which workloads stay in FastAPI vs. the new service.
+- Need decisions on encryption and PII handling when routing wearable data directly into Postgres.
+- BLE bandwidth limits mean high-resolution video or continuous audio may require compression, buffering, or Wi-Fi/Wired alternatives.
+
+# 10. Next actions
+
+1. Finalize Arduino target(s) and produce schematics + BOM updates alongside the enclosure STEP variants.
+2. Draft firmware HAL that decouples board definitions from application logic (`lib/bsp/<board>.h` + `config/defaults.h`).
+3. Scaffold the Tornado + Postgres service (async endpoints, WebSocket gateway, ingestion workers) and seed `ideasglass_db` migrations.
+4. Enhance the Flutter web build with a manifest, offline caching, and integration tests covering Android/iOS/Web parity.
+5. Define telemetry/topic schemas so wearable data can be forwarded from Tornado to the Flutter/PWA client with minimal transformation.
+
+This report should serve as the baseline for the requested redesign tasks (Arduino firmware, Tornado backend, and end-to-end data capture).
