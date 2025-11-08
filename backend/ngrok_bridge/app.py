@@ -204,12 +204,18 @@ async def fetch_messages(limit: int = 100) -> List[MessageOut]:
         )
     entries: List[MessageOut] = []
     for row in rows:
+        meta_payload = row["meta"]
+        if isinstance(meta_payload, str):
+            try:
+                meta_payload = json.loads(meta_payload)
+            except Exception:
+                meta_payload = {}
         entries.append(
             MessageOut(
                 id=row["id"],
                 device_id=row["device_id"],
                 message=row["message"],
-                meta=row["meta"] or {},
+                meta=meta_payload or {},
                 received_at=row["received_at"].isoformat(),
                 photo_url=f"/api/v1/photos/{row['photo_id']}" if row["photo_id"] else None,
             )
