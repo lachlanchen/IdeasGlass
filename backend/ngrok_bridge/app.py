@@ -470,6 +470,10 @@ async def fetch_messages(limit: int = 100, before: Optional[datetime] = None) ->
             data = [
                 m for m in data if datetime.fromisoformat(m.received_at) < before
             ]
+        data.sort(
+            key=lambda m: datetime.fromisoformat(m.received_at),
+            reverse=True,
+        )
         return data[:limit]
     async with db_pool.acquire() as conn:
         rows = await conn.fetch(
