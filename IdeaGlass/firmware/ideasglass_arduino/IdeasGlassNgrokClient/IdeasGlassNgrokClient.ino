@@ -129,6 +129,17 @@ void audioSenderTask(void *param);
 static TaskHandle_t g_photoTaskHandle = nullptr;
 void startPhotoTask();
 void photoTask(void *param);
+struct PhotoUploadJob
+{
+    String message;
+    String rssi;
+    String photoBase64;
+};
+static QueueHandle_t g_photoUploadQueue = nullptr;
+static TaskHandle_t g_photoUploadTaskHandle = nullptr;
+void startPhotoUploadTask();
+void photoUploadTask(void *param);
+bool enqueuePhotoUploadJob(const String &message, const String &rssi, const String &photoBase64);
 #endif
 
 // ---------------------------------------------------------------------------
@@ -393,7 +404,6 @@ void photoTask(void *param)
         if (WiFi.status() == WL_CONNECTED) {
             String payload = "Hello from IdeasGlass @ " + String(millis() / 1000) + "s";
             String photoBase64;
-            String *photoPtr = nullptr;
             if (!cameraReady) {
                 Serial.println("[Photo] Camera offline, attempting reinit...");
                 cameraReady = initCamera();
@@ -402,15 +412,16 @@ void photoTask(void *param)
                 }
             }
             if (cameraReady && capturePhotoBase64(photoBase64)) {
-                photoPtr = &photoBase64;
+                Serial.printf("[Photo] Captured %u bytes\n", photoBase64.length());
             } else if (!cameraReady) {
                 Serial.println("[Photo] Camera not ready, skipping capture");
             } else {
                 Serial.println("[Photo] Capture failed, sending text-only heartbeat");
             }
-            const int base64Len = photoPtr ? photoPtr->length() : 0;
-            bool ok = sendPayload(payload, String(WiFi.RSSI()), photoPtr);
-            Serial.printf("[Photo] send result: %s (%d chars)\n", ok ? "OK" : "FAILED", base64Len);
+            String rssi = String(WiFi.RSSI());
+            if (!enqueuePhotoUploadJob(payload, rssi, photoBase64)) {
+                Serial.println("[Photo] Upload queue full or unavailable, dropping frame");
+            }
         }
         vTaskDelayUntil(&lastWake, delayTicks);
     }
@@ -423,6 +434,44 @@ void startPhotoTask()
         if (ok != pdPASS) {
             Serial.println("[Photo] Failed to start photo task");
             g_photoTaskHandle = nullptr;
+        }
+    }
+}
+
+bool enqueuePhotoUploadJob(const String &message, const String &rssi, const String &photoBase64)
+{
+    if (!g_photoUploadQueue) {
+        return false;
+    }
+    auto *job = new PhotoUploadJob{message, rssi, photoBase64};
+    if (xQueueSend(g_photoUploadQueue, &job, 0) != pdPASS) {
+        delete job;
+        return false;
+    }
+    return true;
+}
+
+void photoUploadTask(void *param)
+{
+    while (true) {
+        PhotoUploadJob *job = nullptr;
+        if (xQueueReceive(g_photoUploadQueue, &job, portMAX_DELAY) != pdPASS || !job) {
+            continue;
+        }
+        const String *photoPtr = job->photoBase64.length() > 0 ? &job->photoBase64 : nullptr;
+        bool ok = sendPayload(job->message, job->rssi, photoPtr);
+        Serial.printf("[PhotoUpload] send result: %s (%d chars)\n", ok ? "OK" : "FAILED", photoPtr ? photoPtr->length() : 0);
+        delete job;
+    }
+}
+
+void startPhotoUploadTask()
+{
+    if (g_photoUploadTaskHandle == nullptr) {
+        BaseType_t ok = xTaskCreatePinnedToCore(photoUploadTask, "PhotoUploadTask", 8192, nullptr, 1, &g_photoUploadTaskHandle, 1);
+        if (ok != pdPASS) {
+            Serial.println("[Photo] Failed to start photo upload task");
+            g_photoUploadTaskHandle = nullptr;
         }
     }
 }
@@ -663,7 +712,16 @@ void setup()
 #endif
     setupAudio();
 #if ENABLE_PHOTO_CAPTURE
-    startPhotoTask();
+    if (!g_photoUploadQueue) {
+        g_photoUploadQueue = xQueueCreate(4, sizeof(PhotoUploadJob *));
+        if (!g_photoUploadQueue) {
+            Serial.println("[Photo] Failed to create upload queue");
+        }
+    }
+    if (g_photoUploadQueue) {
+        startPhotoUploadTask();
+        startPhotoTask();
+    }
 #endif
 }
 

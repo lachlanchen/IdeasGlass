@@ -46,7 +46,7 @@ constexpr unsigned long kBatterySampleIntervalMs = 30'000;
 // Capture cadence
 // ---------------------------------------------------------------------------
 constexpr unsigned long kTelemetryIntervalMs = 2'000;
-constexpr unsigned long kPhotoIntervalMs = 30'000;
+constexpr unsigned long kPhotoIntervalMs = 15'000;
 
 // ---------------------------------------------------------------------------
 // Wi-Fi / Backend
