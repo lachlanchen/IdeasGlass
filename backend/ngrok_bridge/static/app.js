@@ -8,6 +8,7 @@ const vadStatusEl = document.getElementById("vadStatus");
 const audioStatusEl = document.getElementById("audioStatus");
 const timerEl = document.getElementById("timer");
 const segmentList = document.getElementById("segmentList");
+const transcriptPanel = document.getElementById("transcriptPanel");
 
 let deferredPrompt = null;
 let socket;
@@ -21,6 +22,8 @@ const state = {
   waveBars: [],
   audioSegments: [],
   segmentTargetMs: 15000,
+  transcriptSegments: [],
+  activeTranscriptSegmentId: null,
 };
 
 state.waveformLevels = Array(state.waveformLimit).fill(0);
@@ -35,6 +38,7 @@ if ("serviceWorker" in navigator) {
 }
 
 renderSegments();
+clearTranscriptDisplay();
 
 window.addEventListener("beforeinstallprompt", (event) => {
   event.preventDefault();
@@ -316,6 +320,56 @@ function renderSegments() {
   });
 }
 
+function clearTranscriptDisplay(message = "Listening for transcript…") {
+  state.transcriptSegments = [];
+  state.activeTranscriptSegmentId = null;
+  if (!transcriptPanel) return;
+  transcriptPanel.innerHTML = "";
+  const placeholder = document.createElement("div");
+  placeholder.className = "transcript-placeholder";
+  placeholder.textContent = message;
+  transcriptPanel.appendChild(placeholder);
+}
+
+function renderTranscript() {
+  if (!transcriptPanel) return;
+  transcriptPanel.innerHTML = "";
+  if (!state.transcriptSegments.length) {
+    clearTranscriptDisplay();
+    return;
+  }
+  state.transcriptSegments.forEach((entry) => {
+    const row = document.createElement("div");
+    row.className = "transcript-entry";
+    const speaker = document.createElement("span");
+    speaker.className = "transcript-speaker";
+    speaker.textContent = entry.speaker || "Speaker";
+    const text = document.createElement("div");
+    text.className = "transcript-text";
+    const body = document.createElement("p");
+    body.textContent = entry.text || "";
+    const meta = document.createElement("small");
+    const start = Number(entry.start || 0).toFixed(1);
+    const end = Number(entry.end || 0).toFixed(1);
+    meta.textContent = `${start}s → ${end}s`;
+    text.append(body, meta);
+    row.append(speaker, text);
+    transcriptPanel.appendChild(row);
+  });
+}
+
+function applyTranscript(entry) {
+  if (!entry) return;
+  state.activeTranscriptSegmentId = entry.segment_id;
+  state.transcriptSegments = (entry.chunks || []).map((chunk) => ({
+    speaker: chunk.speaker || "Speaker",
+    text: chunk.text || "",
+    start: chunk.start ?? 0,
+    end: chunk.end ?? chunk.start ?? 0,
+  }));
+  renderTranscript();
+}
+
 function handleHistoryMessages(entries) {
   list.innerHTML = "";
   const ordered = entries.slice().reverse();
@@ -353,6 +407,19 @@ function handleAudioSegment(entry) {
     file_url: entry.file_url,
   });
   renderSegments();
+  clearTranscriptDisplay("Recording new segment…");
+}
+
+function handleHistoryAudioTranscripts(entries) {
+  if (!entries || !entries.length) {
+    clearTranscriptDisplay();
+    return;
+  }
+  applyTranscript(entries[0]);
+}
+
+function handleAudioTranscript(entry) {
+  applyTranscript(entry);
 }
 
 function connectWs() {
@@ -374,11 +441,17 @@ function connectWs() {
       case "history_audio_segments":
         handleHistoryAudioSegments(data.data || []);
         break;
+      case "history_audio_transcripts":
+        handleHistoryAudioTranscripts(data.data || []);
+        break;
       case "audio_chunk":
         addAudioSample(data.payload);
         break;
       case "audio_segment":
         handleAudioSegment(data.payload);
+        break;
+      case "audio_transcript":
+        handleAudioTranscript(data.payload);
         break;
       default:
         break;

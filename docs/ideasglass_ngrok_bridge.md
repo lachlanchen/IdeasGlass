@@ -70,11 +70,13 @@ The firmware now keeps a persistent TLS WebSocket open to the bridge so audio ca
   - Accepts the same JSON payload via HTTP (`POST /api/v1/audio`) or WebSocket (`/ws/audio-ingest`) and runs WebRTC VAD (`webrtcvad`) + gain staging on every chunk.
   - Segments now close deterministically when `IDEASGLASS_SEGMENT_TARGET_MS` (default **15 000 ms**) is reached. A trailing window (`IDEASGLASS_SEGMENT_OVERLAP_MS`, default 2000 ms) is copied into the next clip, guaranteeing overlap but no gaps.
   - When a segment is sealed we apply a second-stage gain (`IDEASGLASS_SEGMENT_GAIN_TARGET`, defaults to the per-chunk target) before emitting the WAV so every clip lands at a consistent loudness.
+  - Each finalized clip is pushed through WhisperX (default `large-v2` on CUDA) for aligned, speaker-diarized transcripts. Provide `HUGGINGFACE_TOKEN` (or `IDEASGLASS_HF_TOKEN`) to enable pyannote diarization. Toggle via `IDEASGLASS_TRANSCRIBE=0` if you need to disable it.
   - `/healthz` reports `segment_target_ms`, and every chunk broadcast includes `segment_duration_ms` + `active_segment_id`, letting the UI show exact recorder progress.
   - PCM buffers stream straight to `backend/ngrok_bridge/audio_segments/in_progress/` during capture, then promote to `audio_segments/<segment>.wav` (with the Postgres row pointing at the file).
 - **PWA**
   - The waveform still uses 72 neon bars with the speaking glow, but the timer now shows `Recording X.X s / 15.0 s` with a progress bar that fills as the backend reports `segment_duration_ms`.
   - The “Last chunk” label includes RMS plus the current segment’s elapsed time; the list of recordings updates immediately because clips finalize as soon as they cross the target duration (no more waiting for silence).
+  - A transcript tray under the waveform shows the diarized sentences for the most recent segment (cleared as soon as the next 15 s block starts).
 
 API quick reference:
 
@@ -95,11 +97,13 @@ GET /api/v1/audio/segments
 GET /api/v1/audio/segments/{segment_id}   -> audio/wav (~15 s clip with overlap)
 WS  wss://ideas.lazying.art/ws/audio-ingest (send the same JSON payload as POST /api/v1/audio)
 ```
+- WebSocket events also include `audio_transcript` payloads with `{segment_id, chunks: [{speaker, text, start, end}]}`, plus a `history_audio_transcripts` bootstrap so the UI can show the latest diarized block on refresh.
 
 Use these knobs to tune the pipeline without reflashing:
 
 - `IDEASGLASS_GAIN_TARGET`, `IDEASGLASS_GAIN_MAX`, `IDEASGLASS_GAIN_MIN_RMS`, `IDEASGLASS_SPEECH_RMS`, `IDEASGLASS_SPEECH_MARGIN` — per-chunk gain + VAD
 - `IDEASGLASS_SEGMENT_TARGET_MS`, `IDEASGLASS_SEGMENT_OVERLAP_MS`, `IDEASGLASS_SEGMENT_GAIN_TARGET` — recorder window length, overlap, and clip-level gain
+- `IDEASGLASS_TRANSCRIBE`, `IDEASGLASS_WHISPERX_*`, `IDEASGLASS_HF_TOKEN` — control WhisperX model/device/batch size and provide the Hugging Face token required for pyannote diarization
 
 For debugging, the PWA still logs `[IdeasGlass][wave] …` entries to the browser console for history batches, live chunks, and finalized segments, so you can verify the stream at a glance.
 

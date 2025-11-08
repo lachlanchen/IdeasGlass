@@ -12,7 +12,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from io import BytesIO
 from pathlib import Path
-from typing import Coroutine, Dict, List, Optional
+from typing import Any, Coroutine, Dict, List, Optional
 import wave
 import math
 
@@ -28,6 +28,15 @@ from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, ValidationError
 import webrtcvad
+try:
+    import torch
+except Exception:  # pragma: no cover - optional dependency
+    torch = None
+
+try:
+    import whisperx  # type: ignore
+except Exception:  # pragma: no cover - optional dependency
+    whisperx = None
 
 BASE_DIR = Path(__file__).parent
 STATIC_DIR = BASE_DIR / "static"
@@ -48,6 +57,19 @@ AUDIO_GAIN_MAX = float(os.getenv("IDEASGLASS_GAIN_MAX", "1.8"))
 AUDIO_GAIN_MIN_RMS = float(os.getenv("IDEASGLASS_GAIN_MIN_RMS", "0.008"))
 SPEECH_RMS_THRESHOLD = float(os.getenv("IDEASGLASS_SPEECH_RMS", "0.03"))
 AUDIO_GAIN_FALSE_POSITIVE_MARGIN = float(os.getenv("IDEASGLASS_SPEECH_MARGIN", "0.005"))
+TRANSCRIPTION_ENABLED = os.getenv("IDEASGLASS_TRANSCRIBE", "1").lower() not in {"0", "false"}
+WHISPERX_DEVICE_DEFAULT = "cuda" if torch and torch.cuda.is_available() else "cpu"
+WHISPERX_DEVICE = os.getenv("IDEASGLASS_WHISPERX_DEVICE", WHISPERX_DEVICE_DEFAULT)
+WHISPERX_MODEL_NAME = os.getenv("IDEASGLASS_WHISPERX_MODEL", "large-v2")
+WHISPERX_BATCH_SIZE = int(os.getenv("IDEASGLASS_WHISPERX_BATCH", "4"))
+WHISPERX_COMPUTE_TYPE = os.getenv(
+    "IDEASGLASS_WHISPERX_COMPUTE", "float16" if WHISPERX_DEVICE.startswith("cuda") else "int8"
+)
+WHISPERX_ENABLE_DIARIZATION = os.getenv("IDEASGLASS_WHISPERX_DIARIZE", "1").lower() not in {"0", "false"}
+HUGGINGFACE_TOKEN = os.getenv("IDEASGLASS_HF_TOKEN") or os.getenv("HUGGINGFACE_TOKEN")
+if TRANSCRIPTION_ENABLED and not whisperx:
+    TRANSCRIPTION_ENABLED = False
+    print("[Transcription] whisperx not available; disabling automatic transcription.")
 SEGMENT_GAIN_TARGET_RMS = float(
     os.getenv("IDEASGLASS_SEGMENT_GAIN_TARGET", str(AUDIO_GAIN_TARGET_RMS))
 )
@@ -105,6 +127,21 @@ class AudioSegmentOut(BaseModel):
     ended_at: str
     file_path: Optional[str] = None
     file_url: Optional[str] = None
+
+
+class TranscriptChunk(BaseModel):
+    speaker: str
+    text: str
+    start: float
+    end: float
+
+
+class AudioTranscriptOut(BaseModel):
+    segment_id: str
+    device_id: str
+    started_at: str
+    ended_at: str
+    chunks: List[TranscriptChunk]
 
 
 @dataclass
@@ -180,11 +217,14 @@ manager = ConnectionManager()
 message_store: deque[MessageOut] = deque(maxlen=200)
 audio_store: deque[AudioChunkOut] = deque(maxlen=200)
 audio_segment_store: deque[AudioSegmentOut] = deque(maxlen=50)
+audio_transcript_store: deque[AudioTranscriptOut] = deque(maxlen=20)
 DATABASE_URL = os.getenv("DATABASE_URL")
 db_pool: asyncpg.pool.Pool | None = None
 vad_detector = webrtcvad.Vad(max(0, min(3, VAD_AGGRESSIVENESS)))
 segment_states: Dict[str, List[AudioSegmentBuffer]] = {}
 segment_lock = asyncio.Lock()
+transcription_lock = asyncio.Lock()
+transcription_manager: "TranscriptionManager | None" = None
 segment_cleanup_task: asyncio.Task | None = None
 SUPPORTED_VAD_RATES = {8000, 16000, 32000, 48000}
 SEGMENT_OVERLAP_MS = int(os.getenv("IDEASGLASS_SEGMENT_OVERLAP_MS", "2000"))
@@ -648,6 +688,133 @@ def _extract_overlap_payload(state: AudioSegmentBuffer) -> bytes:
     return bytes(state.buffer[-overlap_bytes:])
 
 
+class TranscriptionManager:
+    def __init__(
+        self,
+        model_name: str,
+        device: str,
+        batch_size: int,
+        compute_type: str,
+        enable_diarization: bool,
+        hf_token: Optional[str],
+    ) -> None:
+        self.model_name = model_name
+        self.device = device
+        self.batch_size = batch_size
+        self.compute_type = compute_type
+        self.enable_diarization = enable_diarization and bool(hf_token)
+        self.hf_token = hf_token
+        self.model = None
+        self.align_models: Dict[str, tuple[Any, Any]] = {}
+        self.diarizer = None
+
+    def _ensure_base_model(self):
+        if self.model is None:
+            self.model = whisperx.load_model(
+                self.model_name,
+                self.device,
+                compute_type=self.compute_type,
+            )
+
+    def _ensure_align_model(self, language_code: str) -> tuple[Any, Any] | tuple[None, None]:
+        if language_code in self.align_models:
+            return self.align_models[language_code]
+        try:
+            model_a, metadata = whisperx.load_align_model(
+                language_code=language_code,
+                device=self.device,
+            )
+            self.align_models[language_code] = (model_a, metadata)
+            return model_a, metadata
+        except Exception as exc:
+            print(f"[Transcription] Failed to load alignment model for {language_code}: {exc}")
+            return None, None
+
+    def _ensure_diarizer(self):
+        if not self.enable_diarization:
+            return None
+        if not self.hf_token:
+            print("[Transcription] HuggingFace token not set; disabling diarization.")
+            self.enable_diarization = False
+            return None
+        if self.diarizer is None:
+            try:
+                from whisperx.diarize import DiarizationPipeline
+
+                self.diarizer = DiarizationPipeline(
+                    use_auth_token=self.hf_token,
+                    device=self.device,
+                )
+            except Exception as exc:
+                print(f"[Transcription] Failed to initialize diarization pipeline: {exc}")
+                self.enable_diarization = False
+                self.diarizer = None
+        return self.diarizer
+
+    def _transcribe_sync(self, audio_path: str) -> List[Dict[str, Any]]:
+        if whisperx is None:
+            return []
+        self._ensure_base_model()
+        audio = whisperx.load_audio(audio_path)
+        result = self.model.transcribe(audio, batch_size=self.batch_size)
+        segments = result.get("segments", [])
+        language = result.get("language", "en")
+        aligned = {"segments": segments}
+        align_model, metadata = self._ensure_align_model(language)
+        if align_model and metadata:
+            try:
+                aligned = whisperx.align(
+                    segments,
+                    align_model,
+                    metadata,
+                    audio,
+                    self.device,
+                    return_char_alignments=False,
+                )
+            except Exception as exc:
+                print(f"[Transcription] Alignment failed ({language}): {exc}")
+                aligned = {"segments": segments}
+        diarizer = self._ensure_diarizer()
+        if diarizer:
+            try:
+                diarize_segments = diarizer(audio)
+                if diarize_segments:
+                    aligned = whisperx.assign_word_speakers(diarize_segments, aligned)
+            except Exception as exc:
+                print(f"[Transcription] Diarization failed: {exc}")
+        formatted: List[Dict[str, Any]] = []
+        for seg in aligned.get("segments", []):
+            text = (seg.get("text") or "").strip()
+            if not text:
+                continue
+            speaker = seg.get("speaker") or "Speaker"
+            formatted.append(
+                {
+                    "speaker": speaker,
+                    "text": text,
+                    "start": float(seg.get("start") or 0.0),
+                    "end": float(seg.get("end") or 0.0),
+                }
+            )
+        return formatted
+
+    async def transcribe(self, audio_path: str) -> List[Dict[str, Any]]:
+        return await asyncio.to_thread(self._transcribe_sync, audio_path)
+
+
+if TRANSCRIPTION_ENABLED and whisperx:
+    transcription_manager = TranscriptionManager(
+        model_name=WHISPERX_MODEL_NAME,
+        device=WHISPERX_DEVICE,
+        batch_size=WHISPERX_BATCH_SIZE,
+        compute_type=WHISPERX_COMPUTE_TYPE,
+        enable_diarization=WHISPERX_ENABLE_DIARIZATION,
+        hf_token=HUGGINGFACE_TOKEN,
+    )
+else:
+    transcription_manager = None
+
+
 def row_to_segment_out(row) -> AudioSegmentOut:
     file_path = row["file_path"] if "file_path" in row else None
     return AudioSegmentOut(
@@ -770,7 +937,44 @@ async def _flush_segment_state(state: AudioSegmentBuffer) -> None:
     segment_out = segment_record_to_out(record)
     audio_segment_store.append(segment_out)
     await manager.broadcast({"type": "audio_segment", "payload": segment_out.model_dump()})
+    schedule_background(
+        transcribe_and_broadcast(record, disk_path),
+        "segment_transcription",
+    )
     state.temp_path = None
+
+
+async def transcribe_and_broadcast(record: AudioSegmentRecord, wav_path: Path) -> None:
+    if not transcription_manager:
+        return
+    try:
+        async with transcription_lock:
+            chunks = await transcription_manager.transcribe(str(wav_path))
+    except Exception as exc:
+        print(f"[Transcription] Failed for segment {record.id}: {exc}")
+        return
+    if not chunks:
+        return
+    transcript = AudioTranscriptOut(
+        segment_id=record.id,
+        device_id=record.device_id,
+        started_at=record.started_at.isoformat(),
+        ended_at=record.ended_at.isoformat(),
+        chunks=[
+            TranscriptChunk(
+                speaker=chunk.get("speaker", "Speaker"),
+                text=chunk.get("text", ""),
+                start=float(chunk.get("start", 0.0)),
+                end=float(chunk.get("end", 0.0)),
+            )
+            for chunk in chunks
+            if chunk.get("text")
+        ],
+    )
+    if not transcript.chunks:
+        return
+    audio_transcript_store.appendleft(transcript)
+    await manager.broadcast({"type": "audio_transcript", "payload": transcript.model_dump()})
 
 
 async def append_audio_to_segment_buffers(
@@ -1009,6 +1213,10 @@ async def websocket_endpoint(websocket: WebSocket):
         await websocket.send_json({"type": "history_audio", "data": [c.model_dump() for c in audio_history]})
         segment_history = await fetch_audio_segments(limit=20)
         await websocket.send_json({"type": "history_audio_segments", "data": [s.model_dump() for s in segment_history]})
+        transcripts_history = list(audio_transcript_store)
+        await websocket.send_json(
+            {"type": "history_audio_transcripts", "data": [t.model_dump() for t in transcripts_history]}
+        )
         while True:
             await websocket.receive_text()
     except WebSocketDisconnect:
