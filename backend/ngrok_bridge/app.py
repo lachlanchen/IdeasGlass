@@ -12,6 +12,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from io import BytesIO
 from pathlib import Path
+import site
 from typing import Any, Coroutine, Dict, List, Optional
 import wave
 import math
@@ -28,6 +29,43 @@ from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, ValidationError
 import webrtcvad
+def _inject_cudnn_library_path() -> None:
+    if os.name != "posix":
+        return
+    search_roots: List[str] = []
+    try:
+        search_roots.extend(site.getsitepackages())
+    except Exception:
+        pass
+    try:
+        user_site = site.getusersitepackages()
+        if user_site:
+            search_roots.append(user_site)
+    except Exception:
+        pass
+    if not search_roots:
+        return
+    candidate_paths: List[str] = []
+    for root in search_roots:
+        cudnn_dir = Path(root) / "nvidia" / "cudnn" / "lib"
+        if cudnn_dir.exists() and cudnn_dir.is_dir():
+            candidate_paths.append(str(cudnn_dir))
+    if not candidate_paths:
+        return
+    existing = os.environ.get("LD_LIBRARY_PATH", "")
+    updated_parts: List[str] = []
+    for path in candidate_paths:
+        if path and path not in existing:
+            updated_parts.append(path)
+    if not updated_parts:
+        return
+    if existing:
+        updated_parts.append(existing)
+    os.environ["LD_LIBRARY_PATH"] = ":".join(updated_parts)
+
+
+_inject_cudnn_library_path()
+
 try:
     import torch
 except Exception:  # pragma: no cover - optional dependency
