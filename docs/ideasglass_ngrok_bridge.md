@@ -73,6 +73,7 @@ The firmware now keeps a persistent TLS WebSocket open to the bridge so audio ca
   - A background openai-whisper worker performs rolling transcription every few seconds (default 3 s) so you see live text appear beneath the waveform. Tweak `IDEASGLASS_WHISPER_MODEL`, `IDEASGLASS_WHISPER_DEVICE`, `IDEASGLASS_TRANSCRIBE`, and `IDEASGLASS_TRANSCRIPT_INTERVAL_MS` to suit your hardware. Final transcripts are cached and replayed via `history_audio_transcripts`.
   - `/healthz` reports `segment_target_ms`, and every chunk broadcast includes `segment_duration_ms` + `active_segment_id`, letting the UI show exact recorder progress.
   - PCM buffers stream straight to `backend/ngrok_bridge/audio_segments/in_progress/` during capture, then promote to `audio_segments/<segment>.wav` (with the Postgres row pointing at the file).
+  - Photo uploads hit `/api/v1/messages`; when Postgres is unavailable, the backend writes the decoded image to `backend/ngrok_bridge/static/photos/` and serves it at `/static/photos/<photo-id>.jpg`, so the dashboard continues to display images without a database.
 - **PWA**
   - The waveform still uses 72 neon bars with the speaking glow, but the timer now shows `Recording X.X s / 15.0 s` with a progress bar that fills as the backend reports `segment_duration_ms`.
   - The “Last chunk” label includes RMS plus the current segment’s elapsed time; the list of recordings updates immediately because clips finalize as soon as they cross the target duration (no more waiting for silence).

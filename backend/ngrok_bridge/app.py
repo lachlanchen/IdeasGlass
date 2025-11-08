@@ -103,6 +103,8 @@ STATIC_DIR = BASE_DIR / "static"
 AUDIO_SEGMENTS_DIR = BASE_DIR / "audio_segments"
 AUDIO_SEGMENTS_WORK_DIR = AUDIO_SEGMENTS_DIR / "in_progress"
 AUDIO_SEGMENT_URL_PREFIX = "/api/v1/audio/segments"
+PHOTO_STORAGE_DIR = STATIC_DIR / "photos"
+PHOTO_STORAGE_URL_PREFIX = "/static/photos"
 FALLBACK_RMS_THRESHOLD = float(os.getenv("IDEASGLASS_VAD_FALLBACK", "0.02"))
 SEGMENT_TARGET_MS = int(os.getenv("IDEASGLASS_SEGMENT_TARGET_MS", "15000"))
 SEGMENT_MAX_MS = int(os.getenv("IDEASGLASS_SEGMENT_MAX_MS", "18000"))
@@ -382,6 +384,7 @@ async def startup_event():
     global db_pool, segment_cleanup_task
     AUDIO_SEGMENTS_DIR.mkdir(parents=True, exist_ok=True)
     AUDIO_SEGMENTS_WORK_DIR.mkdir(parents=True, exist_ok=True)
+    PHOTO_STORAGE_DIR.mkdir(parents=True, exist_ok=True)
     if not DATABASE_URL:
         print("[DB] DATABASE_URL not set; running in in-memory mode.")
     else:
@@ -766,6 +769,27 @@ def _extract_overlap_payload(state: AudioSegmentBuffer) -> bytes:
     if overlap_bytes <= 0:
         return b""
     return bytes(state.buffer[-overlap_bytes:])
+
+
+def _photo_extension(mime: Optional[str]) -> str:
+    if not mime:
+        return ".jpg"
+    lowered = mime.lower()
+    if "png" in lowered:
+        return ".png"
+    if "webp" in lowered:
+        return ".webp"
+    if "bmp" in lowered:
+        return ".bmp"
+    return ".jpg"
+
+
+async def save_photo_to_disk(photo_id: str, photo_bytes: bytes, mime: Optional[str]) -> str:
+    ext = _photo_extension(mime)
+    filename = f"{photo_id}{ext}"
+    disk_path = PHOTO_STORAGE_DIR / filename
+    await asyncio.to_thread(disk_path.write_bytes, photo_bytes)
+    return f"{PHOTO_STORAGE_URL_PREFIX}/{filename}"
 
 
 @dataclass
@@ -1341,6 +1365,7 @@ async def ingest_message(payload: MessageIn):
     entry = _make_entry(payload)
     photo_bytes: Optional[bytes] = None
     photo_id: Optional[str] = None
+    photo_url: Optional[str] = None
 
     if payload.photo_base64:
         try:
@@ -1348,7 +1373,11 @@ async def ingest_message(payload: MessageIn):
         except Exception as exc:
             raise HTTPException(status_code=400, detail=f"Invalid photo_base64 data: {exc}") from exc
         photo_id = str(uuid.uuid4())
-        entry.photo_url = f"/api/v1/photos/{photo_id}"
+        if db_pool:
+            entry.photo_url = f"/api/v1/photos/{photo_id}"
+        else:
+            photo_url = await save_photo_to_disk(photo_id, photo_bytes, payload.photo_mime)
+            entry.photo_url = photo_url
 
     message_store.append(entry)
     await persist_entry(entry, photo_bytes, payload.photo_mime, photo_id)
