@@ -222,11 +222,11 @@ void setupAudio()
     };
 
     i2s_pin_config_t pin_config = {
+        .mck_io_num = I2S_PIN_NO_CHANGE,
         .bck_io_num = 7,
         .ws_io_num = 8,
         .data_out_num = I2S_PIN_NO_CHANGE,
         .data_in_num = 9,
-        .mck_io_num = I2S_PIN_NO_CHANGE,
     };
 
     if (i2s_driver_install(I2S_NUM_0, &config, 0, nullptr) != ESP_OK) {
