@@ -99,5 +99,5 @@ backend/ngrok_bridge/
 ```
 
 Happy building!
-- **Optional audio gain** – set `IDEASGLASS_AUDIO_GAIN=1.6` (default) to amplify the incoming PCM before it is persisted, broadcast to the PWA, and written into WAV clips. Increase or decrease to taste.
+- **Audio gain controls** – the backend normalizes each chunk toward `IDEASGLASS_GAIN_TARGET` (default `0.045` RMS) but clamps amplification to `IDEASGLASS_GAIN_MAX` (`2.0`). Silence below `IDEASGLASS_GAIN_MIN_RMS` (`0.01`) stays untouched, and the speech detector requires `IDEASGLASS_SPEECH_RMS` (`0.02`) before marking a chunk as “speaking”. Tune these env vars if you need louder or quieter recordings.
 - **Streaming segments** – partial PCM is appended to `backend/ngrok_bridge/audio_segments/in_progress/` as chunks arrive. Completed segments are promoted to `.wav` files under `backend/ngrok_bridge/audio_segments/` and exposed via `/api/v1/audio/segments`.

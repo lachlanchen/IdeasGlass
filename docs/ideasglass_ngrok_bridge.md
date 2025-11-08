@@ -63,7 +63,7 @@ This guide documents the exact steps we used to relay Arduino data (text + photo
 The firmware now treats audio as the primary data stream:
 
 - **ESP32 firmware** — set `Tools → PSRAM → Enabled`, then flash `IdeasGlassNgrokClient.ino`. It samples the onboard PDM microphone at 16 kHz, logs per-chunk RMS/peaks, and posts ~250 ms PCM blocks to `/api/v1/audio`.
-- **Backend** — runs WebRTC VAD (`webrtcvad`), applies an optional gain (`IDEASGLASS_AUDIO_GAIN`, default `1.6`), streams every chunk to disk immediately, and only finalizes a WAV segment once ~60 s of audio plus trailing silence have accumulated. Raw chunks still land in `ig_audio_chunks`, while referenced WAVs live in `ig_audio_segments`.
+- **Backend** — runs WebRTC VAD (`webrtcvad`), normalizes each chunk toward `IDEASGLASS_GAIN_TARGET` (default 0.045 RMS, capped by `IDEASGLASS_GAIN_MAX`), streams every chunk to disk immediately, and only finalizes a WAV segment once ~60 s of audio plus trailing silence have accumulated. Raw chunks still land in `ig_audio_chunks`, while referenced WAVs live in `ig_audio_segments`.
 - **Storage** — in-progress PCM lives under `backend/ngrok_bridge/audio_segments/in_progress/` and is promoted to `backend/ngrok_bridge/audio_segments/<segment-id>.wav` once sealed. The Postgres row stores both the blob and the relative path so `/api/v1/audio/segments/{id}` can stream straight from disk.
 - **PWA** — the recorder panel now mimics a neon VU meter (with a speaking glow), and a “Recent recordings” list surfaces the latest WAV segments with download links.
 
@@ -86,7 +86,7 @@ GET /api/v1/audio/segments
 GET /api/v1/audio/segments/{segment_id} -> audio/wav (buffered ≥60 s clip)
 ```
 
-Every `/api/v1/audio` response now echoes `speech_detected`, and the websocket stream includes this flag in both the historical payload and live `audio_chunk` events. The front-end keeps the last 72 normalized levels to animate the waveform while the backend quietly aggregates WAV segments (with gain applied) for later download/analysis. Set `IDEASGLASS_AUDIO_GAIN` if you want louder recordings without touching the firmware.
+Every `/api/v1/audio` response now echoes `speech_detected`, and the websocket stream includes this flag in both the historical payload and live `audio_chunk` events. The front-end keeps the last 72 normalized levels to animate the waveform while the backend quietly aggregates WAV segments (with gain applied) for later download/analysis. Use `IDEASGLASS_GAIN_TARGET`, `IDEASGLASS_GAIN_MAX`, `IDEASGLASS_GAIN_MIN_RMS`, or `IDEASGLASS_SPEECH_RMS` to tune loudness/silence thresholds without reflashing firmware.
 
 For debugging, the PWA logs `[IdeasGlass][wave] …` entries to the browser console every time it receives history batches, live chunks, or finalized segments, so you can confirm data is flowing even before the visualization animates.
 

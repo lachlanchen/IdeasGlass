@@ -36,14 +36,17 @@ AUDIO_SEGMENTS_WORK_DIR = AUDIO_SEGMENTS_DIR / "in_progress"
 AUDIO_SEGMENT_URL_PREFIX = "/api/v1/audio/segments"
 FALLBACK_RMS_THRESHOLD = float(os.getenv("IDEASGLASS_VAD_FALLBACK", "0.02"))
 SEGMENT_TARGET_MS = int(os.getenv("IDEASGLASS_SEGMENT_TARGET_MS", "60000"))
-SEGMENT_MAX_MS = int(os.getenv("IDEASGLASS_SEGMENT_MAX_MS", "90000"))
+SEGMENT_MAX_MS = int(os.getenv("IDEASGLASS_SEGMENT_MAX_MS", "70000"))
 MIN_SEGMENT_MS = int(os.getenv("IDEASGLASS_SEGMENT_MIN_MS", "1500"))
 SILENCE_HANGOVER_MS = int(os.getenv("IDEASGLASS_VAD_HANGOVER_MS", "1200"))
-SILENCE_FORCE_FLUSH_MS = int(os.getenv("IDEASGLASS_VAD_FORCE_MS", "60000"))
-SEGMENT_IDLE_FLUSH_MS = int(os.getenv("IDEASGLASS_SEGMENT_IDLE_FLUSH_MS", "60000"))
+SILENCE_FORCE_FLUSH_MS = int(os.getenv("IDEASGLASS_VAD_FORCE_MS", "20000"))
+SEGMENT_IDLE_FLUSH_MS = int(os.getenv("IDEASGLASS_SEGMENT_IDLE_FLUSH_MS", "15000"))
 VAD_FRAME_MS = 30
 VAD_AGGRESSIVENESS = int(os.getenv("IDEASGLASS_VAD_LEVEL", "2"))
-AUDIO_GAIN = float(os.getenv("IDEASGLASS_AUDIO_GAIN", "1.6"))
+SPEECH_RMS_THRESHOLD = float(os.getenv("IDEASGLASS_SPEECH_RMS", "0.02"))
+AUDIO_GAIN_TARGET_RMS = float(os.getenv("IDEASGLASS_GAIN_TARGET", "0.045"))
+AUDIO_GAIN_MAX = float(os.getenv("IDEASGLASS_GAIN_MAX", "2.0"))
+AUDIO_GAIN_MIN_RMS = float(os.getenv("IDEASGLASS_GAIN_MIN_RMS", "0.01"))
 
 
 class MessageIn(BaseModel):
@@ -490,6 +493,8 @@ def detect_speech(
     bits_per_sample: int,
     fallback_rms: float,
 ) -> bool:
+    if fallback_rms < SPEECH_RMS_THRESHOLD:
+        return False
     if bits_per_sample == 16 and sample_rate in SUPPORTED_VAD_RATES:
         frame_bytes = int(sample_rate * (VAD_FRAME_MS / 1000.0)) * 2
         if frame_bytes > 0 and len(raw_audio) >= frame_bytes:
@@ -497,8 +502,8 @@ def detect_speech(
                 frame = raw_audio[offset : offset + frame_bytes]
                 if vad_detector.is_speech(frame, sample_rate):
                     return True
-            return fallback_rms >= FALLBACK_RMS_THRESHOLD
-    return fallback_rms >= FALLBACK_RMS_THRESHOLD
+            return fallback_rms >= max(FALLBACK_RMS_THRESHOLD, SPEECH_RMS_THRESHOLD)
+    return fallback_rms >= max(FALLBACK_RMS_THRESHOLD, SPEECH_RMS_THRESHOLD)
 
 
 def process_pcm_chunk(raw_audio: bytes) -> tuple[bytes, float]:
@@ -509,20 +514,25 @@ def process_pcm_chunk(raw_audio: bytes) -> tuple[bytes, float]:
     length = len(samples)
     if length == 0:
         return raw_audio, 0.0
-    if AUDIO_GAIN != 1.0:
-        gain = AUDIO_GAIN
-        for idx, sample in enumerate(samples):
-            amplified = int(sample * gain)
-            if amplified > 32767:
-                amplified = 32767
-            elif amplified < -32768:
-                amplified = -32768
-            samples[idx] = amplified
     sum_sq = 0.0
     for sample in samples:
         sum_sq += (sample / 32768.0) ** 2
-    rms = math.sqrt(sum_sq / length)
-    return samples.tobytes(), rms
+    orig_rms = math.sqrt(sum_sq / length)
+    final_rms = orig_rms
+    if orig_rms >= AUDIO_GAIN_MIN_RMS and orig_rms < AUDIO_GAIN_TARGET_RMS:
+        gain = min(AUDIO_GAIN_MAX, AUDIO_GAIN_TARGET_RMS / max(orig_rms, 1e-6))
+        if abs(gain - 1.0) > 1e-3:
+            for idx, sample in enumerate(samples):
+                amplified = int(sample * gain)
+                if amplified > 32767:
+                    amplified = 32767
+                elif amplified < -32768:
+                    amplified = -32768
+                samples[idx] = amplified
+            final_rms = min(1.0, orig_rms * gain)
+    else:
+        final_rms = orig_rms
+    return samples.tobytes(), final_rms
 
 
 def row_to_segment_out(row) -> AudioSegmentOut:
