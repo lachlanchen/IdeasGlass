@@ -387,12 +387,14 @@ void photoTask(void *param)
             String *photoPtr = nullptr;
             if (cameraReady && capturePhotoBase64(photoBase64)) {
                 photoPtr = &photoBase64;
+            } else if (!cameraReady) {
+                Serial.println("[Photo] Camera not ready, skipping capture");
+            } else {
+                Serial.println("[Photo] Capture failed, sending text-only heartbeat");
             }
+            const int base64Len = photoPtr ? photoPtr->length() : 0;
             bool ok = sendPayload(payload, String(WiFi.RSSI()), photoPtr);
-            Serial.printf("[Photo] send result: %s\n", ok ? "OK" : "FAILED");
-            if (ok) {
-                Serial.printf("[Photo] Uploaded image (%d chars Base64)\n", photoPtr ? photoPtr->length() : 0);
-            }
+            Serial.printf("[Photo] send result: %s (%d chars)\n", ok ? "OK" : "FAILED", base64Len);
         }
         vTaskDelay(delayTicks);
     }
