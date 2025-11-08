@@ -779,6 +779,8 @@ class WhisperStreamState:
     last_emit_ms: int = 0
     last_chunks: List[TranscriptChunk] = field(default_factory=list)
     threshold_index: int = 0
+    active: bool = False
+    has_voice_since_emit: bool = False
 
 
 class WhisperStreamManager:
@@ -847,12 +849,15 @@ class WhisperStreamManager:
         sample_rate: int,
         bits_per_sample: int,
         raw_audio: bytes,
+        speech_detected: bool,
     ) -> None:
         if not raw_audio:
             return
         async with self.lock:
             stream = self.streams.get(device_id)
             if not stream or stream.segment_id != segment_id:
+                if not speech_detected:
+                    return
                 stream = WhisperStreamState(
                     device_id=device_id,
                     segment_id=segment_id,
@@ -861,21 +866,28 @@ class WhisperStreamManager:
                     started_at=started_at,
                 )
                 self.streams[device_id] = stream
+            if not stream.active and not speech_detected:
+                return
+            if speech_detected:
+                stream.active = True
+                stream.has_voice_since_emit = True
             stream.buffer.extend(raw_audio)
             buffer_ms = _bytes_to_ms(len(stream.buffer), sample_rate, bits_per_sample)
             snapshot: Optional[bytes] = None
-            next_threshold = None
+            if not stream.active or not stream.has_voice_since_emit:
+                return
             if stream.threshold_index < len(self.thresholds_ms):
                 next_threshold = self.thresholds_ms[stream.threshold_index]
-            if next_threshold and buffer_ms >= next_threshold:
-                stream.threshold_index += 1
-                stream.last_emit_ms = next_threshold
-                snapshot = bytes(stream.buffer)
-            if not snapshot and buffer_ms - stream.last_emit_ms < self.interval_ms:
-                return
-            if not snapshot:
+                if buffer_ms >= next_threshold:
+                    stream.threshold_index += 1
+                    stream.last_emit_ms = next_threshold
+                    snapshot = bytes(stream.buffer)
+            if not snapshot and buffer_ms - stream.last_emit_ms >= self.interval_ms:
                 stream.last_emit_ms = buffer_ms
                 snapshot = bytes(stream.buffer)
+            if not snapshot:
+                return
+            stream.has_voice_since_emit = False
         await self._emit_snapshot(stream, snapshot, is_final=False)
 
     async def finalize_segment(
@@ -1134,6 +1146,7 @@ async def append_audio_to_segment_buffers(
             state.started_at,
             state.sample_rate,
             state.bits_per_sample,
+            speech_detected,
         )
 
         if _should_finalize_segment(state, now, speech_detected):
@@ -1183,7 +1196,7 @@ async def append_audio_to_segment_buffers(
         if segment:
             await _flush_segment_state(segment)
     if whisper_stream_manager and transcript_args:
-        device_id, segment_id, started_at, sample_rate, bits_per_sample = transcript_args
+        device_id, segment_id, started_at, sample_rate, bits_per_sample, speech_flag = transcript_args
         schedule_background(
             whisper_stream_manager.handle_chunk(
                 device_id,
@@ -1192,6 +1205,7 @@ async def append_audio_to_segment_buffers(
                 sample_rate,
                 bits_per_sample,
                 raw_audio,
+                speech_flag,
             ),
             "whisper_stream_chunk",
         )

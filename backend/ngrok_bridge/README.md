@@ -9,7 +9,7 @@ Minimal HTTPS backend + PWA dashboard for receiving Arduino telemetry over Ngrok
 - WebSocket `/ws/audio-ingest` – accepts the same JSON payload as `/api/v1/audio` for low-latency chunk streaming (used by the ESP32 firmware)
 - WebSocket `/ws/stream` – typed events (`history_messages`, `message`, `history_audio`, `audio_chunk`, `audio_segment`) for the dashboard
 - Background audio segmentation: chunks stream to disk immediately, and deterministic ~15 s WAV files (default overlap 2 s) are emitted continuously with per-clip gain (`ig_audio_segments`)
-- Streaming openai-whisper transcripts broadcast every few seconds (defaults 3 s/6 s/15 s) so the waveform shows “typing” updates while recording; final updates arrive when the 15 s segment seals
+- Streaming openai-whisper transcripts broadcast every few seconds (defaults 3 s/6 s/15 s) so the waveform shows “typing” updates while recording; backend VAD skips pure-silence windows, and final updates arrive when the 15 s segment seals
 - PWA front-end installable on Android/iOS/Desktop with a polished neon waveform, live SILENCE/SPEAKING badge, lazy-loading feed, a recorder progress bar, and a “Recent recordings” panel with download links
 - Optional Postgres persistence (`DATABASE_URL`) for metadata (`ig_messages`), photos (`ig_photos`), audio chunks (`ig_audio_chunks`), and WAV segments (`ig_audio_segments`)
 - Automatic cuDNN path detection so CUDA-based Whisper streaming works even when cuDNN is installed via pip
