@@ -390,6 +390,9 @@ void photoTask(void *param)
             }
             bool ok = sendPayload(payload, String(WiFi.RSSI()), photoPtr);
             Serial.printf("[Photo] send result: %s\n", ok ? "OK" : "FAILED");
+            if (ok) {
+                Serial.printf("[Photo] Uploaded image (%d chars Base64)\n", photoPtr ? photoPtr->length() : 0);
+            }
         }
         vTaskDelay(delayTicks);
     }
