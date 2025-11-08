@@ -7,7 +7,7 @@ Minimal HTTPS backend + PWA dashboard for receiving Arduino telemetry over Ngrok
 - `POST /api/v1/messages` – text + metadata + optional `photo_base64`
 - `POST /api/v1/audio` – Base64 PCM audio blocks (16 kHz mono) with RMS metadata + WebRTC VAD flag
 - WebSocket `/ws/stream` – typed events (`history_messages`, `message`, `history_audio`, `audio_chunk`)
-- Background audio segmentation: chunks stream to disk immediately, flush into ~60 s WAV files on silence, and are referenced via `ig_audio_segments`
+- Background audio segmentation: chunks stream to disk immediately, and ~15 s WAV files with ~2 s overlap are emitted continuously for smooth playback (referenced via `ig_audio_segments`)
 - PWA front-end installable on Android/iOS/Desktop with a polished neon waveform, live SILENCE/SPEAKING badge, lazy-loading feed, and a “Recent recordings” panel with download links
 - Optional Postgres persistence (`DATABASE_URL`) for metadata (`ig_messages`), photos (`ig_photos`), audio chunks (`ig_audio_chunks`), and WAV segments (`ig_audio_segments`)
 

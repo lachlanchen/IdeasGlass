@@ -35,12 +35,12 @@ AUDIO_SEGMENTS_DIR = BASE_DIR / "audio_segments"
 AUDIO_SEGMENTS_WORK_DIR = AUDIO_SEGMENTS_DIR / "in_progress"
 AUDIO_SEGMENT_URL_PREFIX = "/api/v1/audio/segments"
 FALLBACK_RMS_THRESHOLD = float(os.getenv("IDEASGLASS_VAD_FALLBACK", "0.02"))
-SEGMENT_TARGET_MS = int(os.getenv("IDEASGLASS_SEGMENT_TARGET_MS", "60000"))
-SEGMENT_MAX_MS = int(os.getenv("IDEASGLASS_SEGMENT_MAX_MS", "70000"))
-MIN_SEGMENT_MS = int(os.getenv("IDEASGLASS_SEGMENT_MIN_MS", "1500"))
+SEGMENT_TARGET_MS = int(os.getenv("IDEASGLASS_SEGMENT_TARGET_MS", "15000"))
+SEGMENT_MAX_MS = int(os.getenv("IDEASGLASS_SEGMENT_MAX_MS", "18000"))
+MIN_SEGMENT_MS = int(os.getenv("IDEASGLASS_SEGMENT_MIN_MS", "5000"))
 SILENCE_HANGOVER_MS = int(os.getenv("IDEASGLASS_VAD_HANGOVER_MS", "1200"))
-SILENCE_FORCE_FLUSH_MS = int(os.getenv("IDEASGLASS_VAD_FORCE_MS", "20000"))
-SEGMENT_IDLE_FLUSH_MS = int(os.getenv("IDEASGLASS_SEGMENT_IDLE_FLUSH_MS", "15000"))
+SILENCE_FORCE_FLUSH_MS = int(os.getenv("IDEASGLASS_VAD_FORCE_MS", "5000"))
+SEGMENT_IDLE_FLUSH_MS = int(os.getenv("IDEASGLASS_SEGMENT_IDLE_FLUSH_MS", "5000"))
 VAD_FRAME_MS = 30
 VAD_AGGRESSIVENESS = int(os.getenv("IDEASGLASS_VAD_LEVEL", "2"))
 AUDIO_GAIN_TARGET_RMS = float(os.getenv("IDEASGLASS_GAIN_TARGET", "0.032"))
@@ -176,6 +176,8 @@ segment_states: Dict[str, AudioSegmentBuffer] = {}
 segment_lock = asyncio.Lock()
 segment_cleanup_task: asyncio.Task | None = None
 SUPPORTED_VAD_RATES = {8000, 16000, 32000, 48000}
+SEGMENT_OVERLAP_MS = int(os.getenv("IDEASGLASS_SEGMENT_OVERLAP_MS", "2000"))
+SEGMENT_LOOKBACK_MS = max(0, min(SEGMENT_OVERLAP_MS, SEGMENT_TARGET_MS // 2))
 
 
 async def init_db() -> None:
@@ -671,14 +673,17 @@ async def append_audio_to_segment_buffers(
     now = datetime.fromisoformat(chunk.created_at)
     segments_to_flush: List[AudioSegmentBuffer] = []
     async with segment_lock:
-        state = segment_states.get(chunk.device_id)
+        if chunk.device_id not in segment_states:
+            segment_states[chunk.device_id] = []
+        bucket = segment_states[chunk.device_id]
+
+        # Always use the newest segment
+        state = bucket[-1] if bucket else None
         if (
             not state
             or state.sample_rate != chunk.sample_rate
             or state.bits_per_sample != chunk.bits_per_sample
         ):
-            if state and state.buffer:
-                segments_to_flush.append(segment_states.pop(chunk.device_id))
             state = AudioSegmentBuffer(
                 device_id=chunk.device_id,
                 sample_rate=chunk.sample_rate,
@@ -690,7 +695,7 @@ async def append_audio_to_segment_buffers(
             if temp_path.exists():
                 temp_path.unlink()
             state.temp_path = temp_path
-            segment_states[chunk.device_id] = state
+            bucket.append(state)
 
         state.buffer.extend(raw_audio)
         append_chunk_to_file(state, raw_audio)
@@ -702,19 +707,38 @@ async def append_audio_to_segment_buffers(
             state.last_voice_at = now
 
         if _should_finalize_segment(state, now, speech_detected):
-            segments_to_flush.append(segment_states.pop(chunk.device_id, None))
+            segments_to_flush.append(bucket.pop() if bucket else None)
+            # Start overlapped trailing segment
+            overlap_bytes = int(
+                len(raw_audio) * SEGMENT_LOOKBACK_MS / max(chunk.duration_ms, 1)
+            )
+            overlap_payload = raw_audio[-overlap_bytes:] if overlap_bytes else b""
+            new_state = AudioSegmentBuffer(
+                device_id=chunk.device_id,
+                sample_rate=chunk.sample_rate,
+                bits_per_sample=chunk.bits_per_sample,
+                started_at=now,
+            )
+            temp_path = AUDIO_SEGMENTS_WORK_DIR / f"{new_state.segment_id}.raw"
+            temp_path.parent.mkdir(parents=True, exist_ok=True)
+            if temp_path.exists():
+                temp_path.unlink()
+            new_state.temp_path = temp_path
+            if overlap_payload:
+                new_state.buffer.extend(overlap_payload)
+                append_chunk_to_file(new_state, overlap_payload)
+                new_state.duration_ms += min(chunk.duration_ms, SEGMENT_LOOKBACK_MS)
+                new_state.rms_accumulator += chunk.rms
+                new_state.rms_count += 1
+                new_state.last_chunk_at = now
+            bucket.append(new_state)
 
-        idle_candidates = []
-        for device_id, candidate in segment_states.items():
-            if not candidate.last_chunk_at or candidate is state:
-                continue
-            idle_ms = (now - candidate.last_chunk_at).total_seconds() * 1000
-            if idle_ms >= SEGMENT_IDLE_FLUSH_MS and candidate.duration_ms >= MIN_SEGMENT_MS:
-                idle_candidates.append(device_id)
-        for device_id in idle_candidates:
-            candidate = segment_states.pop(device_id, None)
-            if candidate:
-                segments_to_flush.append(candidate)
+        # Flush idle segments
+        for state in list(bucket[:-1]):
+            idle_ms = (now - state.last_chunk_at).total_seconds() * 1000 if state.last_chunk_at else SEGMENT_IDLE_FLUSH_MS + 1
+            if idle_ms >= SEGMENT_IDLE_FLUSH_MS:
+                bucket.remove(state)
+                segments_to_flush.append(state)
 
     for segment in segments_to_flush:
         if segment:
@@ -725,14 +749,18 @@ async def flush_idle_segments(force: bool = False) -> None:
     now = datetime.now(tz=timezone.utc)
     to_flush: List[AudioSegmentBuffer] = []
     async with segment_lock:
-        for device_id, state in list(segment_states.items()):
-            if not state.last_chunk_at:
-                continue
-            idle_ms = (now - state.last_chunk_at).total_seconds() * 1000
-            if force or (
-                idle_ms >= SEGMENT_IDLE_FLUSH_MS and state.duration_ms >= MIN_SEGMENT_MS
-            ):
-                to_flush.append(segment_states.pop(device_id, None))
+        for device_id, bucket in list(segment_states.items()):
+            for state in list(bucket):
+                if not state.last_chunk_at:
+                    continue
+                idle_ms = (now - state.last_chunk_at).total_seconds() * 1000
+                if force or (
+                    idle_ms >= SEGMENT_IDLE_FLUSH_MS and state.duration_ms >= MIN_SEGMENT_MS
+                ):
+                    bucket.remove(state)
+                    to_flush.append(state)
+            if not bucket:
+                del segment_states[device_id]
     for segment in to_flush:
         if segment:
             await _flush_segment_state(segment)
