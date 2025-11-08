@@ -10,7 +10,7 @@
 
 | Support IdeasGlass |
 | --- |
-| <a href="https://chat.lazying.art/donate">Donate</a> <a href="https://chat.lazying.art/donate"><img src="figs/donate_button.svg" alt="Donate" height="32" style="vertical-align: middle; margin-left:6px;"/></a> |
+| <a href="https://chat.lazying.art/donate"><img src="figs/donate_button.svg" alt="Donate" height="32" style="vertical-align: middle; margin-left:6px;"/></a> |
 
 </div>
 
