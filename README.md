@@ -10,7 +10,7 @@
 
 | Support IdeasGlass |
 | --- |
-| <a href="https://lazying.art/donate/stripe">Stripe</a> · <a href="https://lazying.art/donate/paypal">PayPal</a> · <a href="https://lazying.art/donate/wechat">WeChat</a> · <a href="https://lazying.art/donate/alipay">Alipay</a> |
+| <a href="https://chat.lazying.art/donate">Donate</a> <a href="https://chat.lazying.art/donate"><img src="figs/donate_button.svg" alt="Donate" height="32" style="vertical-align: middle; margin-left:6px;"/></a> |
 
 </div>
 
@@ -45,8 +45,24 @@ IdeasGlass is an AI-first wearable built for people who live in streams of ideas
 
 ## Support & Contact
 
-- **Stripe / PayPal** – instant contributions to accelerate hardware pilots.
-- **WeChat / Alipay** – direct support for China-based collaborators and field labs.
+- ご支援は IdeasGlass のハードウェア試作・運用を加速させ、多くのクリエイターへ還元されます。
+- 你的支持将帮助我们推进硬件、AI 工作流与生态建设，向社区持续开放。
+- Your support keeps the wearable, agent, and ecosystem roadmap moving.
+
+<table>
+  <tr>
+    <td style="vertical-align:middle; padding-right:12px;"><a href="https://chat.lazying.art/donate">https://chat.lazying.art/donate</a></td>
+    <td><a href="https://chat.lazying.art/donate"><img src="figs/donate_button.svg" alt="Donate" height="44"></a></td>
+  </tr>
+</table>
+
+[![Donate with PayPal](https://img.shields.io/badge/PayPal-Donate-003087?logo=paypal&logoColor=white)](https://paypal.me/RongzhouChen)
+[![Donate with Stripe](https://img.shields.io/badge/Stripe-Donate-635bff?logo=stripe&logoColor=white)](https://buy.stripe.com/aFadR8gIaflgfQV6T4fw400)
+
+| WeChat | Alipay |
+| --- | --- |
+| <img alt="WeChat QR" src="figs/donate_wechat.png" width="240"/> | <img alt="Alipay QR" src="figs/donate_alipay.png" width="240"/> |
+
 - For partnerships, email **contact@lazying.art** with the subject `IdeasGlass`. 
 
 IdeasGlass is where AI wearables stop listening and start building with you.
