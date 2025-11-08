@@ -115,7 +115,7 @@ YRmT7/OXpmOH/FVLtwS+8ng1cAmpCujPwteJZNcDG0sF2n/sc0+SQf49fdyUK0ty
 
 WiFiClientSecure secure_client;
 bool cameraReady = false;
-framesize_t cameraFrameSize = FRAMESIZE_96X96;
+framesize_t cameraFrameSize = FRAMESIZE_QQVGA;
 const size_t AUDIO_TEMP_SAMPLES = 512;
 static int16_t g_audioTemp[AUDIO_TEMP_SAMPLES];
 static I2SClass pdmI2S;
@@ -161,14 +161,14 @@ bool initCamera()
     config.pin_sccb_scl = SIOC_GPIO_NUM;
     config.pin_pwdn = PWDN_GPIO_NUM;
     config.pin_reset = RESET_GPIO_NUM;
-    config.xclk_freq_hz = 10000000;
+    config.xclk_freq_hz = 6000000;
     config.pixel_format = PIXFORMAT_JPEG;
-    config.fb_count = 1;
+    config.fb_count = 2;
     config.fb_location = CAMERA_FB_IN_PSRAM;
-    config.grab_mode = CAMERA_GRAB_WHEN_EMPTY;
-    config.frame_size = FRAMESIZE_96X96;
-    framesize_t priorities[] = {FRAMESIZE_96X96, FRAMESIZE_QQVGA};
-    int qualities[] = {30, 26};
+    config.grab_mode = CAMERA_GRAB_LATEST;
+    config.frame_size = FRAMESIZE_QQVGA;
+    framesize_t priorities[] = {FRAMESIZE_QQVGA};
+    int qualities[] = {34};
 
     for (size_t idx = 0; idx < sizeof(priorities) / sizeof(priorities[0]); ++idx) {
         config.frame_size = priorities[idx];
@@ -366,14 +366,22 @@ bool capturePhotoBase64(String &outBase64)
     camera_fb_t *fb = esp_camera_fb_get();
     if (!fb) {
         Serial.println("[Camera] Failed to capture frame");
+        esp_camera_deinit();
+        cameraReady = false;
+        vTaskDelay(pdMS_TO_TICKS(50));
         return false;
     }
     bool ok = encodeBase64(fb->buf, fb->len, outBase64);
     esp_camera_fb_return(fb);
     if (ok) {
         Serial.printf("[Camera] Captured photo (%u bytes)\n", fb->len);
+        return true;
     }
-    return ok;
+    Serial.println("[Camera] Failed to encode frame, resetting camera");
+    esp_camera_deinit();
+    cameraReady = false;
+    vTaskDelay(pdMS_TO_TICKS(50));
+    return false;
 }
 
 #if ENABLE_PHOTO_CAPTURE
@@ -386,6 +394,13 @@ void photoTask(void *param)
             String payload = "Hello from IdeasGlass @ " + String(millis() / 1000) + "s";
             String photoBase64;
             String *photoPtr = nullptr;
+            if (!cameraReady) {
+                Serial.println("[Photo] Camera offline, attempting reinit...");
+                cameraReady = initCamera();
+                if (!cameraReady) {
+                    Serial.println("[Photo] Camera reinit failed, will retry next interval");
+                }
+            }
             if (cameraReady && capturePhotoBase64(photoBase64)) {
                 photoPtr = &photoBase64;
             } else if (!cameraReady) {
