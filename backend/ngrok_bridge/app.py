@@ -8,12 +8,10 @@ import os
 import uuid
 from collections import deque
 from datetime import datetime, timezone
-from io import BytesIO
 from pathlib import Path
 from typing import Dict, List, Optional
 
 import asyncpg
-from PIL import Image, UnidentifiedImageError
 from fastapi import (
     FastAPI,
     HTTPException,
@@ -84,23 +82,6 @@ manager = ConnectionManager()
 message_store: deque[MessageOut] = deque(maxlen=200)
 DATABASE_URL = os.getenv("DATABASE_URL")
 db_pool: asyncpg.pool.Pool | None = None
-
-
-def rotate_photo_bytes(photo_bytes: bytes, mime: Optional[str]) -> bytes:
-    """Rotate the incoming photo by 180 degrees using Pillow."""
-    try:
-        with Image.open(BytesIO(photo_bytes)) as img:
-            rotated = img.rotate(180, expand=True)
-            output = BytesIO()
-            save_kwargs = {}
-            format_hint = img.format or "JPEG"
-            if format_hint.upper() == "JPEG":
-                save_kwargs["quality"] = 85
-            rotated.save(output, format=format_hint, **save_kwargs)
-            return output.getvalue()
-    except (UnidentifiedImageError, OSError) as exc:
-        print(f"[Photo] Failed to rotate image: {exc}")
-    return photo_bytes
 
 
 async def init_db() -> None:
@@ -253,7 +234,6 @@ async def ingest_message(payload: MessageIn):
             photo_bytes = base64.b64decode(payload.photo_base64.encode(), validate=True)
         except Exception as exc:
             raise HTTPException(status_code=400, detail=f"Invalid photo_base64 data: {exc}") from exc
-        photo_bytes = rotate_photo_bytes(photo_bytes, payload.photo_mime)
         photo_id = str(uuid.uuid4())
         entry.photo_url = f"/api/v1/photos/{photo_id}"
 

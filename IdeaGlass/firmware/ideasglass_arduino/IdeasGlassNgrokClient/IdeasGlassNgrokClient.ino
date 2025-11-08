@@ -143,6 +143,8 @@ bool initCamera()
             if (s) {
                 s->set_framesize(s, priorities[idx]);
                 s->set_quality(s, qualities[idx]);
+                s->set_vflip(s, 1);    // device is worn upside down
+                s->set_hmirror(s, 1);  // mirror for natural POV
             }
             Serial.printf("[Camera] Ready (framesize=%d quality=%d)\n", priorities[idx], qualities[idx]);
             return true;
