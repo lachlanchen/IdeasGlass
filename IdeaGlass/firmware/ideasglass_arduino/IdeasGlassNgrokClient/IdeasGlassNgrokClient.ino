@@ -115,7 +115,7 @@ YRmT7/OXpmOH/FVLtwS+8ng1cAmpCujPwteJZNcDG0sF2n/sc0+SQf49fdyUK0ty
 
 WiFiClientSecure secure_client;
 bool cameraReady = false;
-framesize_t cameraFrameSize = FRAMESIZE_QQVGA;
+framesize_t cameraFrameSize = FRAMESIZE_QVGA;
 const size_t AUDIO_TEMP_SAMPLES = 512;
 static int16_t g_audioTemp[AUDIO_TEMP_SAMPLES];
 static I2SClass pdmI2S;
@@ -177,9 +177,9 @@ bool initCamera()
     config.fb_count = 2;
     config.fb_location = CAMERA_FB_IN_PSRAM;
     config.grab_mode = CAMERA_GRAB_LATEST;
-    config.frame_size = FRAMESIZE_QQVGA;
-    framesize_t priorities[] = {FRAMESIZE_QQVGA};
-    int qualities[] = {34};
+    config.frame_size = FRAMESIZE_QVGA;
+    framesize_t priorities[] = {FRAMESIZE_QVGA, FRAMESIZE_QQVGA};
+    int qualities[] = {12, 34};
 
     for (size_t idx = 0; idx < sizeof(priorities) / sizeof(priorities[0]); ++idx) {
         config.frame_size = priorities[idx];
