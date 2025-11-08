@@ -7,8 +7,8 @@ Minimal HTTPS backend + PWA dashboard for receiving Arduino telemetry over Ngrok
 - `POST /api/v1/messages` – text + metadata + optional `photo_base64`
 - `POST /api/v1/audio` – Base64 PCM audio blocks (16 kHz mono) with RMS metadata + WebRTC VAD flag
 - WebSocket `/ws/stream` – typed events (`history_messages`, `message`, `history_audio`, `audio_chunk`)
-- Background audio segmentation: chunks are buffered (~60s target) until the VAD detects trailing silence, converted to WAV on disk (`backend/ngrok_bridge/audio_segments/`) and referenced via `ig_audio_segments`
-- PWA front-end installable on Android/iOS/Desktop with a polished neon waveform, live SILENCE/SPEAKING badge, lazy-loading feed, and Add-to-Home-Screen prompt
+- Background audio segmentation: chunks stream to disk immediately, flush into ~60 s WAV files on silence, and are referenced via `ig_audio_segments`
+- PWA front-end installable on Android/iOS/Desktop with a polished neon waveform, live SILENCE/SPEAKING badge, lazy-loading feed, and a “Recent recordings” panel with download links
 - Optional Postgres persistence (`DATABASE_URL`) for metadata (`ig_messages`), photos (`ig_photos`), audio chunks (`ig_audio_chunks`), and WAV segments (`ig_audio_segments`)
 
 ## Quickstart
@@ -99,3 +99,5 @@ backend/ngrok_bridge/
 ```
 
 Happy building!
+- **Optional audio gain** – set `IDEASGLASS_AUDIO_GAIN=1.6` (default) to amplify the incoming PCM before it is persisted, broadcast to the PWA, and written into WAV clips. Increase or decrease to taste.
+- **Streaming segments** – partial PCM is appended to `backend/ngrok_bridge/audio_segments/in_progress/` as chunks arrive. Completed segments are promoted to `.wav` files under `backend/ngrok_bridge/audio_segments/` and exposed via `/api/v1/audio/segments`.

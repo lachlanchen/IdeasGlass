@@ -6,6 +6,7 @@ import base64
 import json
 import os
 import uuid
+from array import array
 from collections import deque
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -13,6 +14,7 @@ from io import BytesIO
 from pathlib import Path
 from typing import Coroutine, Dict, List, Optional
 import wave
+import math
 
 import asyncpg
 from fastapi import (
@@ -30,16 +32,18 @@ import webrtcvad
 BASE_DIR = Path(__file__).parent
 STATIC_DIR = BASE_DIR / "static"
 AUDIO_SEGMENTS_DIR = BASE_DIR / "audio_segments"
+AUDIO_SEGMENTS_WORK_DIR = AUDIO_SEGMENTS_DIR / "in_progress"
 AUDIO_SEGMENT_URL_PREFIX = "/api/v1/audio/segments"
 FALLBACK_RMS_THRESHOLD = float(os.getenv("IDEASGLASS_VAD_FALLBACK", "0.02"))
 SEGMENT_TARGET_MS = int(os.getenv("IDEASGLASS_SEGMENT_TARGET_MS", "60000"))
 SEGMENT_MAX_MS = int(os.getenv("IDEASGLASS_SEGMENT_MAX_MS", "90000"))
 MIN_SEGMENT_MS = int(os.getenv("IDEASGLASS_SEGMENT_MIN_MS", "1500"))
 SILENCE_HANGOVER_MS = int(os.getenv("IDEASGLASS_VAD_HANGOVER_MS", "1200"))
-SILENCE_FORCE_FLUSH_MS = int(os.getenv("IDEASGLASS_VAD_FORCE_MS", "65000"))
-SEGMENT_IDLE_FLUSH_MS = int(os.getenv("IDEASGLASS_SEGMENT_IDLE_FLUSH_MS", "15000"))
+SILENCE_FORCE_FLUSH_MS = int(os.getenv("IDEASGLASS_VAD_FORCE_MS", "60000"))
+SEGMENT_IDLE_FLUSH_MS = int(os.getenv("IDEASGLASS_SEGMENT_IDLE_FLUSH_MS", "60000"))
 VAD_FRAME_MS = 30
 VAD_AGGRESSIVENESS = int(os.getenv("IDEASGLASS_VAD_LEVEL", "2"))
+AUDIO_GAIN = float(os.getenv("IDEASGLASS_AUDIO_GAIN", "1.6"))
 
 
 class MessageIn(BaseModel):
@@ -107,6 +111,7 @@ class AudioSegmentBuffer:
     rms_count: int = 0
     last_chunk_at: Optional[datetime] = None
     last_voice_at: Optional[datetime] = None
+    temp_path: Optional[Path] = None
 
 
 @dataclass
@@ -239,6 +244,7 @@ async def init_db() -> None:
 async def startup_event():
     global db_pool, segment_cleanup_task
     AUDIO_SEGMENTS_DIR.mkdir(parents=True, exist_ok=True)
+    AUDIO_SEGMENTS_WORK_DIR.mkdir(parents=True, exist_ok=True)
     if not DATABASE_URL:
         print("[DB] DATABASE_URL not set; running in in-memory mode.")
     else:
@@ -491,8 +497,32 @@ def detect_speech(
                 frame = raw_audio[offset : offset + frame_bytes]
                 if vad_detector.is_speech(frame, sample_rate):
                     return True
-            return False
+            return fallback_rms >= FALLBACK_RMS_THRESHOLD
     return fallback_rms >= FALLBACK_RMS_THRESHOLD
+
+
+def process_pcm_chunk(raw_audio: bytes) -> tuple[bytes, float]:
+    if not raw_audio:
+        return raw_audio, 0.0
+    samples = array("h")
+    samples.frombytes(raw_audio)
+    length = len(samples)
+    if length == 0:
+        return raw_audio, 0.0
+    if AUDIO_GAIN != 1.0:
+        gain = AUDIO_GAIN
+        for idx, sample in enumerate(samples):
+            amplified = int(sample * gain)
+            if amplified > 32767:
+                amplified = 32767
+            elif amplified < -32768:
+                amplified = -32768
+            samples[idx] = amplified
+    sum_sq = 0.0
+    for sample in samples:
+        sum_sq += (sample / 32768.0) ** 2
+    rms = math.sqrt(sum_sq / length)
+    return samples.tobytes(), rms
 
 
 def row_to_segment_out(row) -> AudioSegmentOut:
@@ -522,7 +552,7 @@ def _should_finalize_segment(
     now: datetime,
     speech_detected: bool,
 ) -> bool:
-    if not state.buffer:
+    if not state.buffer and not (state.temp_path and state.temp_path.exists()):
         return False
     silence_ms = _silence_duration_ms(state, now)
     if state.duration_ms >= SEGMENT_MAX_MS:
@@ -568,11 +598,24 @@ async def persist_audio_segment(
 
 
 async def _flush_segment_state(state: AudioSegmentBuffer) -> None:
-    if not state.buffer:
+    buffer_has_data = bool(state.buffer)
+    temp_file_bytes = None
+    if state.temp_path and state.temp_path.exists():
+        try:
+            temp_file_bytes = state.temp_path.read_bytes()
+        except Exception as exc:
+            print(f"[Audio] Failed to read segment temp file {state.segment_id}: {exc}")
+        finally:
+            try:
+                state.temp_path.unlink()
+            except FileNotFoundError:
+                pass
+    if not buffer_has_data and not temp_file_bytes:
         return
     ended_at = state.last_chunk_at or state.started_at
     avg_rms = state.rms_accumulator / max(1, state.rms_count)
-    wav_payload = pcm_to_wav(bytes(state.buffer), state.sample_rate, state.bits_per_sample)
+    pcm_payload = temp_file_bytes if temp_file_bytes is not None else bytes(state.buffer)
+    wav_payload = pcm_to_wav(pcm_payload, state.sample_rate, state.bits_per_sample)
     record = AudioSegmentRecord(
         id=state.segment_id,
         device_id=state.device_id,
@@ -599,6 +642,7 @@ async def _flush_segment_state(state: AudioSegmentBuffer) -> None:
     segment_out = segment_record_to_out(record)
     audio_segment_store.append(segment_out)
     await manager.broadcast({"type": "audio_segment", "payload": segment_out.model_dump()})
+    state.temp_path = None
 
 
 async def append_audio_to_segment_buffers(
@@ -623,9 +667,15 @@ async def append_audio_to_segment_buffers(
                 bits_per_sample=chunk.bits_per_sample,
                 started_at=now,
             )
+            temp_path = AUDIO_SEGMENTS_WORK_DIR / f"{state.segment_id}.raw"
+            temp_path.parent.mkdir(parents=True, exist_ok=True)
+            if temp_path.exists():
+                temp_path.unlink()
+            state.temp_path = temp_path
             segment_states[chunk.device_id] = state
 
         state.buffer.extend(raw_audio)
+        append_chunk_to_file(state, raw_audio)
         state.duration_ms += chunk.duration_ms
         state.rms_accumulator += chunk.rms
         state.rms_count += 1
@@ -714,12 +764,13 @@ async def ingest_audio_chunk(payload: AudioChunkIn):
         raw_audio = base64.b64decode(payload.audio_base64.encode(), validate=True)
     except Exception as exc:
         raise HTTPException(status_code=400, detail=f"Invalid audio_base64 data: {exc}") from exc
+    raw_audio, computed_rms = process_pcm_chunk(raw_audio)
 
     speech_detected = detect_speech(
         raw_audio,
         payload.sample_rate,
         payload.bits_per_sample,
-        payload.rms,
+        computed_rms,
     )
     chunk_id = str(uuid.uuid4())
     now = datetime.now(tz=timezone.utc)
@@ -729,7 +780,7 @@ async def ingest_audio_chunk(payload: AudioChunkIn):
         sample_rate=payload.sample_rate,
         bits_per_sample=payload.bits_per_sample,
         duration_ms=payload.duration_ms,
-        rms=payload.rms,
+        rms=round(computed_rms, 4),
         created_at=now.isoformat(),
         audio_url=f"/api/v1/audio/{chunk_id}",
         speech_detected=speech_detected,
@@ -886,3 +937,13 @@ def segment_record_to_out(record: AudioSegmentRecord) -> AudioSegmentOut:
         file_path=record.file_path,
         file_url=f"{AUDIO_SEGMENT_URL_PREFIX}/{record.id}",
     )
+
+
+def append_chunk_to_file(state: AudioSegmentBuffer, raw_audio: bytes) -> None:
+    if not state.temp_path:
+        return
+    try:
+        with state.temp_path.open("ab") as temp_file:
+            temp_file.write(raw_audio)
+    except Exception as exc:
+        print(f"[Audio] Failed to append segment {state.segment_id}: {exc}")

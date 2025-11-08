@@ -62,10 +62,10 @@ This guide documents the exact steps we used to relay Arduino data (text + photo
 
 The firmware now treats audio as the primary data stream:
 
-- **ESP32 firmware** — set `Tools → PSRAM → Enabled`, then flash `IdeasGlassNgrokClient.ino`. It samples the onboard I²S microphone at 16 kHz, performs light RMS VAD for logging, Base64-encodes ~250 ms PCM blocks, and posts them to `/api/v1/audio`.
-- **Backend** — runs WebRTC VAD (`webrtcvad`), appends each chunk to a per-device buffer, and flushes a WAV “segment” whenever there is ≥60 s of buffered audio *and* trailing silence (or any long silence). The raw chunks still land in `ig_audio_chunks` for debugging, while finalized WAVs live in `ig_audio_segments`.
-- **Storage** — every finalized segment is written to `backend/ngrok_bridge/audio_segments/<segment-id>.wav` (git-ignored). The Postgres row stores both the blob and the relative path so the public API can stream the file straight from disk.
-- **PWA** — the recorder panel now mimics a neon VU meter: SILENCE/SPEAKING badges reflect the backend VAD flag, the waveform animates with eased transforms, and the feed lazily loads older messages on scroll.
+- **ESP32 firmware** — set `Tools → PSRAM → Enabled`, then flash `IdeasGlassNgrokClient.ino`. It samples the onboard PDM microphone at 16 kHz, logs per-chunk RMS/peaks, and posts ~250 ms PCM blocks to `/api/v1/audio`.
+- **Backend** — runs WebRTC VAD (`webrtcvad`), applies an optional gain (`IDEASGLASS_AUDIO_GAIN`, default `1.6`), streams every chunk to disk immediately, and only finalizes a WAV segment once ~60 s of audio plus trailing silence have accumulated. Raw chunks still land in `ig_audio_chunks`, while referenced WAVs live in `ig_audio_segments`.
+- **Storage** — in-progress PCM lives under `backend/ngrok_bridge/audio_segments/in_progress/` and is promoted to `backend/ngrok_bridge/audio_segments/<segment-id>.wav` once sealed. The Postgres row stores both the blob and the relative path so `/api/v1/audio/segments/{id}` can stream straight from disk.
+- **PWA** — the recorder panel now mimics a neon VU meter (with a speaking glow), and a “Recent recordings” list surfaces the latest WAV segments with download links.
 
 API quick reference:
 
@@ -86,7 +86,7 @@ GET /api/v1/audio/segments
 GET /api/v1/audio/segments/{segment_id} -> audio/wav (buffered ≥60 s clip)
 ```
 
-Every `/api/v1/audio` response now echoes `speech_detected`, and the websocket stream includes this flag in both the historical payload and live `audio_chunk` events. The front-end keeps the last 72 normalized levels (not just RMS) to animate the waveform, while the backend quietly aggregates WAV segments in Postgres for later download/analysis.
+Every `/api/v1/audio` response now echoes `speech_detected`, and the websocket stream includes this flag in both the historical payload and live `audio_chunk` events. The front-end keeps the last 72 normalized levels to animate the waveform while the backend quietly aggregates WAV segments (with gain applied) for later download/analysis. Set `IDEASGLASS_AUDIO_GAIN` if you want louder recordings without touching the firmware.
 
 For debugging, the PWA logs `[IdeasGlass][wave] …` entries to the browser console every time it receives history batches, live chunks, or finalized segments, so you can confirm data is flowing even before the visualization animates.
 

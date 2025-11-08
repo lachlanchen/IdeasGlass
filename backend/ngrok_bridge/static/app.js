@@ -3,9 +3,11 @@ const backendStatus = document.getElementById("backendStatus");
 const list = document.getElementById("messageList");
 const installBtn = document.getElementById("installBtn");
 const waveformBars = document.getElementById("waveformBars");
+const waveformEl = document.getElementById("waveform");
 const vadStatusEl = document.getElementById("vadStatus");
 const audioStatusEl = document.getElementById("audioStatus");
 const timerEl = document.getElementById("timer");
+const segmentList = document.getElementById("segmentList");
 
 let deferredPrompt = null;
 let socket;
@@ -30,6 +32,8 @@ function logWave(event, details = {}) {
 if ("serviceWorker" in navigator) {
   navigator.serviceWorker.register("/static/sw.js");
 }
+
+renderSegments();
 
 window.addEventListener("beforeinstallprompt", (event) => {
   event.preventDefault();
@@ -186,9 +190,13 @@ function addAudioSample(chunk) {
   updateVadStatus(chunk);
   updateTimer(chunk.created_at);
   if (audioStatusEl) {
+    const rmsText =
+      typeof chunk.rms === "number"
+        ? chunk.rms.toFixed(3)
+        : Number(chunk.rms || 0).toFixed(3);
     audioStatusEl.textContent = `Last chunk ${new Date(
       chunk.created_at
-    ).toLocaleTimeString()}`;
+    ).toLocaleTimeString()} · RMS ${rmsText}`;
   }
 }
 
@@ -205,12 +213,60 @@ function updateVadStatus(chunk) {
     vadStatusEl.classList.remove("speaking");
     vadStatusEl.classList.add("silence");
   }
+  if (waveformEl) {
+    waveformEl.classList.toggle("speaking", isSpeaking);
+  }
 }
 
 function updateTimer(timestamp) {
   if (!timerEl || !timestamp) return;
   const date = new Date(timestamp);
   timerEl.textContent = date.toLocaleTimeString();
+}
+
+function formatDuration(ms) {
+  const totalSeconds = Math.max(1, Math.round(ms / 1000));
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  if (minutes === 0) {
+    return `${seconds}s`;
+  }
+  return `${minutes}m ${seconds.toString().padStart(2, "0")}s`;
+}
+
+function renderSegments() {
+  if (!segmentList) return;
+  segmentList.innerHTML = "";
+  if (!state.audioSegments.length) {
+    const empty = document.createElement("li");
+    empty.className = "segment-empty";
+    empty.textContent = "Recordings will appear here once available…";
+    segmentList.appendChild(empty);
+    return;
+  }
+  state.audioSegments.slice(0, 6).forEach((segment) => {
+    const li = document.createElement("li");
+    li.className = "segment-item";
+    const meta = document.createElement("div");
+    meta.className = "segment-meta";
+    const duration = document.createElement("span");
+    duration.className = "segment-duration";
+    duration.textContent = formatDuration(segment.duration_ms);
+    const ts = document.createElement("span");
+    ts.textContent = new Date(segment.started_at).toLocaleTimeString();
+    meta.append(duration, ts);
+    li.appendChild(meta);
+    if (segment.file_url) {
+      const link = document.createElement("a");
+      link.href = segment.file_url;
+      link.target = "_blank";
+      link.rel = "noopener";
+      link.className = "segment-link";
+      link.textContent = "Download";
+      li.appendChild(link);
+    }
+    segmentList.appendChild(li);
+  });
 }
 
 function handleHistoryMessages(entries) {
@@ -234,12 +290,13 @@ function handleHistoryAudio(entries) {
 function handleHistoryAudioSegments(entries) {
   state.audioSegments = entries.slice();
   logWave("history_audio_segments", { count: entries.length });
+  renderSegments();
 }
 
 function handleAudioSegment(entry) {
   if (!entry) return;
   state.audioSegments.unshift(entry);
-  if (state.audioSegments.length > 50) {
+  if (state.audioSegments.length > 20) {
     state.audioSegments.pop();
   }
   logWave("audio_segment", {
@@ -248,6 +305,7 @@ function handleAudioSegment(entry) {
     rms: entry.rms,
     file_url: entry.file_url,
   });
+  renderSegments();
 }
 
 function connectWs() {
