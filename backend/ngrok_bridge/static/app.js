@@ -36,7 +36,7 @@ async function checkBackend() {
   }
 }
 
-function renderEntry(entry) {
+function renderEntry(entry, { prepend = true } = {}) {
   const li = document.createElement("li");
   li.className = "entry";
 
@@ -60,7 +60,11 @@ function renderEntry(entry) {
     photo.className = "entry-photo";
     li.appendChild(photo);
   }
-  list.prepend(li);
+  if (prepend) {
+    list.prepend(li);
+  } else {
+    list.appendChild(li);
+  }
 }
 
 function decorateStatus(connected) {
@@ -79,10 +83,10 @@ function connectWs() {
     const data = JSON.parse(event.data);
     if (data.type === "history" && Array.isArray(data.data)) {
       list.innerHTML = "";
-      data.data.forEach(renderEntry);
+      data.data.forEach((entry) => renderEntry(entry, { prepend: false }));
       return;
     }
-    renderEntry(data);
+    renderEntry(data, { prepend: true });
   });
   socket.addEventListener("close", () => {
     decorateStatus(false);
