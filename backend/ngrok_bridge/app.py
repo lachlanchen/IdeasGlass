@@ -12,6 +12,8 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from io import BytesIO
 from pathlib import Path
+import site
+import ctypes
 from typing import Any, Coroutine, Dict, List, Optional
 import wave
 import math
@@ -28,6 +30,62 @@ from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, ValidationError
 import webrtcvad
+
+
+def _inject_cudnn_library_path() -> None:
+    if os.name != "posix":
+        return
+    search_roots: List[str] = []
+    try:
+        search_roots.extend(site.getsitepackages())
+    except Exception:
+        pass
+    try:
+        user_site = site.getusersitepackages()
+        if user_site:
+            search_roots.append(user_site)
+    except Exception:
+        pass
+    if not search_roots:
+        return
+    candidate_paths: List[str] = []
+    for root in search_roots:
+        cudnn_dir = Path(root) / "nvidia" / "cudnn" / "lib"
+        if cudnn_dir.exists() and cudnn_dir.is_dir():
+            candidate_paths.append(str(cudnn_dir))
+    if not candidate_paths:
+        return
+    existing = os.environ.get("LD_LIBRARY_PATH", "")
+    updated: List[str] = []
+    for path in candidate_paths:
+        if path and path not in existing:
+            updated.append(path)
+    if updated:
+        if existing:
+            updated.append(existing)
+        os.environ["LD_LIBRARY_PATH"] = ":".join(updated)
+    for base in candidate_paths:
+        libdir = Path(base)
+        for lib_name in (
+            "libcudnn.so.9",
+            "libcudnn_adv.so.9",
+            "libcudnn_ops.so.9",
+            "libcudnn_cnn.so.9",
+            "libcudnn_graph.so.9",
+            "libcudnn_heuristic.so.9",
+            "libcudnn_engines_precompiled.so.9",
+            "libcudnn_engines_runtime_compiled.so.9",
+        ):
+            lib_path = libdir / lib_name
+            if not lib_path.exists():
+                continue
+            try:
+                ctypes.CDLL(str(lib_path))
+            except OSError as exc:
+                print(f"[Transcription] Warning: failed to preload {lib_path}: {exc}")
+
+
+_inject_cudnn_library_path()
 try:
     import torch
 except Exception:  # pragma: no cover - optional dependency

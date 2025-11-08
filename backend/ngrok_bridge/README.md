@@ -12,6 +12,7 @@ Minimal HTTPS backend + PWA dashboard for receiving Arduino telemetry over Ngrok
 - WhisperX-powered transcripts + pyannote diarization (when `HUGGINGFACE_TOKEN` is set) broadcast over `audio_transcript` events and rendered under the live waveform
 - PWA front-end installable on Android/iOS/Desktop with a polished neon waveform, live SILENCE/SPEAKING badge, lazy-loading feed, a recorder progress bar, and a “Recent recordings” panel with download links
 - Optional Postgres persistence (`DATABASE_URL`) for metadata (`ig_messages`), photos (`ig_photos`), audio chunks (`ig_audio_chunks`), and WAV segments (`ig_audio_segments`)
+- Automatic cuDNN path detection so CUDA-based WhisperX diarization works even when cuDNN is installed via pip
 
 ## Quickstart
 
