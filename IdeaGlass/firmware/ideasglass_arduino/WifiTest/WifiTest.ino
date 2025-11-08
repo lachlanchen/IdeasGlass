@@ -13,6 +13,37 @@
 
 WiFiMulti wifiMulti;
 unsigned long lastStatusPrint = 0;
+unsigned long lastScanMs = 0;
+
+void printStatusReason(wl_status_t status)
+{
+    switch (status) {
+    case WL_IDLE_STATUS:
+        Serial.println("       Reason: Idle (hardware ready, no AP yet)");
+        break;
+    case WL_NO_SSID_AVAIL:
+        Serial.println("       Reason: SSID not found (check AP visibility)");
+        break;
+    case WL_SCAN_COMPLETED:
+        Serial.println("       Reason: Scan completed (pending connection)");
+        break;
+    case WL_CONNECTED:
+        Serial.println("       Reason: Connected");
+        break;
+    case WL_CONNECT_FAILED:
+        Serial.println("       Reason: Connection failed (bad password?)");
+        break;
+    case WL_CONNECTION_LOST:
+        Serial.println("       Reason: Connection lost (AP timeout)");
+        break;
+    case WL_DISCONNECTED:
+        Serial.println("       Reason: Disconnected (retrying)");
+        break;
+    default:
+        Serial.println("       Reason: Unknown");
+        break;
+    }
+}
 
 void setup()
 {
@@ -21,6 +52,7 @@ void setup()
 
     Serial.println("\n[IdeasGlass WiFi Test]");
     Serial.printf("Loaded %zu WiFi credentials\n", WIFI_NETWORK_COUNT);
+    Serial.printf("Chip MAC address: %s\n", WiFi.macAddress().c_str());
 
     WiFi.mode(WIFI_MODE_STA);
     WiFi.setSleep(true);
@@ -46,6 +78,25 @@ void loop()
         }
     } else {
         Serial.printf("[WiFi] Not connected (status=%d). Retrying...\n", status);
+        printStatusReason(status);
+        if (millis() - lastScanMs > 10000) {
+            Serial.println("       Performing a fresh scan...");
+            int n = WiFi.scanNetworks(/*async=*/false, /*hidden=*/true);
+            if (n <= 0) {
+                Serial.println("       No networks found.");
+            } else {
+                Serial.printf("       %d network(s) found:\n", n);
+                for (int i = 0; i < n; ++i) {
+                    Serial.printf("        - %s (RSSI %d dBm, encryption %d, channel %d)\n",
+                        WiFi.SSID(i).c_str(),
+                        WiFi.RSSI(i),
+                        WiFi.encryptionType(i),
+                        WiFi.channel(i));
+                }
+            }
+            WiFi.scanDelete();
+            lastScanMs = millis();
+        }
         delay(2000);
     }
 
