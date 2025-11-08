@@ -27,9 +27,10 @@ constexpr gpio_num_t PIN_BATTERY_ADC = GPIO_NUM_2;
 constexpr gpio_num_t PIN_I2C_SDA = GPIO_NUM_41;
 constexpr gpio_num_t PIN_I2C_SCL = GPIO_NUM_40;
 
-constexpr gpio_num_t PIN_MIC_SCK = GPIO_NUM_7;
-constexpr gpio_num_t PIN_MIC_WS = GPIO_NUM_8;
-constexpr gpio_num_t PIN_MIC_SD = GPIO_NUM_9;
+// Sense expansion board routes the on-board PDM microphone to IO42 (CLK) and IO41 (DATA)
+constexpr gpio_num_t PIN_MIC_SCK = GPIO_NUM_42;
+constexpr gpio_num_t PIN_MIC_WS = GPIO_NUM_42;  // reused for compatibility, unused in PDM mode
+constexpr gpio_num_t PIN_MIC_SD = GPIO_NUM_41;
 
 constexpr gpio_num_t PIN_HAPTIC_INT = GPIO_NUM_6;
 

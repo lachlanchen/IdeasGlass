@@ -36,8 +36,8 @@ SEGMENT_TARGET_MS = int(os.getenv("IDEASGLASS_SEGMENT_TARGET_MS", "60000"))
 SEGMENT_MAX_MS = int(os.getenv("IDEASGLASS_SEGMENT_MAX_MS", "90000"))
 MIN_SEGMENT_MS = int(os.getenv("IDEASGLASS_SEGMENT_MIN_MS", "1500"))
 SILENCE_HANGOVER_MS = int(os.getenv("IDEASGLASS_VAD_HANGOVER_MS", "1200"))
-SILENCE_FORCE_FLUSH_MS = int(os.getenv("IDEASGLASS_VAD_FORCE_MS", "2200"))
-SEGMENT_IDLE_FLUSH_MS = int(os.getenv("IDEASGLASS_SEGMENT_IDLE_FLUSH_MS", "4000"))
+SILENCE_FORCE_FLUSH_MS = int(os.getenv("IDEASGLASS_VAD_FORCE_MS", "65000"))
+SEGMENT_IDLE_FLUSH_MS = int(os.getenv("IDEASGLASS_SEGMENT_IDLE_FLUSH_MS", "15000"))
 VAD_FRAME_MS = 30
 VAD_AGGRESSIVENESS = int(os.getenv("IDEASGLASS_VAD_LEVEL", "2"))
 
@@ -527,12 +527,12 @@ def _should_finalize_segment(
     silence_ms = _silence_duration_ms(state, now)
     if state.duration_ms >= SEGMENT_MAX_MS:
         return True
-    if state.duration_ms >= SEGMENT_TARGET_MS and silence_ms >= SILENCE_HANGOVER_MS:
-        return True
+    if state.duration_ms >= SEGMENT_TARGET_MS:
+        return silence_ms >= SILENCE_HANGOVER_MS
     if (
         not speech_detected
         and state.duration_ms >= MIN_SEGMENT_MS
-        and silence_ms >= SILENCE_FORCE_FLUSH_MS
+        and silence_ms >= max(SILENCE_FORCE_FLUSH_MS, SEGMENT_TARGET_MS)
     ):
         return True
     return False
