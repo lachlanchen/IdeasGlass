@@ -9,7 +9,7 @@ import uuid
 from array import array
 from collections import deque
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from io import BytesIO
 from pathlib import Path
 import site
@@ -856,8 +856,6 @@ class WhisperStreamManager:
         async with self.lock:
             stream = self.streams.get(device_id)
             if not stream or stream.segment_id != segment_id:
-                if not speech_detected:
-                    return
                 stream = WhisperStreamState(
                     device_id=device_id,
                     segment_id=segment_id,
@@ -866,29 +864,34 @@ class WhisperStreamManager:
                     started_at=started_at,
                 )
                 self.streams[device_id] = stream
-            if not stream.active and not speech_detected:
-                return
             if speech_detected:
                 stream.active = True
                 stream.has_voice_since_emit = True
             stream.buffer.extend(raw_audio)
             buffer_ms = _bytes_to_ms(len(stream.buffer), sample_rate, bits_per_sample)
             snapshot: Optional[bytes] = None
-            if not stream.active or not stream.has_voice_since_emit:
-                return
+            silence_progress_ms: Optional[int] = None
             if stream.threshold_index < len(self.thresholds_ms):
                 next_threshold = self.thresholds_ms[stream.threshold_index]
                 if buffer_ms >= next_threshold:
                     stream.threshold_index += 1
                     stream.last_emit_ms = next_threshold
-                    snapshot = bytes(stream.buffer)
+                    if stream.has_voice_since_emit:
+                        snapshot = bytes(stream.buffer)
+                        stream.has_voice_since_emit = False
+                    else:
+                        silence_progress_ms = next_threshold
             if not snapshot and buffer_ms - stream.last_emit_ms >= self.interval_ms:
                 stream.last_emit_ms = buffer_ms
-                snapshot = bytes(stream.buffer)
-            if not snapshot:
-                return
-            stream.has_voice_since_emit = False
-        await self._emit_snapshot(stream, snapshot, is_final=False)
+                if stream.has_voice_since_emit:
+                    snapshot = bytes(stream.buffer)
+                    stream.has_voice_since_emit = False
+                else:
+                    silence_progress_ms = buffer_ms
+        if snapshot:
+            await self._emit_snapshot(stream, snapshot, is_final=False)
+        elif silence_progress_ms is not None:
+            await self._emit_silence_progress(stream, silence_progress_ms)
 
     async def finalize_segment(
         self,
@@ -959,6 +962,28 @@ class WhisperStreamManager:
         )
         if is_final:
             self.history_store.appendleft(transcript)
+        await self.ws_manager.broadcast({"type": "audio_transcript", "payload": transcript.model_dump()})
+
+    async def _emit_silence_progress(
+        self,
+        stream: WhisperStreamState,
+        progress_ms: int,
+    ) -> None:
+        transcript = AudioTranscriptOut(
+            segment_id=stream.segment_id,
+            device_id=stream.device_id,
+            started_at=stream.started_at.isoformat(),
+            ended_at=(stream.started_at + timedelta(milliseconds=progress_ms)).isoformat(),
+            chunks=[
+                TranscriptChunk(
+                    speaker="Silence",
+                    text="(silence)",
+                    start=0.0,
+                    end=progress_ms / 1000.0,
+                )
+            ],
+            is_final=False,
+        )
         await self.ws_manager.broadcast({"type": "audio_transcript", "payload": transcript.model_dump()})
 
     async def _emit_silence(self, record: AudioSegmentRecord) -> None:
