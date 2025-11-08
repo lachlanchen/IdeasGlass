@@ -66,3 +66,10 @@ IdeasGlass is an AI-first wearable built for people who live in streams of ideas
 - For partnerships, email **contact@lazying.art** with the subject `IdeasGlass`. 
 
 IdeasGlass is where AI wearables stop listening and start building with you.
+
+## Developer Docs
+
+- [IdeasGlass Object Analysis](OmiGlass/docs/ideasglass_analysis.mdx)
+- [Arduino Hardware Blueprint](OmiGlass/docs/ideasglass_arduino_hardware.md)
+- [Multi-platform App / PWA Plan](OmiGlass/docs/ideasglass_pwa_plan.md)
+- [Ngrok Bridge & Arduino HTTPS Client](docs/ideasglass_ngrok_bridge.md)
