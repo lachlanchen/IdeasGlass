@@ -1,3 +1,4 @@
 # Global ignores
 private/
 IdeaGlass/firmware/ideasglass_arduino/wifi_credentials.h
+backend/ngrok_bridge/audio_segments/

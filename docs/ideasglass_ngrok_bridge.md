@@ -62,9 +62,10 @@ This guide documents the exact steps we used to relay Arduino data (text + photo
 
 The firmware now treats audio as the primary data stream:
 
-- **ESP32 firmware** — set `Tools → PSRAM → Enabled`, then flash `IdeasGlassNgrokClient.ino`. It samples the onboard I²S microphone at 16 kHz, computes a simple RMS-based VAD, Base64-encodes 256 ms PCM blocks, and posts them to `/api/v1/audio`.
-- **Backend** — stores raw PCM bytes in `ig_audio_chunks`, exposes `GET /api/v1/audio` for history, and `GET /api/v1/audio/{id}` which returns a WAV on the fly.
-- **PWA** — adds a recorder-style panel with a SILENCE/SPEAKING badge, animated waveform bars, and a live timestamp. History loads lazily and more entries auto-load when you scroll near the bottom.
+- **ESP32 firmware** — set `Tools → PSRAM → Enabled`, then flash `IdeasGlassNgrokClient.ino`. It samples the onboard I²S microphone at 16 kHz, performs light RMS VAD for logging, Base64-encodes ~250 ms PCM blocks, and posts them to `/api/v1/audio`.
+- **Backend** — runs WebRTC VAD (`webrtcvad`), appends each chunk to a per-device buffer, and flushes a WAV “segment” whenever there is ≥60 s of buffered audio *and* trailing silence (or any long silence). The raw chunks still land in `ig_audio_chunks` for debugging, while finalized WAVs live in `ig_audio_segments`.
+- **Storage** — every finalized segment is written to `backend/ngrok_bridge/audio_segments/<segment-id>.wav` (git-ignored). The Postgres row stores both the blob and the relative path so the public API can stream the file straight from disk.
+- **PWA** — the recorder panel now mimics a neon VU meter: SILENCE/SPEAKING badges reflect the backend VAD flag, the waveform animates with eased transforms, and the feed lazily loads older messages on scroll.
 
 API quick reference:
 
@@ -81,11 +82,15 @@ POST /api/v1/audio
 
 GET /api/v1/audio?limit=60&before=2025-11-08T09:00:00Z
 GET /api/v1/audio/{chunk_id}  -> audio/wav
+GET /api/v1/audio/segments
+GET /api/v1/audio/segments/{segment_id} -> audio/wav (buffered ≥60 s clip)
 ```
 
-The websocket stream now pushes typed events (`history_messages`, `message`, `history_audio`, `audio_chunk`). The front-end keeps the last 60 RMS values to animate the waveform and flips the VAD badge whenever `rms > 0.02`.
+Every `/api/v1/audio` response now echoes `speech_detected`, and the websocket stream includes this flag in both the historical payload and live `audio_chunk` events. The front-end keeps the last 72 normalized levels (not just RMS) to animate the waveform, while the backend quietly aggregates WAV segments in Postgres for later download/analysis.
 
-# 3. Useful commands
+For debugging, the PWA logs `[IdeasGlass][wave] …` entries to the browser console every time it receives history batches, live chunks, or finalized segments, so you can confirm data is flowing even before the visualization animates.
+
+# 4. Useful commands
 
 - **Manual photo test via curl:**
   ```bash
@@ -104,7 +109,7 @@ The websocket stream now pushes typed events (`history_messages`, `message`, `hi
   ```
 - **Local access (without Ngrok):** open `http://localhost:8765` while uvicorn runs.
 
-# 4. Troubleshooting
+# 5. Troubleshooting
 
 - **Port already in use:** pick another port (`--port 9123`) and update the Ngrok command to match.
 - **SSL key missing:** either provide the real private key path via `--ssl-keyfile` or omit the SSL flags and let Ngrok handle TLS.

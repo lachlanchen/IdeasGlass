@@ -14,8 +14,17 @@ const state = {
   loadingOlder: false,
   reachedEnd: false,
   audioHistory: [],
-  waveformLimit: 60,
+  waveformLimit: 72,
+  waveformLevels: [],
+  waveBars: [],
+  audioSegments: [],
 };
+
+state.waveformLevels = Array(state.waveformLimit).fill(0);
+
+function logWave(...args) {
+  console.debug("[IdeasGlass][wave]", ...args);
+}
 
 if ("serviceWorker" in navigator) {
   navigator.serviceWorker.register("/static/sw.js");
@@ -46,6 +55,41 @@ async function checkBackend() {
     backendStatus.textContent = "Offline";
     backendStatus.className = "status status-offline";
   }
+}
+
+function initWaveformBars() {
+  if (!waveformBars) return;
+  waveformBars.innerHTML = "";
+  state.waveBars = [];
+  for (let i = 0; i < state.waveformLimit; i += 1) {
+    const bar = document.createElement("div");
+    bar.className = "wave-bar";
+    bar.style.setProperty("--level", "0");
+    waveformBars.appendChild(bar);
+    state.waveBars.push(bar);
+  }
+}
+
+function computeLevel(chunk) {
+  const rms = Math.max(0, chunk?.rms ?? 0);
+  const boosted = Math.sqrt(rms * 1600);
+  const speechBoost = chunk?.speech_detected ? 0.15 : 0;
+  return Math.min(1, Math.max(0.02, boosted + speechBoost));
+}
+
+function updateWaveformBars() {
+  if (!state.waveBars.length) {
+    initWaveformBars();
+  }
+  state.waveBars.forEach((bar, idx) => {
+    const level = state.waveformLevels[idx] ?? 0;
+    bar.style.setProperty("--level", level.toFixed(3));
+    if (level > 0.4) {
+      bar.classList.add("active");
+    } else {
+      bar.classList.remove("active");
+    }
+  });
 }
 
 function renderEntry(entry, position = "top") {
@@ -123,12 +167,22 @@ function handleScroll() {
 
 function addAudioSample(chunk) {
   if (!chunk) return;
+  logWave("audio_chunk", {
+    id: chunk.id,
+    rms: chunk.rms,
+    speech: chunk.speech_detected,
+    created_at: chunk.created_at,
+  });
   state.audioHistory.push(chunk);
-  if (state.audioHistory.length > state.waveformLimit) {
+  if (state.audioHistory.length > 200) {
     state.audioHistory.shift();
   }
-  renderWaveform();
-  updateVadStatus(chunk.rms);
+  if (state.waveformLevels.length >= state.waveformLimit) {
+    state.waveformLevels.shift();
+  }
+  state.waveformLevels.push(computeLevel(chunk));
+  updateWaveformBars();
+  updateVadStatus(chunk);
   updateTimer(chunk.created_at);
   if (audioStatusEl) {
     audioStatusEl.textContent = `Last chunk ${new Date(
@@ -137,29 +191,11 @@ function addAudioSample(chunk) {
   }
 }
 
-function renderWaveform() {
-  if (!waveformBars) return;
-  waveformBars.innerHTML = "";
-  if (state.audioHistory.length === 0) {
-    const placeholder = document.createElement("div");
-    placeholder.className = "wave-placeholder";
-    placeholder.textContent = "Waiting for audio…";
-    waveformBars.appendChild(placeholder);
-    return;
-  }
-  state.audioHistory.forEach((chunk) => {
-    const bar = document.createElement("div");
-    bar.className = "wave-bar";
-    const height = Math.max(6, Math.min(100, chunk.rms * 4000));
-    bar.style.height = `${height}%`;
-    waveformBars.appendChild(bar);
-  });
-}
-
-function updateVadStatus(rms) {
+function updateVadStatus(chunk) {
   if (!vadStatusEl) return;
-  const threshold = 0.02;
-  if (rms > threshold) {
+  const rms = chunk?.rms ?? 0;
+  const isSpeaking = chunk?.speech_detected ?? rms > 0.02;
+  if (isSpeaking) {
     vadStatusEl.textContent = "🎙️ SPEAKING";
     vadStatusEl.classList.remove("silence");
     vadStatusEl.classList.add("speaking");
@@ -187,8 +223,30 @@ function handleHistoryMessages(entries) {
 
 function handleHistoryAudio(entries) {
   state.audioHistory = [];
+  state.waveformLevels = Array(state.waveformLimit).fill(0);
+  updateWaveformBars();
   const ordered = entries.slice().reverse();
+  logWave("history_audio", { count: ordered.length });
   ordered.forEach(addAudioSample);
+}
+
+function handleHistoryAudioSegments(entries) {
+  state.audioSegments = entries.slice();
+  logWave("history_audio_segments", { count: entries.length });
+}
+
+function handleAudioSegment(entry) {
+  if (!entry) return;
+  state.audioSegments.unshift(entry);
+  if (state.audioSegments.length > 50) {
+    state.audioSegments.pop();
+  }
+  logWave("audio_segment", {
+    id: entry.id,
+    duration_ms: entry.duration_ms,
+    rms: entry.rms,
+    file_url: entry.file_url,
+  });
 }
 
 function connectWs() {
@@ -207,8 +265,14 @@ function connectWs() {
       case "history_audio":
         handleHistoryAudio(data.data || []);
         break;
+      case "history_audio_segments":
+        handleHistoryAudioSegments(data.data || []);
+        break;
       case "audio_chunk":
         addAudioSample(data.payload);
+        break;
+      case "audio_segment":
+        handleAudioSegment(data.payload);
         break;
       default:
         break;
@@ -221,6 +285,7 @@ function connectWs() {
   socket.addEventListener("error", () => socket.close());
 }
 
+initWaveformBars();
 checkBackend();
 setInterval(checkBackend, 10000);
 connectWs();

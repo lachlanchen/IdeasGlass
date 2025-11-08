@@ -5,10 +5,11 @@ Minimal HTTPS backend + PWA dashboard for receiving Arduino telemetry over Ngrok
 ## Features
 
 - `POST /api/v1/messages` – text + metadata + optional `photo_base64`
-- `POST /api/v1/audio` – Base64 PCM audio blocks (16 kHz mono) with RMS metadata
+- `POST /api/v1/audio` – Base64 PCM audio blocks (16 kHz mono) with RMS metadata + WebRTC VAD flag
 - WebSocket `/ws/stream` – typed events (`history_messages`, `message`, `history_audio`, `audio_chunk`)
-- PWA front-end installable on Android/iOS/Desktop with a light-themed UI, live waveform, VAD badge, and infinite scroll for messages
-- Optional Postgres persistence (`DATABASE_URL`) for metadata (`ig_messages`) + photos (`ig_photos`) + audio chunks (`ig_audio_chunks`)
+- Background audio segmentation: chunks are buffered (~60s target) until the VAD detects trailing silence, converted to WAV on disk (`backend/ngrok_bridge/audio_segments/`) and referenced via `ig_audio_segments`
+- PWA front-end installable on Android/iOS/Desktop with a polished neon waveform, live SILENCE/SPEAKING badge, lazy-loading feed, and Add-to-Home-Screen prompt
+- Optional Postgres persistence (`DATABASE_URL`) for metadata (`ig_messages`), photos (`ig_photos`), audio chunks (`ig_audio_chunks`), and WAV segments (`ig_audio_segments`)
 
 ## Quickstart
 
@@ -68,6 +69,11 @@ Minimal HTTPS backend + PWA dashboard for receiving Arduino telemetry over Ngrok
        "rms":0.05,
        "audio_base64":"'"$(base64 -w0 temp.raw)"'"
      }'
+   ```
+8. **List audio segments & download WAV**
+   ```bash
+   curl https://ideas.lazying.art/api/v1/audio/segments | jq '.[0]'
+   curl -o latest.wav https://ideas.lazying.art/api/v1/audio/segments/<segment-id>
    ```
 
 ## Arduino integration
