@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>IdeasGlass Live Stream</title>
+    <link rel="manifest" href="/static/manifest.webmanifest" />
+    <link rel="stylesheet" href="/static/styles.css" />
+    <link rel="icon" type="image/png" href="/static/icons/icon-192.png" />
+    <meta name="theme-color" content="#0c1220" />
+  </head>
+  <body>
+    <header>
+      <div>
+        <h1>IdeasGlass Stream</h1>
+        <p class="subtitle">Live feed from Arduino via Ngrok</p>
+      </div>
+      <button id="installBtn" hidden>Add to Home Screen</button>
+    </header>
+
+    <main>
+      <section id="statusPanel">
+        <div>
+          <span class="label">Backend:</span>
+          <span id="backendStatus" class="status status-offline">Offline</span>
+        </div>
+        <div>
+          <span class="label">WebSocket:</span>
+          <span id="wsStatus" class="status status-offline">Disconnected</span>
+        </div>
+      </section>
+
+      <section id="logPanel">
+        <h2>Incoming messages</h2>
+        <ul id="messageList"></ul>
+      </section>
+    </main>
+
+    <footer>
+      <p>Install this page on Android/iOS for a native-like IdeasGlass dashboard.</p>
+    </footer>
+
+    <script src="/static/app.js" type="module"></script>
+  </body>
+</html>

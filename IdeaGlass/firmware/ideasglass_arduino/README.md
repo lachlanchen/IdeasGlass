@@ -15,6 +15,7 @@ ideasglass_arduino/
 ├── config.h                 # Central pin assignments + BLE UUIDs
 ├── wifi_credentials.h       # (gitignored) user Wi-Fi list
 ├── WifiTest/                # Standalone Wi-Fi connectivity sketch
+├── IdeasGlassNgrokClient/   # HTTPS client demo posting to ngrok bridge
 └── README.md
 ```
 
@@ -42,6 +43,16 @@ ideasglass_arduino/
 1. Copy `wifi_credentials.example.h` to `wifi_credentials.h` in the **parent** folder (`ideasglass_arduino/`), or edit the example file directly if you prefer (the sketch auto-detects whichever exists).
 2. Open `WifiTest/WifiTest.ino` in Arduino IDE – it auto-detects `wifi_credentials.h` or falls back to the example file.
 3. Upload to the XIAO ESP32S3 and watch the serial monitor for connection / RSSI logs.
+
+### Ngrok HTTPS client
+
+`IdeasGlassNgrokClient/IdeasGlassNgrokClient.ino` demonstrates how to:
+
+1. Load Wi-Fi credentials from `wifi_credentials.h`
+2. Trust the LetsEncrypt certificate for `ideas.lazying.art` (embedded in the sketch)
+3. Send JSON payloads to `https://ideas.lazying.art/api/v1/messages`
+
+Update `kServerHost`, `kServerPort`, and `kDeviceId` if you expose the backend on a different hostname/port.
 
 ## BLE profile
 

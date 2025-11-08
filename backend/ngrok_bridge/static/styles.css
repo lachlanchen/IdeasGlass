@@ -1,0 +1,143 @@
+:root {
+  font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+    sans-serif;
+  background-color: #05070f;
+  color: #f7f9ff;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: radial-gradient(circle at top, #111c3b 0%, #05070f 65%);
+}
+
+header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1.5rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+header h1 {
+  margin: 0;
+  font-size: 1.6rem;
+}
+
+.subtitle {
+  margin: 0;
+  color: #9fb3ff;
+}
+
+main {
+  flex: 1;
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+#statusPanel {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1rem;
+  padding: 1rem;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(8px);
+}
+
+.label {
+  display: inline-block;
+  width: 110px;
+  color: #9fb3ff;
+}
+
+.status {
+  padding: 0.2rem 0.8rem;
+  border-radius: 999px;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.status-online {
+  background: rgba(32, 201, 151, 0.2);
+  color: #20c997;
+}
+
+.status-offline {
+  background: rgba(255, 99, 132, 0.2);
+  color: #ff6384;
+}
+
+#logPanel {
+  flex: 1;
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: 12px;
+  padding: 1rem 1.5rem;
+  overflow: hidden;
+}
+
+#logPanel h2 {
+  margin-top: 0;
+}
+
+#messageList {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.entry {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  padding: 0.9rem 0;
+}
+
+.entry:last-child {
+  border-bottom: none;
+}
+
+.entry .heading {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.9rem;
+  color: #9fb3ff;
+}
+
+.entry .message {
+  margin: 0.4rem 0 0;
+  font-size: 1rem;
+}
+
+button {
+  background: #20c997;
+  color: #041524;
+  border: none;
+  padding: 0.6rem 1.2rem;
+  border-radius: 999px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+button[hidden] {
+  display: none;
+}
+
+footer {
+  padding: 1rem;
+  text-align: center;
+  font-size: 0.9rem;
+  color: #9fb3ff;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+@media (max-width: 600px) {
+  header,
+  main {
+    padding: 1rem;
+  }
+}
