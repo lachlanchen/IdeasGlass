@@ -43,7 +43,8 @@ const char *kDeviceId = "ideasglass-devkit-01";
 const unsigned long kSendIntervalMs = 30000;
 const int AUDIO_SAMPLE_RATE = 16000;
 const size_t AUDIO_BLOCK_SAMPLES = 4096;
-static int16_t g_audioBlock[AUDIO_BLOCK_SAMPLES];
+static int32_t g_audioBlock[AUDIO_BLOCK_SAMPLES];
+static int16_t g_pcm16Block[AUDIO_BLOCK_SAMPLES];
 size_t g_bufferedSamples = 0;
 uint32_t g_audioChunkCounter = 0;
 
@@ -102,7 +103,7 @@ unsigned long lastSend = 0;
 bool cameraReady = false;
 framesize_t cameraFrameSize = FRAMESIZE_QVGA;
 const size_t AUDIO_TEMP_SAMPLES = 512;
-static int16_t g_audioTemp[AUDIO_TEMP_SAMPLES];
+static int32_t g_audioTemp[AUDIO_TEMP_SAMPLES];
 bool audioInitialized = false;
 
 // ---------------------------------------------------------------------------
@@ -210,7 +211,7 @@ void setupAudio()
     i2s_config_t config = {
         .mode = (i2s_mode_t)(I2S_MODE_MASTER | I2S_MODE_RX),
         .sample_rate = AUDIO_SAMPLE_RATE,
-        .bits_per_sample = I2S_BITS_PER_SAMPLE_16BIT,
+        .bits_per_sample = I2S_BITS_PER_SAMPLE_32BIT,
         .channel_format = I2S_CHANNEL_FMT_ONLY_LEFT,
         .communication_format = I2S_COMM_FORMAT_STAND_I2S,
         .intr_alloc_flags = ESP_INTR_FLAG_LEVEL1,
@@ -242,14 +243,30 @@ void setupAudio()
     Serial.println("[Audio] I2S microphone ready");
 }
 
-float computeRms(const int16_t *samples, size_t count)
+float computeRms(const int32_t *samples, size_t count)
 {
     double sum = 0.0;
     for (size_t i = 0; i < count; ++i) {
-        double norm = samples[i] / 32768.0;
+        double norm = samples[i] / 2147483648.0;
         sum += norm * norm;
     }
     return sqrt(sum / count);
+}
+
+int32_t convertToPcm16(const int32_t *source, int16_t *dest, size_t count)
+{
+    int32_t peak = 0;
+    for (size_t i = 0; i < count; ++i) {
+        double norm = source[i] / 2147483648.0;
+        norm = constrain(norm, -1.0, 1.0);
+        int16_t sample16 = (int16_t)(norm * 32767.0);
+        dest[i] = sample16;
+        int32_t absVal = source[i] >= 0 ? source[i] : -source[i];
+        if (absVal > peak) {
+            peak = absVal;
+        }
+    }
+    return peak;
 }
 
 bool sendAudioChunk(const String &encoded, float rms)
@@ -297,7 +314,7 @@ void handleAudioStreaming()
     if (i2s_read(I2S_NUM_0, g_audioTemp, sizeof(g_audioTemp), &bytesRead, 1) != ESP_OK) {
         return;
     }
-    size_t samplesRead = bytesRead / sizeof(int16_t);
+    size_t samplesRead = bytesRead / sizeof(int32_t);
     for (size_t i = 0; i < samplesRead; ++i) {
         if (g_bufferedSamples < AUDIO_BLOCK_SAMPLES) {
             g_audioBlock[g_bufferedSamples++] = g_audioTemp[i];
@@ -308,9 +325,21 @@ void handleAudioStreaming()
 
     if (g_bufferedSamples >= AUDIO_BLOCK_SAMPLES) {
         float rms = computeRms(g_audioBlock, g_bufferedSamples);
+        int32_t peak = convertToPcm16(g_audioBlock, g_pcm16Block, g_bufferedSamples);
+        uint32_t chunkIndex = g_audioChunkCounter;
+        if (chunkIndex < 4 || peak == 0 || (chunkIndex % 25 == 0)) {
+            Serial.printf("[Audio] chunk #%u stats: peak=%ld rms=%.4f first=%ld samples=%u\n",
+                          chunkIndex,
+                          (long)peak,
+                          rms,
+                          (long)g_audioBlock[0],
+                          (unsigned)g_bufferedSamples);
+        }
         String encoded;
-        if (encodeBase64(reinterpret_cast<uint8_t *>(g_audioBlock), g_bufferedSamples * sizeof(int16_t), encoded)) {
+        if (encodeBase64(reinterpret_cast<uint8_t *>(g_pcm16Block), g_bufferedSamples * sizeof(int16_t), encoded)) {
             sendAudioChunk(encoded, rms);
+        } else {
+            Serial.println("[Audio] Failed to encode PCM16 chunk");
         }
         g_bufferedSamples = 0;
     }

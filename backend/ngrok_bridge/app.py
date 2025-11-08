@@ -11,7 +11,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from io import BytesIO
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Coroutine, Dict, List, Optional
 import wave
 
 import asyncpg
@@ -736,8 +736,18 @@ async def ingest_audio_chunk(payload: AudioChunkIn):
     )
 
     audio_store.append(chunk)
-    await persist_audio_chunk(chunk, raw_audio)
-    await append_audio_to_segment_buffers(chunk, raw_audio, speech_detected)
+    schedule_background(
+        persist_audio_chunk(chunk, raw_audio),
+        "persist_audio_chunk",
+    )
+    schedule_background(
+        append_audio_to_segment_buffers(chunk, raw_audio, speech_detected),
+        "segment_buffer",
+    )
+    print(
+        "[Audio] Forward chunk "
+        f"{chunk.device_id}#{chunk.id} rms={chunk.rms:.4f} speech={speech_detected}"
+    )
     await manager.broadcast({"type": "audio_chunk", "payload": chunk.model_dump()})
     return chunk
 
@@ -849,6 +859,18 @@ def _relativize_path(path: Path) -> str:
         return str(path.relative_to(BASE_DIR))
     except ValueError:
         return str(path)
+
+
+def schedule_background(coro: Coroutine, label: str) -> None:
+    task = asyncio.create_task(coro)
+
+    def _log_result(t: asyncio.Task) -> None:
+        try:
+            t.result()
+        except Exception as exc:  # pragma: no cover - best effort logging
+            print(f"[AsyncTask] {label} failed: {exc}")
+
+    task.add_done_callback(_log_result)
 
 
 def segment_record_to_out(record: AudioSegmentRecord) -> AudioSegmentOut:

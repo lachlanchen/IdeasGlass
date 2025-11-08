@@ -22,8 +22,9 @@ const state = {
 
 state.waveformLevels = Array(state.waveformLimit).fill(0);
 
-function logWave(...args) {
-  console.debug("[IdeasGlass][wave]", ...args);
+function logWave(event, details = {}) {
+  // eslint-disable-next-line no-console
+  console.log(`[IdeasGlass][wave] ${event}`, details);
 }
 
 if ("serviceWorker" in navigator) {
