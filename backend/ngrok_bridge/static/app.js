@@ -52,6 +52,14 @@ function renderEntry(entry) {
 
   li.appendChild(heading);
   li.appendChild(message);
+  if (entry.photo_url) {
+    const photo = document.createElement("img");
+    photo.src = entry.photo_url;
+    photo.alt = "IdeasGlass photo";
+    photo.loading = "lazy";
+    photo.className = "entry-photo";
+    li.appendChild(photo);
+  }
   list.prepend(li);
 }
 

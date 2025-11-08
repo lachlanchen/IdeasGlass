@@ -1,6 +1,8 @@
 #include <Arduino.h>
 #include <WiFi.h>
 #include <WiFiClientSecure.h>
+#include "esp_camera.h"
+#include "mbedtls/base64.h"
 
 #if __has_include("../wifi_credentials.h")
 #include "../wifi_credentials.h"
@@ -11,14 +13,33 @@
 #error "wifi_credentials.h missing. Copy wifi_credentials.example.h to wifi_credentials.h next to config.h."
 #endif
 
+// Camera pin map for Seeed XIAO ESP32S3 Sense
+#define PWDN_GPIO_NUM -1
+#define RESET_GPIO_NUM -1
+#define XCLK_GPIO_NUM 10
+#define SIOD_GPIO_NUM 40
+#define SIOC_GPIO_NUM 39
+#define Y9_GPIO_NUM 48
+#define Y8_GPIO_NUM 11
+#define Y7_GPIO_NUM 12
+#define Y6_GPIO_NUM 14
+#define Y5_GPIO_NUM 16
+#define Y4_GPIO_NUM 18
+#define Y3_GPIO_NUM 17
+#define Y2_GPIO_NUM 15
+#define VSYNC_GPIO_NUM 38
+#define HREF_GPIO_NUM 47
+#define PCLK_GPIO_NUM 13
+
 // ---------------------------------------------------------------------------
 // Server configuration
 // ---------------------------------------------------------------------------
 const char *kServerHost = "ideas.lazying.art";
-const uint16_t kServerPort = 443; // forwarded by ngrok
+const uint16_t kServerPort = 443;
 const char *kDeviceId = "ideasglass-devkit-01";
+const unsigned long kSendIntervalMs = 30000;
 
-// LetsEncrypt cert chain for ideas.lazying.art (public). Required for TLS pinning.
+// LetsEncrypt chain for ideas.lazying.art (PEM)
 static const char ideas_cert[] PROGMEM = R"(-----BEGIN CERTIFICATE-----
 MIIDjzCCAxagAwIBAgISBQs7pCvOLRNhX4aYR3+lDJdHMAoGCCqGSM49BAMDMDIx
 CzAJBgNVBAYTAlVTMRYwFAYDVQQKEw1MZXQncyBFbmNyeXB0MQswCQYDVQQDEwJF
@@ -70,21 +91,96 @@ YRmT7/OXpmOH/FVLtwS+8ng1cAmpCujPwteJZNcDG0sF2n/sc0+SQf49fdyUK0ty
 
 WiFiClientSecure secure_client;
 unsigned long lastSend = 0;
+bool cameraReady = false;
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+bool initCamera()
+{
+    camera_config_t config;
+    config.ledc_channel = LEDC_CHANNEL_0;
+    config.ledc_timer = LEDC_TIMER_0;
+    config.pin_d0 = Y2_GPIO_NUM;
+    config.pin_d1 = Y3_GPIO_NUM;
+    config.pin_d2 = Y4_GPIO_NUM;
+    config.pin_d3 = Y5_GPIO_NUM;
+    config.pin_d4 = Y6_GPIO_NUM;
+    config.pin_d5 = Y7_GPIO_NUM;
+    config.pin_d6 = Y8_GPIO_NUM;
+    config.pin_d7 = Y9_GPIO_NUM;
+    config.pin_xclk = XCLK_GPIO_NUM;
+    config.pin_pclk = PCLK_GPIO_NUM;
+    config.pin_vsync = VSYNC_GPIO_NUM;
+    config.pin_href = HREF_GPIO_NUM;
+    config.pin_sccb_sda = SIOD_GPIO_NUM;
+    config.pin_sccb_scl = SIOC_GPIO_NUM;
+    config.pin_pwdn = PWDN_GPIO_NUM;
+    config.pin_reset = RESET_GPIO_NUM;
+    config.xclk_freq_hz = 10000000;
+    config.frame_size = FRAMESIZE_QVGA;
+    config.pixel_format = PIXFORMAT_JPEG;
+    config.jpeg_quality = 20;
+    config.fb_count = 1;
+    config.fb_location = CAMERA_FB_IN_PSRAM;
+    config.grab_mode = CAMERA_GRAB_WHEN_EMPTY;
+
+    esp_err_t err = esp_camera_init(&config);
+    if (err != ESP_OK) {
+        Serial.printf("[Camera] init failed: 0x%x\n", err);
+        return false;
+    }
+    sensor_t *s = esp_camera_sensor_get();
+    if (s) {
+        s->set_framesize(s, FRAMESIZE_QVGA);
+        s->set_quality(s, 20);
+    }
+    Serial.println("[Camera] Ready.");
+    return true;
+}
+
+bool capturePhotoBase64(String &outBase64)
+{
+    camera_fb_t *fb = esp_camera_fb_get();
+    if (!fb) {
+        Serial.println("[Camera] Failed to capture frame");
+        return false;
+    }
+    size_t encoded_len = 4 * ((fb->len + 2) / 3) + 1;
+    unsigned char *encoded = (unsigned char *)malloc(encoded_len);
+    if (!encoded) {
+        esp_camera_fb_return(fb);
+        Serial.println("[Camera] Out of memory");
+        return false;
+    }
+    size_t actual_len = 0;
+    int result = mbedtls_base64_encode(encoded, encoded_len, &actual_len, fb->buf, fb->len);
+    esp_camera_fb_return(fb);
+    if (result != 0) {
+        free(encoded);
+        Serial.printf("[Camera] Base64 encode failed: %d\n", result);
+        return false;
+    }
+    encoded[actual_len] = '\0';
+    outBase64 = String((char *)encoded);
+    free(encoded);
+    Serial.printf("[Camera] Captured photo (%u bytes, %u base64)\n", fb->len, actual_len);
+    return true;
+}
 
 void connectToWiFi()
 {
-    Serial.print("[WiFi] Connecting");
+    Serial.println("[WiFi] Connecting...");
     for (size_t i = 0; i < WIFI_NETWORK_COUNT; ++i) {
         const auto &cred = WIFI_NETWORKS[i];
-        Serial.printf("\n -> SSID %s\n", cred.ssid);
+        Serial.printf(" -> SSID %s\n", cred.ssid);
         WiFi.begin(cred.ssid, cred.password);
-
         unsigned long start = millis();
         while (WiFi.status() != WL_CONNECTED && millis() - start < 15000) {
             Serial.print(".");
-            delay(500);
+            delay(400);
         }
-
         if (WiFi.status() == WL_CONNECTED) {
             Serial.printf("\n[WiFi] Connected (%s, RSSI %d)\n", WiFi.SSID().c_str(), WiFi.RSSI());
             Serial.printf("IP: %s\n", WiFi.localIP().toString().c_str());
@@ -94,7 +190,7 @@ void connectToWiFi()
     }
 }
 
-bool sendPayload(const String &message, const String &metaValue = "")
+bool sendPayload(const String &message, const String &metaValue, const String *photoBase64)
 {
     secure_client.setCACert(ideas_cert);
     secure_client.setTimeout(15000);
@@ -105,9 +201,13 @@ bool sendPayload(const String &message, const String &metaValue = "")
         return false;
     }
 
-    const String body = String("{\"device_id\":\"") + kDeviceId + "\","
-                        "\"message\":\"" + message + "\","
-                        "\"meta\":{\"signal\":\"" + metaValue + "\"}}";
+    String body = String("{\"device_id\":\"") + kDeviceId + "\","
+                   "\"message\":\"" + message + "\","
+                   "\"meta\":{\"rssi\":\"" + metaValue + "\"}";
+    if (photoBase64 && photoBase64->length() > 0) {
+        body += ",\"photo_base64\":\"" + *photoBase64 + "\",\"photo_mime\":\"image/jpeg\"";
+    }
+    body += "}";
 
     secure_client.printf(
         "POST /api/v1/messages HTTP/1.1\r\n"
@@ -119,13 +219,16 @@ bool sendPayload(const String &message, const String &metaValue = "")
         body.length());
     secure_client.print(body);
 
-    // Read response status line
     String response = secure_client.readString();
     Serial.println("[HTTP] Response:");
     Serial.println(response);
     secure_client.stop();
     return response.indexOf("200") != -1;
 }
+
+// ---------------------------------------------------------------------------
+// Arduino lifecycle
+// ---------------------------------------------------------------------------
 
 void setup()
 {
@@ -139,6 +242,8 @@ void setup()
     WiFi.mode(WIFI_MODE_STA);
     WiFi.setSleep(true);
     connectToWiFi();
+
+    cameraReady = initCamera();
 }
 
 void loop()
@@ -149,10 +254,14 @@ void loop()
         return;
     }
 
-    if (millis() - lastSend > 5000) {
+    if (millis() - lastSend > kSendIntervalMs) {
         String payload = "Hello from IdeasGlass @ " + String(millis() / 1000) + "s";
-        String meta = String(WiFi.RSSI());
-        bool ok = sendPayload(payload, meta);
+        String photoBase64;
+        String *photoPtr = nullptr;
+        if (cameraReady && capturePhotoBase64(photoBase64)) {
+            photoPtr = &photoBase64;
+        }
+        bool ok = sendPayload(payload, String(WiFi.RSSI()), photoPtr);
         Serial.printf("[HTTP] send result: %s\n", ok ? "OK" : "FAILED");
         lastSend = millis();
     }
