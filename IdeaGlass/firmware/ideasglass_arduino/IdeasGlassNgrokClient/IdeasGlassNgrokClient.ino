@@ -45,9 +45,9 @@
 const char *kServerHost = "ideas.lazying.art";
 const uint16_t kServerPort = 443;
 const char *kDeviceId = "ideasglass-devkit-01";
-#define ENABLE_PHOTO_CAPTURE 0
+#define ENABLE_PHOTO_CAPTURE 1
 const char *kAudioWsPath = "/ws/audio-ingest";
-const unsigned long kSendIntervalMs = 30000;
+const unsigned long kPhotoIntervalMs = 30000;
 const int AUDIO_SAMPLE_RATE = 16000;
 const size_t AUDIO_BLOCK_SAMPLES = 4096;
 static int16_t g_audioBlock[AUDIO_BLOCK_SAMPLES];
@@ -115,7 +115,6 @@ YRmT7/OXpmOH/FVLtwS+8ng1cAmpCujPwteJZNcDG0sF2n/sc0+SQf49fdyUK0ty
 -----END CERTIFICATE-----)";
 
 WiFiClientSecure secure_client;
-unsigned long lastSend = 0;
 bool cameraReady = false;
 framesize_t cameraFrameSize = FRAMESIZE_QVGA;
 const size_t AUDIO_TEMP_SAMPLES = 512;
@@ -127,6 +126,11 @@ static TaskHandle_t g_audioSenderHandle = nullptr;
 
 void initAudioStreamer();
 void audioSenderTask(void *param);
+#if ENABLE_PHOTO_CAPTURE
+static TaskHandle_t g_photoTaskHandle = nullptr;
+void startPhotoTask();
+void photoTask(void *param);
+#endif
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -373,6 +377,37 @@ bool capturePhotoBase64(String &outBase64)
     return ok;
 }
 
+#if ENABLE_PHOTO_CAPTURE
+void photoTask(void *param)
+{
+    const TickType_t delayTicks = pdMS_TO_TICKS(kPhotoIntervalMs);
+    while (true) {
+        if (WiFi.status() == WL_CONNECTED) {
+            String payload = "Hello from IdeasGlass @ " + String(millis() / 1000) + "s";
+            String photoBase64;
+            String *photoPtr = nullptr;
+            if (cameraReady && capturePhotoBase64(photoBase64)) {
+                photoPtr = &photoBase64;
+            }
+            bool ok = sendPayload(payload, String(WiFi.RSSI()), photoPtr);
+            Serial.printf("[Photo] send result: %s\n", ok ? "OK" : "FAILED");
+        }
+        vTaskDelay(delayTicks);
+    }
+}
+
+void startPhotoTask()
+{
+    if (g_photoTaskHandle == nullptr) {
+        BaseType_t ok = xTaskCreatePinnedToCore(photoTask, "PhotoTask", 8192, nullptr, 1, &g_photoTaskHandle, 1);
+        if (ok != pdPASS) {
+            Serial.println("[Photo] Failed to start photo task");
+            g_photoTaskHandle = nullptr;
+        }
+    }
+}
+#endif
+
 void setupAudio()
 {
     pdmI2S.setPinsPdmRx(PIN_MIC_SCK, PIN_MIC_SD);
@@ -551,11 +586,12 @@ void connectToWiFi()
 
 bool sendPayload(const String &message, const String &metaValue, const String *photoBase64)
 {
-    secure_client.setCACert(ideas_cert);
-    secure_client.setTimeout(15000);
+    WiFiClientSecure messageClient;
+    messageClient.setCACert(ideas_cert);
+    messageClient.setTimeout(15000);
 
     Serial.printf("[HTTP] Connecting to %s:%u ...\n", kServerHost, kServerPort);
-    if (!secure_client.connect(kServerHost, kServerPort)) {
+    if (!messageClient.connect(kServerHost, kServerPort)) {
         Serial.println("[HTTP] Connection failed");
         return false;
     }
@@ -568,7 +604,7 @@ bool sendPayload(const String &message, const String &metaValue, const String *p
     }
     body += "}";
 
-    secure_client.printf(
+    messageClient.printf(
         "POST /api/v1/messages HTTP/1.1\r\n"
         "Host: %s\r\n"
         "Content-Type: application/json\r\n"
@@ -576,12 +612,12 @@ bool sendPayload(const String &message, const String &metaValue, const String *p
         "Connection: close\r\n\r\n",
         kServerHost,
         body.length());
-    secure_client.print(body);
+    messageClient.print(body);
 
-    String response = secure_client.readString();
+    String response = messageClient.readString();
     Serial.println("[HTTP] Response:");
     Serial.println(response);
-    secure_client.stop();
+    messageClient.stop();
     return response.indexOf("200") != -1;
 }
 
@@ -606,6 +642,9 @@ void setup()
     cameraReady = initCamera();
 #endif
     setupAudio();
+#if ENABLE_PHOTO_CAPTURE
+    startPhotoTask();
+#endif
 }
 
 void loop()
@@ -615,20 +654,6 @@ void loop()
         delay(2000);
         return;
     }
-
-#if ENABLE_PHOTO_CAPTURE
-    if (millis() - lastSend > kSendIntervalMs) {
-        String payload = "Hello from IdeasGlass @ " + String(millis() / 1000) + "s";
-        String photoBase64;
-        String *photoPtr = nullptr;
-        if (cameraReady && capturePhotoBase64(photoBase64)) {
-            photoPtr = &photoBase64;
-        }
-        bool ok = sendPayload(payload, String(WiFi.RSSI()), photoPtr);
-        Serial.printf("[HTTP] send result: %s\n", ok ? "OK" : "FAILED");
-        lastSend = millis();
-    }
-#endif
 
     handleAudioStreaming();
 }
