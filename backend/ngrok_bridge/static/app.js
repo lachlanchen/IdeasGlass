@@ -452,10 +452,14 @@ async function handleSegmentTranscript(segmentId) {
 
 function handleHistoryMessages(entries) {
   list.innerHTML = "";
-  const ordered = entries.slice().reverse();
+  const ordered = Array.isArray(entries) ? entries.slice() : [];
+  state.reachedEnd = false;
+  state.loadingOlder = false;
   ordered.forEach((entry) => renderEntry(entry, "bottom"));
   if (ordered.length) {
-    state.messageOldestTs = ordered[0].received_at;
+    state.messageOldestTs = ordered[ordered.length - 1].received_at;
+  } else {
+    state.messageOldestTs = null;
   }
 }
 

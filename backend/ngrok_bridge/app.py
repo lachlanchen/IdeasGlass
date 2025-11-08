@@ -659,6 +659,13 @@ async def fetch_audio_transcripts(limit: int = 20, before: Optional[datetime] = 
     results: List[AudioTranscriptOut] = []
     for row in rows:
         payload = row["transcript"]
+        if isinstance(payload, str):
+            try:
+                payload = json.loads(payload)
+            except json.JSONDecodeError:
+                payload = {}
+        elif payload is None:
+            payload = {}
         results.append(
             AudioTranscriptOut(
                 segment_id=row["segment_id"],
