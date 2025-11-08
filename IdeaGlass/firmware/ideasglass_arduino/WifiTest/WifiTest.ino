@@ -34,7 +34,7 @@ void setup()
 
 void loop()
 {
-    wl_status_t status = wifiMulti.run();
+    wl_status_t status = static_cast<wl_status_t>(wifiMulti.run());
 
     if (status == WL_CONNECTED) {
         if (millis() - lastStatusPrint > 3000) {
