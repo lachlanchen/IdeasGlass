@@ -3,6 +3,7 @@
 #include <WiFiClientSecure.h>
 #include "esp_camera.h"
 #include "mbedtls/base64.h"
+#include "esp32/spiram.h"
 
 #if __has_include("../wifi_credentials.h")
 #include "../wifi_credentials.h"
@@ -92,6 +93,7 @@ YRmT7/OXpmOH/FVLtwS+8ng1cAmpCujPwteJZNcDG0sF2n/sc0+SQf49fdyUK0ty
 WiFiClientSecure secure_client;
 unsigned long lastSend = 0;
 bool cameraReady = false;
+framesize_t cameraFrameSize = FRAMESIZE_QVGA;
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -99,6 +101,11 @@ bool cameraReady = false;
 
 bool initCamera()
 {
+    if (!psramFound()) {
+        Serial.println("[Camera] PSRAM not detected. Enable PSRAM in Tools > PSRAM to capture photos.");
+        return false;
+    }
+
     camera_config_t config;
     config.ledc_channel = LEDC_CHANNEL_0;
     config.ledc_timer = LEDC_TIMER_0;
@@ -119,25 +126,35 @@ bool initCamera()
     config.pin_pwdn = PWDN_GPIO_NUM;
     config.pin_reset = RESET_GPIO_NUM;
     config.xclk_freq_hz = 10000000;
-    config.frame_size = FRAMESIZE_QVGA;
     config.pixel_format = PIXFORMAT_JPEG;
-    config.jpeg_quality = 20;
     config.fb_count = 1;
     config.fb_location = CAMERA_FB_IN_PSRAM;
     config.grab_mode = CAMERA_GRAB_WHEN_EMPTY;
+    config.frame_size = FRAMESIZE_QVGA;
+    framesize_t priorities[] = {FRAMESIZE_QVGA, FRAMESIZE_QQVGA};
+    int qualities[] = {22, 24};
 
-    esp_err_t err = esp_camera_init(&config);
-    if (err != ESP_OK) {
-        Serial.printf("[Camera] init failed: 0x%x\n", err);
-        return false;
+    for (size_t idx = 0; idx < sizeof(priorities) / sizeof(priorities[0]); ++idx) {
+        config.frame_size = priorities[idx];
+        config.jpeg_quality = qualities[idx];
+        esp_err_t err = esp_camera_init(&config);
+        if (err == ESP_OK) {
+            cameraFrameSize = priorities[idx];
+            sensor_t *s = esp_camera_sensor_get();
+            if (s) {
+                s->set_framesize(s, priorities[idx]);
+                s->set_quality(s, qualities[idx]);
+            }
+            Serial.printf("[Camera] Ready (framesize=%d quality=%d)\n", priorities[idx], qualities[idx]);
+            return true;
+        }
+        Serial.printf("[Camera] init failed for framesize %d (0x%x), retrying smaller frame...\n", priorities[idx], err);
+        esp_camera_deinit();
+        delay(200);
     }
-    sensor_t *s = esp_camera_sensor_get();
-    if (s) {
-        s->set_framesize(s, FRAMESIZE_QVGA);
-        s->set_quality(s, 20);
-    }
-    Serial.println("[Camera] Ready.");
-    return true;
+
+    Serial.println("[Camera] Unable to initialize camera with available memory.");
+    return false;
 }
 
 bool capturePhotoBase64(String &outBase64)

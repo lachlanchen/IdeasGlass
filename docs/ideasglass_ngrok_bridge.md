@@ -54,6 +54,7 @@ This guide documents the exact steps we used to relay Arduino data (text + photo
 2. Open `IdeaGlass/firmware/ideasglass_arduino/IdeasGlassNgrokClient/IdeasGlassNgrokClient.ino` in Arduino IDE.
    - Defaults: `kServerHost = "ideas.lazying.art"`, `kServerPort = 443`, `kDeviceId = "ideasglass-devkit-01"`.
    - The sketch now initializes the XIAO ESP32S3 Sense camera, captures QVGA JPEG frames, Base64-encodes them, and embeds them in the HTTPS payload (`photo_base64` + MIME type) alongside the text message.
+   - **Important:** set `Tools → PSRAM → Enabled` before flashing; the framebuffer lives in PSRAM and the sketch falls back to QQVGA if memory runs low.
 3. Upload to the XIAO ESP32S3. Serial monitor will show Wi-Fi status, camera activity, and repeated `POST /api/v1/messages` responses.
 4. Each payload appears instantly in the PWA feed, and both the metadata + photo are stored in Postgres (`ig_messages` + `ig_photos` tables).
 

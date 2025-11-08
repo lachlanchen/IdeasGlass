@@ -55,6 +55,8 @@ ideasglass_arduino/
 
 Update `kServerHost`, `kServerPort`, and `kDeviceId` if you expose the backend on a different hostname/port. Photos are sent every ~30 seconds by default.
 
+> **Camera note:** In Arduino IDE ensure `Tools → PSRAM → Enabled` before flashing the XIAO ESP32S3 Sense. The sketch automatically falls back to a smaller frame size (QQVGA) if PSRAM is exhausted.
+
 ## BLE profile
 
 | Characteristic | UUID | Direction | Notes |
