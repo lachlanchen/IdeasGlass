@@ -2,4 +2,4 @@ fastapi==0.115.2
 uvicorn[standard]==0.30.6
 asyncpg==0.29.0
 webrtcvad==2.0.10
-whisperx>=4.5.0
+openai-whisper>=20240930
