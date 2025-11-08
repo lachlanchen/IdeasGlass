@@ -2,7 +2,7 @@
 #include <WiFi.h>
 #include <WiFiMulti.h>
 
-#include "wifi_credentials.h"
+#include "../wifi_credentials.h"
 
 WiFiMulti wifiMulti;
 unsigned long lastStatusPrint = 0;

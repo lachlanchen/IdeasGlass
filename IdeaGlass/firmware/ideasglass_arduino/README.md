@@ -14,6 +14,7 @@ ideasglass_arduino/
 ├── IdeasGlassFirmware.ino   # Main Arduino sketch
 ├── config.h                 # Central pin assignments + BLE UUIDs
 ├── wifi_credentials.h       # (gitignored) user Wi-Fi list
+├── WifiTest/                # Standalone Wi-Fi connectivity sketch
 └── README.md
 ```
 
@@ -33,6 +34,14 @@ ideasglass_arduino/
    - `ESP32 BLE Arduino`
 3. Copy `wifi_credentials.example.h` to `wifi_credentials.h` and fill in one or more SSIDs + passwords.
 4. Select the board **Seeed XIAO ESP32S3** (PSRAM enabled) and flash the sketch.
+
+### Wi-Fi test sketch
+
+`WifiTest/WifiTest.ino` is a standalone sketch that only verifies Wi-Fi credentials:
+
+1. Copy `wifi_credentials.example.h` to `wifi_credentials.h` in the **parent** folder (`ideasglass_arduino/`).
+2. Open `WifiTest/WifiTest.ino` in Arduino IDE – the relative include (`../wifi_credentials.h`) pulls in your credentials automatically.
+3. Upload to the XIAO ESP32S3 and watch the serial monitor for connection / RSSI logs.
 
 ## BLE profile
 
