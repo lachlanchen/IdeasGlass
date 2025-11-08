@@ -899,6 +899,13 @@ async def fetch_transcript_by_segment(segment_id: str) -> AudioTranscriptOut | N
                 return entry
         return None
     payload = row["transcript"]
+    if isinstance(payload, str):
+        try:
+            payload = json.loads(payload)
+        except json.JSONDecodeError:
+            payload = {}
+    elif payload is None:
+        payload = {}
     return AudioTranscriptOut(
         segment_id=row["segment_id"],
         device_id=row["device_id"],
@@ -1499,7 +1506,13 @@ async def ingest_message(payload: MessageIn):
             entry.photo_url = photo_url
 
     message_store.append(entry)
-    await persist_entry(entry, photo_bytes, payload.photo_mime, photo_id)
+    if photo_bytes and db_pool:
+        await persist_entry(entry, photo_bytes, payload.photo_mime, photo_id)
+    else:
+        schedule_background(
+            persist_entry(entry, photo_bytes, payload.photo_mime, photo_id),
+            "persist_entry",
+        )
     await manager.broadcast({"type": "message", "payload": entry.model_dump()})
     return entry
 

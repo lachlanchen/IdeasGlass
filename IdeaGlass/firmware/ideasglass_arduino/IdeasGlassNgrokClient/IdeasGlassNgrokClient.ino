@@ -115,7 +115,7 @@ YRmT7/OXpmOH/FVLtwS+8ng1cAmpCujPwteJZNcDG0sF2n/sc0+SQf49fdyUK0ty
 
 WiFiClientSecure secure_client;
 bool cameraReady = false;
-framesize_t cameraFrameSize = FRAMESIZE_QVGA;
+framesize_t cameraFrameSize = FRAMESIZE_96X96;
 const size_t AUDIO_TEMP_SAMPLES = 512;
 static int16_t g_audioTemp[AUDIO_TEMP_SAMPLES];
 static I2SClass pdmI2S;
@@ -166,9 +166,9 @@ bool initCamera()
     config.fb_count = 1;
     config.fb_location = CAMERA_FB_IN_PSRAM;
     config.grab_mode = CAMERA_GRAB_WHEN_EMPTY;
-    config.frame_size = FRAMESIZE_QVGA;
-    framesize_t priorities[] = {FRAMESIZE_QVGA, FRAMESIZE_QQVGA};
-    int qualities[] = {22, 24};
+    config.frame_size = FRAMESIZE_96X96;
+    framesize_t priorities[] = {FRAMESIZE_96X96, FRAMESIZE_QQVGA};
+    int qualities[] = {30, 26};
 
     for (size_t idx = 0; idx < sizeof(priorities) / sizeof(priorities[0]); ++idx) {
         config.frame_size = priorities[idx];
@@ -380,6 +380,7 @@ bool capturePhotoBase64(String &outBase64)
 void photoTask(void *param)
 {
     const TickType_t delayTicks = pdMS_TO_TICKS(kPhotoIntervalMs);
+    TickType_t lastWake = xTaskGetTickCount();
     while (true) {
         if (WiFi.status() == WL_CONNECTED) {
             String payload = "Hello from IdeasGlass @ " + String(millis() / 1000) + "s";
@@ -396,7 +397,7 @@ void photoTask(void *param)
             bool ok = sendPayload(payload, String(WiFi.RSSI()), photoPtr);
             Serial.printf("[Photo] send result: %s (%d chars)\n", ok ? "OK" : "FAILED", base64Len);
         }
-        vTaskDelay(delayTicks);
+        vTaskDelayUntil(&lastWake, delayTicks);
     }
 }
 
