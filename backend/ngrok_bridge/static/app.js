@@ -8,6 +8,13 @@ const vadStatusEl = document.getElementById("vadStatus");
 const audioStatusEl = document.getElementById("audioStatus");
 const timerEl = document.getElementById("timer");
 const segmentList = document.getElementById("segmentList");
+const segmentTranscriptPanel = document.getElementById("segmentTranscriptPanel");
+const segmentTranscriptBody = document.getElementById("segmentTranscriptBody");
+const segmentTranscriptClose = document.getElementById("segmentTranscriptClose");
+
+segmentTranscriptClose?.addEventListener("click", () => {
+  hideSegmentTranscript();
+});
 const transcriptPanel = document.getElementById("transcriptPanel");
 
 let deferredPrompt = null;
@@ -317,6 +324,12 @@ function renderSegments() {
       link.textContent = "Download";
       li.appendChild(link);
     }
+    const transcriptBtn = document.createElement("button");
+    transcriptBtn.type = "button";
+    transcriptBtn.className = "segment-transcript-btn";
+    transcriptBtn.textContent = "Transcript";
+    transcriptBtn.addEventListener("click", () => handleSegmentTranscript(segment.id));
+    li.appendChild(transcriptBtn);
     segmentList.appendChild(li);
   });
 }
@@ -383,6 +396,58 @@ function applyTranscript(entry) {
   }));
   state.transcriptFinal = Boolean(entry.is_final);
   renderTranscript();
+}
+
+function hideSegmentTranscript() {
+  if (segmentTranscriptPanel) {
+    segmentTranscriptPanel.classList.add("hidden");
+  }
+}
+
+function renderSegmentTranscriptPanel(entry, segmentId) {
+  if (!segmentTranscriptPanel || !segmentTranscriptBody) return;
+  segmentTranscriptPanel.classList.remove("hidden");
+  const title = document.getElementById("segmentTranscriptTitle");
+  if (title) {
+    title.textContent = `Transcript · ${segmentId}`;
+  }
+  if (!entry || !Array.isArray(entry.chunks) || entry.chunks.length === 0) {
+    segmentTranscriptBody.textContent = "No transcript available.";
+    return;
+  }
+  segmentTranscriptBody.innerHTML = "";
+  entry.chunks.forEach((chunk) => {
+    const row = document.createElement("div");
+    row.className = "segment-transcript-entry";
+    const text = document.createElement("p");
+    text.textContent = chunk.text || "";
+    const meta = document.createElement("small");
+    const start = Number(chunk.start || 0).toFixed(1);
+    const end = Number(chunk.end || chunk.start || 0).toFixed(1);
+    meta.textContent = `${chunk.speaker || "Speaker"} · ${start}s → ${end}s`;
+    row.append(text, meta);
+    segmentTranscriptBody.appendChild(row);
+  });
+}
+
+async function handleSegmentTranscript(segmentId) {
+  if (!segmentId) return;
+  if (segmentTranscriptBody) {
+    segmentTranscriptBody.textContent = "Loading transcript...";
+  }
+  segmentTranscriptPanel?.classList.remove("hidden");
+  try {
+    const res = await fetch(`/api/v1/audio/segments/${segmentId}/transcript`);
+    if (!res.ok) {
+      throw new Error("Transcript not found");
+    }
+    const data = await res.json();
+    renderSegmentTranscriptPanel(data, segmentId);
+  } catch (err) {
+    if (segmentTranscriptBody) {
+      segmentTranscriptBody.textContent = `Transcript unavailable (${err.message || err})`;
+    }
+  }
 }
 
 function handleHistoryMessages(entries) {

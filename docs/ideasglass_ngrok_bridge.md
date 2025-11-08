@@ -96,6 +96,7 @@ GET /api/v1/audio?limit=60&before=2025-11-08T09:00:00Z
 GET /api/v1/audio/{chunk_id}              -> audio/wav
 GET /api/v1/audio/segments
 GET /api/v1/audio/segments/{segment_id}   -> audio/wav (~15 s clip with overlap)
+GET /api/v1/audio/segments/{segment_id}/transcript -> JSON transcript payload
 WS  wss://ideas.lazying.art/ws/audio-ingest (send the same JSON payload as POST /api/v1/audio)
 ```
 - WebSocket events also include `audio_transcript` payloads with `{segment_id, chunks: [{speaker, text, start, end}], is_final}`, plus a `history_audio_transcripts` bootstrap so the UI can show the latest block on refresh.

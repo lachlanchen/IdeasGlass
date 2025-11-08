@@ -377,6 +377,18 @@ async def init_db() -> None:
         await conn.execute(
             "ALTER TABLE ig_audio_segments ADD COLUMN IF NOT EXISTS file_path TEXT;"
         )
+        await conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS ig_audio_transcripts (
+                segment_id TEXT PRIMARY KEY,
+                device_id TEXT NOT NULL,
+                transcript JSONB NOT NULL,
+                started_at TIMESTAMPTZ NOT NULL,
+                ended_at TIMESTAMPTZ NOT NULL,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            );
+            """
+        )
 
 
 @app.on_event("startup")
@@ -618,6 +630,48 @@ async def fetch_audio_segments(limit: int = 20, before: Optional[datetime] = Non
     return [row_to_segment_out(row) for row in rows]
 
 
+async def fetch_audio_transcripts(limit: int = 20, before: Optional[datetime] = None) -> List[AudioTranscriptOut]:
+    if not db_pool:
+        data = list(audio_transcript_store)
+        if before:
+            data = [
+                seg
+                for seg in data
+                if datetime.fromisoformat(seg.ended_at) < before
+            ]
+        data.sort(
+            key=lambda seg: datetime.fromisoformat(seg.ended_at),
+            reverse=True,
+        )
+        return data[:limit]
+    async with db_pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT segment_id, device_id, transcript, started_at, ended_at
+            FROM ig_audio_transcripts
+            WHERE ($2::timestamptz IS NULL OR ended_at < $2)
+            ORDER BY ended_at DESC
+            LIMIT $1;
+            """,
+            limit,
+            before,
+        )
+    results: List[AudioTranscriptOut] = []
+    for row in rows:
+        payload = row["transcript"]
+        results.append(
+            AudioTranscriptOut(
+                segment_id=row["segment_id"],
+                device_id=row["device_id"],
+                started_at=row["started_at"].isoformat(),
+                ended_at=row["ended_at"].isoformat(),
+                chunks=payload.get("chunks", []),
+                is_final=payload.get("is_final", True),
+            )
+        )
+    return results
+
+
 def pcm_to_wav(raw_bytes: bytes, sample_rate: int, bits_per_sample: int) -> bytes:
     buffer = BytesIO()
     with wave.open(buffer, "wb") as wav_file:
@@ -794,6 +848,58 @@ async def save_photo_to_disk(photo_id: str, photo_bytes: bytes, mime: Optional[s
     disk_path = PHOTO_STORAGE_DIR / filename
     await asyncio.to_thread(disk_path.write_bytes, photo_bytes)
     return f"{PHOTO_STORAGE_URL_PREFIX}/{filename}"
+
+
+async def persist_transcript_record(transcript: AudioTranscriptOut) -> None:
+    if not db_pool:
+        return
+    payload = transcript.model_dump()
+    async with db_pool.acquire() as conn:
+        await conn.execute(
+            """
+            INSERT INTO ig_audio_transcripts (segment_id, device_id, transcript, started_at, ended_at)
+            VALUES ($1,$2,$3::jsonb,$4,$5)
+            ON CONFLICT (segment_id) DO UPDATE SET transcript = EXCLUDED.transcript,
+                started_at = EXCLUDED.started_at,
+                ended_at = EXCLUDED.ended_at;
+            """,
+            transcript.segment_id,
+            transcript.device_id,
+            json.dumps(payload),
+            datetime.fromisoformat(transcript.started_at),
+            datetime.fromisoformat(transcript.ended_at),
+        )
+
+
+async def fetch_transcript_by_segment(segment_id: str) -> AudioTranscriptOut | None:
+    if not db_pool:
+        for entry in audio_transcript_store:
+            if entry.segment_id == segment_id:
+                return entry
+        return None
+    async with db_pool.acquire() as conn:
+        row = await conn.fetchrow(
+            """
+            SELECT segment_id, device_id, transcript, started_at, ended_at
+            FROM ig_audio_transcripts
+            WHERE segment_id=$1
+            """,
+            segment_id,
+        )
+    if not row:
+        for entry in audio_transcript_store:
+            if entry.segment_id == segment_id:
+                return entry
+        return None
+    payload = row["transcript"]
+    return AudioTranscriptOut(
+        segment_id=row["segment_id"],
+        device_id=row["device_id"],
+        started_at=row["started_at"].isoformat(),
+        ended_at=row["ended_at"].isoformat(),
+        chunks=payload.get("chunks", []),
+        is_final=payload.get("is_final", True),
+    )
 
 
 @dataclass
@@ -990,6 +1096,7 @@ class WhisperStreamManager:
         )
         if is_final:
             self.history_store.appendleft(transcript)
+            await persist_transcript_record(transcript)
         await self.ws_manager.broadcast({"type": "audio_transcript", "payload": transcript.model_dump()})
 
     async def _emit_silence_progress(
@@ -1031,6 +1138,7 @@ class WhisperStreamManager:
             is_final=True,
         )
         self.history_store.appendleft(transcript)
+        await persist_transcript_record(transcript)
         await self.ws_manager.broadcast({"type": "audio_transcript", "payload": transcript.model_dump()})
 
 
@@ -1444,7 +1552,7 @@ async def websocket_endpoint(websocket: WebSocket):
         await websocket.send_json({"type": "history_audio", "data": [c.model_dump() for c in audio_history]})
         segment_history = await fetch_audio_segments(limit=20)
         await websocket.send_json({"type": "history_audio_segments", "data": [s.model_dump() for s in segment_history]})
-        transcripts_history = list(audio_transcript_store)
+        transcripts_history = await fetch_audio_transcripts(limit=20)
         await websocket.send_json(
             {"type": "history_audio_transcripts", "data": [t.model_dump() for t in transcripts_history]}
         )
@@ -1528,6 +1636,14 @@ async def get_audio_segment(segment_id: str):
         if disk_path.exists():
             return FileResponse(disk_path, media_type="audio/wav", filename=f"{segment_id}.wav")
     return Response(content=bytes(row["data"]), media_type="audio/wav")
+
+
+@app.get("/api/v1/audio/segments/{segment_id}/transcript", response_model=AudioTranscriptOut)
+async def get_audio_segment_transcript(segment_id: str):
+    transcript = await fetch_transcript_by_segment(segment_id)
+    if transcript:
+        return transcript
+    raise HTTPException(status_code=404, detail="Transcript not found.")
 
 
 @app.get("/healthz")

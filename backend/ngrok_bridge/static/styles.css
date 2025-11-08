@@ -321,6 +321,73 @@ main {
   text-decoration: underline;
 }
 
+.segment-transcript-btn {
+  margin-left: 0.5rem;
+  padding: 0.25rem 0.75rem;
+  border-radius: 999px;
+  border: 1px solid rgba(99, 102, 241, 0.4);
+  background: transparent;
+  color: #4f46e5;
+  cursor: pointer;
+  font-size: 0.75rem;
+}
+
+.segment-transcript-btn:hover {
+  background: rgba(99, 102, 241, 0.1);
+}
+
+.segment-transcript-panel {
+  margin-top: 1rem;
+  padding: 1rem;
+  border-radius: 18px;
+  background: #ffffff;
+  box-shadow: 0 15px 40px rgba(15, 23, 42, 0.08);
+  border: 1px solid rgba(99, 102, 241, 0.12);
+}
+
+.segment-transcript-panel.hidden {
+  display: none;
+}
+
+.segment-transcript-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5rem;
+  font-weight: 600;
+}
+
+#segmentTranscriptClose {
+  border: none;
+  background: transparent;
+  color: #ef4444;
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+
+.segment-transcript-body {
+  max-height: 320px;
+  overflow-y: auto;
+  font-size: 0.9rem;
+  color: #1f2933;
+  line-height: 1.45;
+}
+
+.segment-transcript-entry {
+  padding: 0.4rem 0;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+}
+
+.segment-transcript-entry:last-child {
+  border-bottom: none;
+}
+
+.segment-transcript-entry small {
+  display: block;
+  color: #6b7280;
+  font-size: 0.75rem;
+}
+
 #statusPanel {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
