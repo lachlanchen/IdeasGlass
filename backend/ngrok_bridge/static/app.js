@@ -20,6 +20,7 @@ const state = {
   waveformLevels: [],
   waveBars: [],
   audioSegments: [],
+  segmentTargetMs: 15000,
 };
 
 state.waveformLevels = Array(state.waveformLimit).fill(0);
@@ -56,6 +57,16 @@ async function checkBackend() {
     backendStatus.className = `status ${
       res.ok ? "status-online" : "status-offline"
     }`;
+    if (res.ok) {
+      try {
+        const data = await res.json();
+        if (typeof data?.segment_target_ms === "number") {
+          state.segmentTargetMs = data.segment_target_ms;
+        }
+      } catch (err) {
+        console.warn("Failed to parse /healthz payload", err);
+      }
+    }
   } catch {
     backendStatus.textContent = "Offline";
     backendStatus.className = "status status-offline";
@@ -176,6 +187,7 @@ function addAudioSample(chunk) {
     id: chunk.id,
     rms: chunk.rms,
     speech: chunk.speech_detected,
+    segment_duration_ms: chunk.segment_duration_ms,
     created_at: chunk.created_at,
   });
   state.audioHistory.push(chunk);
@@ -188,15 +200,19 @@ function addAudioSample(chunk) {
   state.waveformLevels.push(computeLevel(chunk));
   updateWaveformBars();
   updateVadStatus(chunk);
-  updateTimer(chunk.created_at);
+  updateRecordingTimer(chunk);
   if (audioStatusEl) {
     const rmsText =
       typeof chunk.rms === "number"
         ? chunk.rms.toFixed(3)
         : Number(chunk.rms || 0).toFixed(3);
+    const segmentText =
+      typeof chunk.segment_duration_ms === "number"
+        ? `Segment ${formatSeconds(chunk.segment_duration_ms)}s`
+        : "Segment …";
     audioStatusEl.textContent = `Last chunk ${new Date(
       chunk.created_at
-    ).toLocaleTimeString()} · RMS ${rmsText}`;
+    ).toLocaleTimeString()} · RMS ${rmsText} · ${segmentText}`;
   }
 }
 
@@ -218,10 +234,41 @@ function updateVadStatus(chunk) {
   }
 }
 
-function updateTimer(timestamp) {
-  if (!timerEl || !timestamp) return;
-  const date = new Date(timestamp);
-  timerEl.textContent = date.toLocaleTimeString();
+function formatSeconds(ms) {
+  if (!Number.isFinite(ms)) return "0.0";
+  if (ms < 1000) {
+    return (ms / 1000).toFixed(1);
+  }
+  if (ms < 60000) {
+    return (ms / 1000).toFixed(1);
+  }
+  const minutes = Math.floor(ms / 60000);
+  const seconds = Math.round((ms % 60000) / 1000);
+  return `${minutes}:${seconds.toString().padStart(2, "0")}`;
+}
+
+function updateRecordingTimer(chunk) {
+  if (!timerEl) return;
+  const targetMs = state.segmentTargetMs || 15000;
+  const progressMs =
+    typeof chunk?.segment_duration_ms === "number"
+      ? Math.max(0, chunk.segment_duration_ms)
+      : null;
+  if (progressMs !== null && targetMs > 0) {
+    const clamped = Math.min(targetMs, progressMs);
+    const normalized = Math.min(1, clamped / targetMs);
+    timerEl.textContent = `Recording ${formatSeconds(clamped)}s / ${formatSeconds(targetMs)}s`;
+    timerEl.style.setProperty("--progress", normalized.toFixed(3));
+    timerEl.classList.toggle("complete", normalized >= 0.999);
+    return;
+  }
+  if (chunk?.created_at) {
+    timerEl.textContent = new Date(chunk.created_at).toLocaleTimeString();
+  } else {
+    timerEl.textContent = "LIVE";
+  }
+  timerEl.classList.remove("complete");
+  timerEl.style.setProperty("--progress", "0");
 }
 
 function formatDuration(ms) {

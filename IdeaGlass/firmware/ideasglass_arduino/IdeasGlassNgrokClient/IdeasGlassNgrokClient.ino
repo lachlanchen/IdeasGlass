@@ -1,11 +1,15 @@
 #include <Arduino.h>
 #include <WiFi.h>
 #include <WiFiClientSecure.h>
+#include <algorithm>
 #include "esp_camera.h"
 #include "mbedtls/base64.h"
 #include <math.h>
 #include <ESP_I2S.h>
-#include "../config.h"
+#include "esp_system.h"
+#include <freertos/FreeRTOS.h>
+#include <freertos/queue.h>
+#include <freertos/task.h>
 #include "../config.h"
 
 #if __has_include("../wifi_credentials.h")
@@ -42,12 +46,23 @@ const char *kServerHost = "ideas.lazying.art";
 const uint16_t kServerPort = 443;
 const char *kDeviceId = "ideasglass-devkit-01";
 #define ENABLE_PHOTO_CAPTURE 0
+const char *kAudioWsPath = "/ws/audio-ingest";
 const unsigned long kSendIntervalMs = 30000;
 const int AUDIO_SAMPLE_RATE = 16000;
 const size_t AUDIO_BLOCK_SAMPLES = 4096;
 static int16_t g_audioBlock[AUDIO_BLOCK_SAMPLES];
 size_t g_bufferedSamples = 0;
 uint32_t g_audioChunkCounter = 0;
+const size_t AUDIO_QUEUE_LENGTH = 6;
+const size_t AUDIO_SENDER_STACK = 8192;
+
+struct AudioPacket
+{
+    int16_t *samples = nullptr;
+    size_t sampleCount = 0;
+    float rms = 0.0f;
+    uint32_t sequence = 0;
+};
 
 // LetsEncrypt chain for ideas.lazying.art (PEM)
 static const char ideas_cert[] PROGMEM = R"(-----BEGIN CERTIFICATE-----
@@ -107,6 +122,11 @@ const size_t AUDIO_TEMP_SAMPLES = 512;
 static int16_t g_audioTemp[AUDIO_TEMP_SAMPLES];
 static I2SClass pdmI2S;
 bool audioInitialized = false;
+static QueueHandle_t g_audioQueue = nullptr;
+static TaskHandle_t g_audioSenderHandle = nullptr;
+
+void initAudioStreamer();
+void audioSenderTask(void *param);
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -193,6 +213,151 @@ bool encodeBase64(const uint8_t *data, size_t length, String &outString)
     return true;
 }
 
+class SimpleWebSocketClient
+{
+public:
+    void begin(const char *host, uint16_t port, const char *path, const char *caCert)
+    {
+        _host = host;
+        _port = port;
+        _path = path;
+        if (caCert) {
+            _client.setCACert(caCert);
+        }
+        _client.setTimeout(8000);
+        close();
+    }
+
+    bool ensureConnected()
+    {
+        if (_connected && _client.connected()) {
+            return true;
+        }
+        close();
+        if (!_client.connect(_host, _port)) {
+            return false;
+        }
+        if (!handshake()) {
+            close();
+            return false;
+        }
+        _connected = true;
+        return true;
+    }
+
+    bool sendText(const String &payload)
+    {
+        if (!ensureConnected()) {
+            return false;
+        }
+        if (!writeFrame(payload)) {
+            close();
+            return false;
+        }
+        return true;
+    }
+
+    void close()
+    {
+        if (_client.connected()) {
+            _client.stop();
+        }
+        _connected = false;
+    }
+
+private:
+    bool handshake()
+    {
+        uint8_t randomKey[16];
+        for (size_t i = 0; i < sizeof(randomKey); ++i) {
+            randomKey[i] = static_cast<uint8_t>(esp_random() & 0xFF);
+        }
+        String key;
+        if (!encodeBase64(randomKey, sizeof(randomKey), key)) {
+            return false;
+        }
+        _client.printf(
+            "GET %s HTTP/1.1\r\n"
+            "Host: %s\r\n"
+            "Upgrade: websocket\r\n"
+            "Connection: Upgrade\r\n"
+            "Sec-WebSocket-Version: 13\r\n"
+            "Sec-WebSocket-Key: %s\r\n"
+            "Sec-WebSocket-Protocol: ideasglass-audio\r\n\r\n",
+            _path,
+            _host,
+            key.c_str());
+        String status = _client.readStringUntil('\n');
+        if (!status.startsWith("HTTP/1.1 101")) {
+            return false;
+        }
+        unsigned long start = millis();
+        while (_client.connected() && millis() - start < 2000) {
+            String line = _client.readStringUntil('\n');
+            if (line.length() == 0 || line == "\r") {
+                break;
+            }
+        }
+        return true;
+    }
+
+    bool writeFrame(const String &payload)
+    {
+        const size_t len = payload.length();
+        if (len == 0) {
+            return true;
+        }
+        uint8_t header[14];
+        size_t headerLen = 0;
+        header[0] = 0x81;
+        if (len <= 125) {
+            header[1] = 0x80 | static_cast<uint8_t>(len);
+            headerLen = 2;
+        } else if (len <= 65535) {
+            header[1] = 0x80 | 126;
+            header[2] = (len >> 8) & 0xFF;
+            header[3] = len & 0xFF;
+            headerLen = 4;
+        } else {
+            header[1] = 0x80 | 127;
+            for (int i = 0; i < 8; ++i) {
+                header[2 + i] = (len >> ((7 - i) * 8)) & 0xFF;
+            }
+            headerLen = 10;
+        }
+        uint8_t mask[4];
+        for (int i = 0; i < 4; ++i) {
+            mask[i] = static_cast<uint8_t>(esp_random() & 0xFF);
+        }
+        memcpy(header + headerLen, mask, 4);
+        headerLen += 4;
+        if (_client.write(header, headerLen) != headerLen) {
+            return false;
+        }
+        uint8_t buffer[256];
+        size_t offset = 0;
+        while (offset < len) {
+            size_t chunk = std::min(sizeof(buffer), len - offset);
+            for (size_t i = 0; i < chunk; ++i) {
+                buffer[i] = payload[offset + i] ^ mask[(offset + i) % 4];
+            }
+            if (_client.write(buffer, chunk) != chunk) {
+                return false;
+            }
+            offset += chunk;
+        }
+        return true;
+    }
+
+    WiFiClientSecure _client;
+    const char *_host = nullptr;
+    const char *_path = nullptr;
+    uint16_t _port = 0;
+    bool _connected = false;
+};
+
+static SimpleWebSocketClient g_audioWsClient;
+
 bool capturePhotoBase64(String &outBase64)
 {
     camera_fb_t *fb = esp_camera_fb_get();
@@ -220,6 +385,7 @@ void setupAudio()
         return;
     }
     audioInitialized = true;
+    initAudioStreamer();
     Serial.println("[Audio] PDM microphone ready");
 }
 
@@ -233,40 +399,70 @@ float computeRms(const int16_t *samples, size_t count)
     return sqrt(sum / count);
 }
 
-bool sendAudioChunk(const String &encoded, float rms)
+bool sendAudioChunkPacket(const AudioPacket &packet)
 {
-    if (!WiFi.isConnected())
+    if (!packet.samples || packet.sampleCount == 0) {
         return false;
-
-    secure_client.setCACert(ideas_cert);
-    if (!secure_client.connect(kServerHost, kServerPort)) {
-        Serial.println("[Audio] HTTPS connect failed");
+    }
+    if (!WiFi.isConnected()) {
+        g_audioWsClient.close();
+        return false;
+    }
+    if (!g_audioWsClient.ensureConnected()) {
         return false;
     }
 
-    const uint32_t durationMs = (AUDIO_BLOCK_SAMPLES * 1000) / AUDIO_SAMPLE_RATE;
+    String encoded;
+    const size_t byteCount = packet.sampleCount * sizeof(int16_t);
+    if (!encodeBase64(reinterpret_cast<const uint8_t *>(packet.samples), byteCount, encoded)) {
+        Serial.println("[Audio] Failed to encode PCM16 chunk");
+        return false;
+    }
+
+    const uint32_t durationMs = (packet.sampleCount * 1000) / AUDIO_SAMPLE_RATE;
     String body = String("{\"device_id\":\"") + kDeviceId + "\","
                    "\"sample_rate\":" + AUDIO_SAMPLE_RATE + ","
                    "\"bits_per_sample\":16,"
                    "\"duration_ms\":" + durationMs + ","
-                   "\"rms\":" + String(rms, 4) + ","
+                   "\"rms\":" + String(packet.rms, 4) + ","
                    "\"audio_base64\":\"" + encoded + "\"}";
 
-    secure_client.printf(
-        "POST /api/v1/audio HTTP/1.1\r\n"
-        "Host: %s\r\n"
-        "Content-Type: application/json\r\n"
-        "Content-Length: %d\r\n"
-        "Connection: close\r\n\r\n",
-        kServerHost,
-        body.length());
-    secure_client.print(body);
+    return g_audioWsClient.sendText(body);
+}
 
-    String response = secure_client.readString();
-    secure_client.stop();
-    bool ok = response.indexOf("200") != -1;
-    Serial.printf("[Audio] chunk #%u %s (rms=%.3f)\n", g_audioChunkCounter++, ok ? "sent" : "FAILED", rms);
-    return ok;
+void audioSenderTask(void *param)
+{
+    AudioPacket packet;
+    while (true) {
+        if (g_audioQueue && xQueueReceive(g_audioQueue, &packet, portMAX_DELAY) == pdTRUE) {
+            bool ok = sendAudioChunkPacket(packet);
+            Serial.printf("[Audio] chunk #%u %s (rms=%.3f)\n", packet.sequence, ok ? "sent" : "FAILED", packet.rms);
+            if (packet.samples) {
+                free(packet.samples);
+                packet.samples = nullptr;
+            }
+            vTaskDelay(pdMS_TO_TICKS(5));
+        } else {
+            vTaskDelay(pdMS_TO_TICKS(20));
+        }
+    }
+}
+
+void initAudioStreamer()
+{
+    if (g_audioQueue) {
+        return;
+    }
+    g_audioQueue = xQueueCreate(AUDIO_QUEUE_LENGTH, sizeof(AudioPacket));
+    if (!g_audioQueue) {
+        Serial.println("[Audio] Failed to allocate audio queue");
+        return;
+    }
+    g_audioWsClient.begin(kServerHost, kServerPort, kAudioWsPath, ideas_cert);
+    BaseType_t ok = xTaskCreatePinnedToCore(audioSenderTask, "AudioSender", AUDIO_SENDER_STACK, nullptr, 1, &g_audioSenderHandle, 0);
+    if (ok != pdPASS) {
+        Serial.println("[Audio] Failed to start audio sender task");
+    }
 }
 
 void handleAudioStreaming()
@@ -289,7 +485,7 @@ void handleAudioStreaming()
 
     if (g_bufferedSamples >= AUDIO_BLOCK_SAMPLES) {
         float rms = computeRms(g_audioBlock, g_bufferedSamples);
-        uint32_t chunkIndex = g_audioChunkCounter;
+        uint32_t chunkIndex = g_audioChunkCounter++;
         int16_t peak = 0;
         for (size_t i = 0; i < g_bufferedSamples; ++i) {
             int16_t sample = g_audioBlock[i];
@@ -306,11 +502,26 @@ void handleAudioStreaming()
                           g_audioBlock[0],
                           (unsigned)g_bufferedSamples);
         }
-        String encoded;
-        if (encodeBase64(reinterpret_cast<uint8_t *>(g_audioBlock), g_bufferedSamples * sizeof(int16_t), encoded)) {
-            sendAudioChunk(encoded, rms);
-        } else {
-            Serial.println("[Audio] Failed to encode PCM16 chunk");
+        if (!g_audioQueue) {
+            Serial.println("[Audio] Queue not ready, dropping audio chunk");
+            g_bufferedSamples = 0;
+            return;
+        }
+        int16_t *chunkCopy = (int16_t *)malloc(g_bufferedSamples * sizeof(int16_t));
+        if (!chunkCopy) {
+            Serial.println("[Audio] Out of memory allocating audio chunk");
+            g_bufferedSamples = 0;
+            return;
+        }
+        memcpy(chunkCopy, g_audioBlock, g_bufferedSamples * sizeof(int16_t));
+        AudioPacket packet;
+        packet.samples = chunkCopy;
+        packet.sampleCount = g_bufferedSamples;
+        packet.rms = rms;
+        packet.sequence = chunkIndex;
+        if (xQueueSend(g_audioQueue, &packet, 0) != pdTRUE) {
+            Serial.println("[Audio] Send queue full, dropping chunk");
+            free(chunkCopy);
         }
         g_bufferedSamples = 0;
     }
@@ -319,6 +530,7 @@ void handleAudioStreaming()
 void connectToWiFi()
 {
     Serial.println("[WiFi] Connecting...");
+    g_audioWsClient.close();
     for (size_t i = 0; i < WIFI_NETWORK_COUNT; ++i) {
         const auto &cred = WIFI_NETWORKS[i];
         Serial.printf(" -> SSID %s\n", cred.ssid);

@@ -60,12 +60,21 @@ This guide documents the exact steps we used to relay Arduino data (text + photo
 
 # 3. Audio streaming + waveform UI
 
-The firmware now treats audio as the primary data stream:
+The firmware now keeps a persistent TLS WebSocket open to the bridge so audio can flow continuously with almost no sample loss:
 
-- **ESP32 firmware** — set `Tools → PSRAM → Enabled`, then flash `IdeasGlassNgrokClient.ino`. It samples the onboard PDM microphone at 16 kHz, logs per-chunk RMS/peaks, and posts ~250 ms PCM blocks to `/api/v1/audio`.
-- **Backend** — runs WebRTC VAD (`webrtcvad`), normalizes each chunk toward `IDEASGLASS_GAIN_TARGET` (default 0.032 RMS, capped by `IDEASGLASS_GAIN_MAX`), streams every chunk to disk immediately, and finalizes WAV segments roughly every 15 s (with a ~2 s overlap) so playback feels continuous. Raw chunks still land in `ig_audio_chunks`, while referenced WAVs live in `ig_audio_segments`.
-- **Storage** — in-progress PCM lives under `backend/ngrok_bridge/audio_segments/in_progress/` and is promoted to `backend/ngrok_bridge/audio_segments/<segment-id>.wav` once sealed. The Postgres row stores both the blob and the relative path so `/api/v1/audio/segments/{id}` can stream straight from disk.
-- **PWA** — the recorder panel now mimics a neon VU meter (with a speaking glow), and a “Recent recordings” list surfaces the latest WAV segments with download links.
+- **ESP32 firmware**
+  - Keep `Tools → PSRAM → Enabled`, then flash `IdeasGlassNgrokClient.ino`.
+  - I2S reads still happen at 16 kHz, but every 4096-sample block is copied into PSRAM and pushed to a FreeRTOS queue immediately. A dedicated sender task Base64-encodes the chunk and writes a masked WebSocket frame to `wss://ideas.lazying.art/ws/audio-ingest`, so capture never stalls while HTTPS handshakes complete.
+  - Serial logs show per-chunk RMS/peak (from the capture loop) plus the final WebSocket send status (from the sender task).
+- **Backend**
+  - Accepts the same JSON payload via HTTP (`POST /api/v1/audio`) or WebSocket (`/ws/audio-ingest`) and runs WebRTC VAD (`webrtcvad`) + gain staging on every chunk.
+  - Segments now close deterministically when `IDEASGLASS_SEGMENT_TARGET_MS` (default **15 000 ms**) is reached. A trailing window (`IDEASGLASS_SEGMENT_OVERLAP_MS`, default 2000 ms) is copied into the next clip, guaranteeing overlap but no gaps.
+  - When a segment is sealed we apply a second-stage gain (`IDEASGLASS_SEGMENT_GAIN_TARGET`, defaults to the per-chunk target) before emitting the WAV so every clip lands at a consistent loudness.
+  - `/healthz` reports `segment_target_ms`, and every chunk broadcast includes `segment_duration_ms` + `active_segment_id`, letting the UI show exact recorder progress.
+  - PCM buffers stream straight to `backend/ngrok_bridge/audio_segments/in_progress/` during capture, then promote to `audio_segments/<segment>.wav` (with the Postgres row pointing at the file).
+- **PWA**
+  - The waveform still uses 72 neon bars with the speaking glow, but the timer now shows `Recording X.X s / 15.0 s` with a progress bar that fills as the backend reports `segment_duration_ms`.
+  - The “Last chunk” label includes RMS plus the current segment’s elapsed time; the list of recordings updates immediately because clips finalize as soon as they cross the target duration (no more waiting for silence).
 
 API quick reference:
 
@@ -81,12 +90,18 @@ POST /api/v1/audio
 }
 
 GET /api/v1/audio?limit=60&before=2025-11-08T09:00:00Z
-GET /api/v1/audio/{chunk_id}  -> audio/wav
+GET /api/v1/audio/{chunk_id}              -> audio/wav
 GET /api/v1/audio/segments
-GET /api/v1/audio/segments/{segment_id} -> audio/wav (buffered ~15 s clip with overlap)
+GET /api/v1/audio/segments/{segment_id}   -> audio/wav (~15 s clip with overlap)
+WS  wss://ideas.lazying.art/ws/audio-ingest (send the same JSON payload as POST /api/v1/audio)
 ```
 
-Every `/api/v1/audio` response now echoes `speech_detected`, and the websocket stream includes this flag in both the historical payload and live `audio_chunk` events. The front-end keeps the last 72 normalized levels to animate the waveform while the backend quietly aggregates WAV segments (with gain applied) for later download/analysis. Use `IDEASGLASS_GAIN_TARGET`, `IDEASGLASS_GAIN_MAX`, `IDEASGLASS_GAIN_MIN_RMS`, `IDEASGLASS_SPEECH_RMS`, or `IDEASGLASS_SPEECH_MARGIN` to tune loudness/silence thresholds without reflashing firmware.
+Use these knobs to tune the pipeline without reflashing:
+
+- `IDEASGLASS_GAIN_TARGET`, `IDEASGLASS_GAIN_MAX`, `IDEASGLASS_GAIN_MIN_RMS`, `IDEASGLASS_SPEECH_RMS`, `IDEASGLASS_SPEECH_MARGIN` — per-chunk gain + VAD
+- `IDEASGLASS_SEGMENT_TARGET_MS`, `IDEASGLASS_SEGMENT_OVERLAP_MS`, `IDEASGLASS_SEGMENT_GAIN_TARGET` — recorder window length, overlap, and clip-level gain
+
+For debugging, the PWA still logs `[IdeasGlass][wave] …` entries to the browser console for history batches, live chunks, and finalized segments, so you can verify the stream at a glance.
 
 For debugging, the PWA logs `[IdeasGlass][wave] …` entries to the browser console every time it receives history batches, live chunks, or finalized segments, so you can confirm data is flowing even before the visualization animates.
 

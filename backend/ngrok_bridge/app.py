@@ -26,7 +26,7 @@ from fastapi import (
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
 import webrtcvad
 
 BASE_DIR = Path(__file__).parent
@@ -48,6 +48,9 @@ AUDIO_GAIN_MAX = float(os.getenv("IDEASGLASS_GAIN_MAX", "1.8"))
 AUDIO_GAIN_MIN_RMS = float(os.getenv("IDEASGLASS_GAIN_MIN_RMS", "0.008"))
 SPEECH_RMS_THRESHOLD = float(os.getenv("IDEASGLASS_SPEECH_RMS", "0.03"))
 AUDIO_GAIN_FALSE_POSITIVE_MARGIN = float(os.getenv("IDEASGLASS_SPEECH_MARGIN", "0.005"))
+SEGMENT_GAIN_TARGET_RMS = float(
+    os.getenv("IDEASGLASS_SEGMENT_GAIN_TARGET", str(AUDIO_GAIN_TARGET_RMS))
+)
 
 
 class MessageIn(BaseModel):
@@ -87,6 +90,8 @@ class AudioChunkOut(BaseModel):
     created_at: str
     audio_url: Optional[str] = None
     speech_detected: bool = False
+    segment_duration_ms: Optional[int] = None
+    active_segment_id: Optional[str] = None
 
 
 class AudioSegmentOut(BaseModel):
@@ -131,6 +136,12 @@ class AudioSegmentRecord:
     file_path: Optional[str] = None
 
 
+@dataclass
+class SegmentAppendResult:
+    segment_id: Optional[str] = None
+    duration_ms: Optional[int] = None
+
+
 class ConnectionManager:
     def __init__(self) -> None:
         self._connections: List[WebSocket] = []
@@ -172,7 +183,7 @@ audio_segment_store: deque[AudioSegmentOut] = deque(maxlen=50)
 DATABASE_URL = os.getenv("DATABASE_URL")
 db_pool: asyncpg.pool.Pool | None = None
 vad_detector = webrtcvad.Vad(max(0, min(3, VAD_AGGRESSIVENESS)))
-segment_states: Dict[str, AudioSegmentBuffer] = {}
+segment_states: Dict[str, List[AudioSegmentBuffer]] = {}
 segment_lock = asyncio.Lock()
 segment_cleanup_task: asyncio.Task | None = None
 SUPPORTED_VAD_RATES = {8000, 16000, 32000, 48000}
@@ -545,6 +556,98 @@ def process_pcm_chunk(raw_audio: bytes) -> tuple[bytes, float]:
     return samples.tobytes(), final_rms
 
 
+def _bytes_per_ms(sample_rate: int, bits_per_sample: int) -> float:
+    bytes_per_sample = max(1, bits_per_sample // 8)
+    return (sample_rate * bytes_per_sample) / 1000.0
+
+
+def _ms_to_bytes(duration_ms: int, sample_rate: int, bits_per_sample: int) -> int:
+    return int(duration_ms * _bytes_per_ms(sample_rate, bits_per_sample))
+
+
+def _bytes_to_ms(byte_count: int, sample_rate: int, bits_per_sample: int) -> int:
+    bytes_per_ms = _bytes_per_ms(sample_rate, bits_per_sample)
+    if bytes_per_ms <= 0:
+        return 0
+    return int(round(byte_count / bytes_per_ms))
+
+
+def compute_rms_from_pcm(raw_audio: bytes, bits_per_sample: int) -> float:
+    if bits_per_sample != 16 or not raw_audio:
+        return 0.0
+    samples = array("h")
+    samples.frombytes(raw_audio)
+    if not samples:
+        return 0.0
+    sum_sq = 0.0
+    for sample in samples:
+        sum_sq += (sample / 32768.0) ** 2
+    return math.sqrt(sum_sq / len(samples))
+
+
+def enhance_segment_pcm(
+    raw_audio: bytes,
+    sample_rate: int,
+    bits_per_sample: int,
+) -> tuple[bytes, float]:
+    if bits_per_sample != 16 or not raw_audio:
+        return raw_audio, compute_rms_from_pcm(raw_audio, bits_per_sample)
+    samples = array("h")
+    samples.frombytes(raw_audio)
+    if not samples:
+        return raw_audio, 0.0
+    sum_sq = 0.0
+    for sample in samples:
+        sum_sq += (sample / 32768.0) ** 2
+    orig_rms = math.sqrt(sum_sq / len(samples))
+    target = max(SEGMENT_GAIN_TARGET_RMS, AUDIO_GAIN_TARGET_RMS)
+    if orig_rms >= target or orig_rms <= 1e-6:
+        return raw_audio, orig_rms
+    gain = min(AUDIO_GAIN_MAX, target / orig_rms)
+    if abs(gain - 1.0) <= 1e-3:
+        return raw_audio, orig_rms
+    sum_sq_out = 0.0
+    for idx, sample in enumerate(samples):
+        amplified = int(sample * gain)
+        if amplified > 32767:
+            amplified = 32767
+        elif amplified < -32768:
+            amplified = -32768
+        samples[idx] = amplified
+        sum_sq_out += (amplified / 32768.0) ** 2
+    final_rms = math.sqrt(sum_sq_out / len(samples))
+    return samples.tobytes(), final_rms
+
+
+def _start_segment_state(
+    device_id: str,
+    sample_rate: int,
+    bits_per_sample: int,
+    started_at: datetime,
+) -> AudioSegmentBuffer:
+    state = AudioSegmentBuffer(
+        device_id=device_id,
+        sample_rate=sample_rate,
+        bits_per_sample=bits_per_sample,
+        started_at=started_at,
+    )
+    temp_path = AUDIO_SEGMENTS_WORK_DIR / f"{state.segment_id}.raw"
+    temp_path.parent.mkdir(parents=True, exist_ok=True)
+    if temp_path.exists():
+        temp_path.unlink()
+    state.temp_path = temp_path
+    return state
+
+
+def _extract_overlap_payload(state: AudioSegmentBuffer) -> bytes:
+    if not state.buffer or SEGMENT_LOOKBACK_MS <= 0:
+        return b""
+    overlap_bytes = _ms_to_bytes(SEGMENT_LOOKBACK_MS, state.sample_rate, state.bits_per_sample)
+    if overlap_bytes <= 0:
+        return b""
+    return bytes(state.buffer[-overlap_bytes:])
+
+
 def row_to_segment_out(row) -> AudioSegmentOut:
     file_path = row["file_path"] if "file_path" in row else None
     return AudioSegmentOut(
@@ -575,10 +678,8 @@ def _should_finalize_segment(
     if not state.buffer and not (state.temp_path and state.temp_path.exists()):
         return False
     silence_ms = _silence_duration_ms(state, now)
-    if state.duration_ms >= SEGMENT_MAX_MS:
+    if state.duration_ms >= SEGMENT_MAX_MS or state.duration_ms >= SEGMENT_TARGET_MS:
         return True
-    if state.duration_ms >= SEGMENT_TARGET_MS:
-        return silence_ms >= SILENCE_HANGOVER_MS
     if (
         not speech_detected
         and state.duration_ms >= MIN_SEGMENT_MS
@@ -633,16 +734,23 @@ async def _flush_segment_state(state: AudioSegmentBuffer) -> None:
     if not buffer_has_data and not temp_file_bytes:
         return
     ended_at = state.last_chunk_at or state.started_at
-    avg_rms = state.rms_accumulator / max(1, state.rms_count)
     pcm_payload = temp_file_bytes if temp_file_bytes is not None else bytes(state.buffer)
-    wav_payload = pcm_to_wav(pcm_payload, state.sample_rate, state.bits_per_sample)
+    if not pcm_payload:
+        return
+    duration_ms = _bytes_to_ms(len(pcm_payload), state.sample_rate, state.bits_per_sample) or state.duration_ms
+    enhanced_pcm, enhanced_rms = enhance_segment_pcm(
+        pcm_payload,
+        state.sample_rate,
+        state.bits_per_sample,
+    )
+    wav_payload = pcm_to_wav(enhanced_pcm, state.sample_rate, state.bits_per_sample)
     record = AudioSegmentRecord(
         id=state.segment_id,
         device_id=state.device_id,
         sample_rate=state.sample_rate,
         bits_per_sample=state.bits_per_sample,
-        duration_ms=state.duration_ms,
-        rms=avg_rms,
+        duration_ms=duration_ms,
+        rms=enhanced_rms,
         started_at=state.started_at,
         ended_at=ended_at,
     )
@@ -669,32 +777,25 @@ async def append_audio_to_segment_buffers(
     chunk: AudioChunkOut,
     raw_audio: bytes,
     speech_detected: bool,
-) -> None:
+) -> SegmentAppendResult:
     now = datetime.fromisoformat(chunk.created_at)
     segments_to_flush: List[AudioSegmentBuffer] = []
+    result = SegmentAppendResult()
     async with segment_lock:
-        if chunk.device_id not in segment_states:
-            segment_states[chunk.device_id] = []
-        bucket = segment_states[chunk.device_id]
+        bucket = segment_states.setdefault(chunk.device_id, [])
 
-        # Always use the newest segment
         state = bucket[-1] if bucket else None
         if (
             not state
             or state.sample_rate != chunk.sample_rate
             or state.bits_per_sample != chunk.bits_per_sample
         ):
-            state = AudioSegmentBuffer(
-                device_id=chunk.device_id,
-                sample_rate=chunk.sample_rate,
-                bits_per_sample=chunk.bits_per_sample,
-                started_at=now,
+            state = _start_segment_state(
+                chunk.device_id,
+                chunk.sample_rate,
+                chunk.bits_per_sample,
+                now,
             )
-            temp_path = AUDIO_SEGMENTS_WORK_DIR / f"{state.segment_id}.raw"
-            temp_path.parent.mkdir(parents=True, exist_ok=True)
-            if temp_path.exists():
-                temp_path.unlink()
-            state.temp_path = temp_path
             bucket.append(state)
 
         state.buffer.extend(raw_audio)
@@ -706,43 +807,56 @@ async def append_audio_to_segment_buffers(
         if speech_detected:
             state.last_voice_at = now
 
+        progress_ms = min(state.duration_ms, SEGMENT_TARGET_MS)
+        result = SegmentAppendResult(segment_id=state.segment_id, duration_ms=progress_ms)
+
         if _should_finalize_segment(state, now, speech_detected):
-            segments_to_flush.append(bucket.pop() if bucket else None)
-            # Start overlapped trailing segment
-            overlap_bytes = int(
-                len(raw_audio) * SEGMENT_LOOKBACK_MS / max(chunk.duration_ms, 1)
+            segments_to_flush.append(bucket.pop())
+            overlap_payload = _extract_overlap_payload(state)
+            new_state = _start_segment_state(
+                chunk.device_id,
+                chunk.sample_rate,
+                chunk.bits_per_sample,
+                now,
             )
-            overlap_payload = raw_audio[-overlap_bytes:] if overlap_bytes else b""
-            new_state = AudioSegmentBuffer(
-                device_id=chunk.device_id,
-                sample_rate=chunk.sample_rate,
-                bits_per_sample=chunk.bits_per_sample,
-                started_at=now,
-            )
-            temp_path = AUDIO_SEGMENTS_WORK_DIR / f"{new_state.segment_id}.raw"
-            temp_path.parent.mkdir(parents=True, exist_ok=True)
-            if temp_path.exists():
-                temp_path.unlink()
-            new_state.temp_path = temp_path
             if overlap_payload:
                 new_state.buffer.extend(overlap_payload)
                 append_chunk_to_file(new_state, overlap_payload)
-                new_state.duration_ms += min(chunk.duration_ms, SEGMENT_LOOKBACK_MS)
-                new_state.rms_accumulator += chunk.rms
+                overlap_ms = _bytes_to_ms(
+                    len(overlap_payload),
+                    new_state.sample_rate,
+                    new_state.bits_per_sample,
+                )
+                new_state.duration_ms += overlap_ms
+                overlap_rms = compute_rms_from_pcm(
+                    overlap_payload,
+                    new_state.bits_per_sample,
+                )
+                new_state.rms_accumulator += overlap_rms
                 new_state.rms_count += 1
                 new_state.last_chunk_at = now
+                if speech_detected:
+                    new_state.last_voice_at = now
             bucket.append(new_state)
 
-        # Flush idle segments
-        for state in list(bucket[:-1]):
-            idle_ms = (now - state.last_chunk_at).total_seconds() * 1000 if state.last_chunk_at else SEGMENT_IDLE_FLUSH_MS + 1
+        # Flush idle segments except most recent
+        for stale_state in list(bucket[:-1]):
+            idle_ms = (
+                (now - stale_state.last_chunk_at).total_seconds() * 1000
+                if stale_state.last_chunk_at
+                else SEGMENT_IDLE_FLUSH_MS + 1
+            )
             if idle_ms >= SEGMENT_IDLE_FLUSH_MS:
-                bucket.remove(state)
-                segments_to_flush.append(state)
+                bucket.remove(stale_state)
+                segments_to_flush.append(stale_state)
+
+        if not bucket:
+            segment_states.pop(chunk.device_id, None)
 
     for segment in segments_to_flush:
         if segment:
             await _flush_segment_state(segment)
+    return result
 
 
 async def flush_idle_segments(force: bool = False) -> None:
@@ -770,6 +884,54 @@ async def segment_housekeeper():
     while True:
         await asyncio.sleep(2)
         await flush_idle_segments()
+
+
+def _decode_audio_payload(payload: AudioChunkIn) -> tuple[bytes, float, bool]:
+    try:
+        raw_audio = base64.b64decode(payload.audio_base64.encode(), validate=True)
+    except Exception as exc:
+        raise ValueError(f"Invalid audio_base64 data: {exc}") from exc
+    raw_audio, computed_rms = process_pcm_chunk(raw_audio)
+    speech_detected = detect_speech(
+        raw_audio,
+        payload.sample_rate,
+        payload.bits_per_sample,
+        computed_rms,
+    )
+    return raw_audio, computed_rms, speech_detected
+
+
+async def process_audio_payload(payload: AudioChunkIn) -> AudioChunkOut:
+    raw_audio, computed_rms, speech_detected = _decode_audio_payload(payload)
+    chunk_id = str(uuid.uuid4())
+    now = datetime.now(tz=timezone.utc)
+    chunk = AudioChunkOut(
+        id=chunk_id,
+        device_id=payload.device_id,
+        sample_rate=payload.sample_rate,
+        bits_per_sample=payload.bits_per_sample,
+        duration_ms=payload.duration_ms,
+        rms=round(computed_rms, 4),
+        created_at=now.isoformat(),
+        audio_url=f"/api/v1/audio/{chunk_id}",
+        speech_detected=speech_detected,
+    )
+    append_result = await append_audio_to_segment_buffers(chunk, raw_audio, speech_detected)
+    chunk.segment_duration_ms = append_result.duration_ms
+    chunk.active_segment_id = append_result.segment_id
+
+    audio_store.append(chunk)
+    schedule_background(
+        persist_audio_chunk(chunk, raw_audio),
+        "persist_audio_chunk",
+    )
+    print(
+        "[Audio] Forward chunk "
+        f"{chunk.device_id}#{chunk.id} rms={chunk.rms:.4f} speech={speech_detected} "
+        f"segment={chunk.active_segment_id or 'n/a'} progress={chunk.segment_duration_ms or 0}ms"
+    )
+    await manager.broadcast({"type": "audio_chunk", "payload": chunk.model_dump()})
+    return chunk
 
 
 @app.post("/api/v1/messages", response_model=MessageOut)
@@ -807,45 +969,9 @@ async def list_messages(limit: int = 50, before: Optional[str] = None):
 @app.post("/api/v1/audio", response_model=AudioChunkOut)
 async def ingest_audio_chunk(payload: AudioChunkIn):
     try:
-        raw_audio = base64.b64decode(payload.audio_base64.encode(), validate=True)
-    except Exception as exc:
-        raise HTTPException(status_code=400, detail=f"Invalid audio_base64 data: {exc}") from exc
-    raw_audio, computed_rms = process_pcm_chunk(raw_audio)
-
-    speech_detected = detect_speech(
-        raw_audio,
-        payload.sample_rate,
-        payload.bits_per_sample,
-        computed_rms,
-    )
-    chunk_id = str(uuid.uuid4())
-    now = datetime.now(tz=timezone.utc)
-    chunk = AudioChunkOut(
-        id=chunk_id,
-        device_id=payload.device_id,
-        sample_rate=payload.sample_rate,
-        bits_per_sample=payload.bits_per_sample,
-        duration_ms=payload.duration_ms,
-        rms=round(computed_rms, 4),
-        created_at=now.isoformat(),
-        audio_url=f"/api/v1/audio/{chunk_id}",
-        speech_detected=speech_detected,
-    )
-
-    audio_store.append(chunk)
-    schedule_background(
-        persist_audio_chunk(chunk, raw_audio),
-        "persist_audio_chunk",
-    )
-    schedule_background(
-        append_audio_to_segment_buffers(chunk, raw_audio, speech_detected),
-        "segment_buffer",
-    )
-    print(
-        "[Audio] Forward chunk "
-        f"{chunk.device_id}#{chunk.id} rms={chunk.rms:.4f} speech={speech_detected}"
-    )
-    await manager.broadcast({"type": "audio_chunk", "payload": chunk.model_dump()})
+        chunk = await process_audio_payload(payload)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     return chunk
 
 
@@ -887,6 +1013,31 @@ async def websocket_endpoint(websocket: WebSocket):
             await websocket.receive_text()
     except WebSocketDisconnect:
         await manager.disconnect(websocket)
+
+
+@app.websocket("/ws/audio-ingest")
+async def audio_ingest_socket(websocket: WebSocket):
+    await websocket.accept()
+    try:
+        while True:
+            text_message = await websocket.receive_text()
+            try:
+                payload_dict = json.loads(text_message)
+            except json.JSONDecodeError as exc:
+                print(f"[Audio][WS] Dropping invalid JSON payload: {exc}")
+                continue
+            try:
+                chunk_payload = AudioChunkIn(**payload_dict)
+            except ValidationError as exc:
+                print(f"[Audio][WS] Validation failed: {exc}")
+                continue
+            try:
+                await process_audio_payload(chunk_payload)
+            except ValueError as exc:
+                print(f"[Audio][WS] Failed to process chunk: {exc}")
+                continue
+    except WebSocketDisconnect:
+        pass
 
 
 @app.get("/api/v1/photos/{photo_id}")
@@ -942,7 +1093,12 @@ async def get_audio_segment(segment_id: str):
 
 @app.get("/healthz")
 async def healthcheck():
-    return {"status": "ok", "messages": len(message_store)}
+    return {
+        "status": "ok",
+        "messages": len(message_store),
+        "segment_target_ms": SEGMENT_TARGET_MS,
+        "segment_overlap_ms": SEGMENT_OVERLAP_MS,
+    }
 
 
 @app.get("/")
