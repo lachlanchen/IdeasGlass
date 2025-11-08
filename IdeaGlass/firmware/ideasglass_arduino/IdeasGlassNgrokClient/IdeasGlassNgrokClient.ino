@@ -3,7 +3,6 @@
 #include <WiFiClientSecure.h>
 #include "esp_camera.h"
 #include "mbedtls/base64.h"
-#include "esp32/spiram.h"
 
 #if __has_include("../wifi_credentials.h")
 #include "../wifi_credentials.h"
