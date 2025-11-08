@@ -895,10 +895,15 @@ class WhisperStreamManager:
         record: AudioSegmentRecord,
         pcm_payload: bytes,
     ) -> None:
+        has_voice = False
         async with self.lock:
             current = self.streams.get(record.device_id)
             if current and current.segment_id == record.id:
+                has_voice = current.active
                 del self.streams[record.device_id]
+        if not has_voice:
+            await self._emit_silence(record)
+            return
         await self._emit_from_pcm(
             device_id=record.device_id,
             segment_id=record.id,
@@ -954,6 +959,25 @@ class WhisperStreamManager:
         )
         if is_final:
             self.history_store.appendleft(transcript)
+        await self.ws_manager.broadcast({"type": "audio_transcript", "payload": transcript.model_dump()})
+
+    async def _emit_silence(self, record: AudioSegmentRecord) -> None:
+        transcript = AudioTranscriptOut(
+            segment_id=record.id,
+            device_id=record.device_id,
+            started_at=record.started_at.isoformat(),
+            ended_at=record.ended_at.isoformat(),
+            chunks=[
+                TranscriptChunk(
+                    speaker="Silence",
+                    text="(silence)",
+                    start=0.0,
+                    end=float(record.duration_ms) / 1000.0,
+                )
+            ],
+            is_final=True,
+        )
+        self.history_store.appendleft(transcript)
         await self.ws_manager.broadcast({"type": "audio_transcript", "payload": transcript.model_dump()})
 
 
