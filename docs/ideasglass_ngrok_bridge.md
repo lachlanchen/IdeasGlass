@@ -103,7 +103,7 @@ Use these knobs to tune the pipeline without reflashing:
 
 - `IDEASGLASS_GAIN_TARGET`, `IDEASGLASS_GAIN_MAX`, `IDEASGLASS_GAIN_MIN_RMS`, `IDEASGLASS_SPEECH_RMS`, `IDEASGLASS_SPEECH_MARGIN` — per-chunk gain + VAD
 - `IDEASGLASS_SEGMENT_TARGET_MS`, `IDEASGLASS_SEGMENT_OVERLAP_MS`, `IDEASGLASS_SEGMENT_GAIN_TARGET` — recorder window length, overlap, and clip-level gain
-- `IDEASGLASS_TRANSCRIBE`, `IDEASGLASS_WHISPER_MODEL`, `IDEASGLASS_WHISPER_DEVICE`, `IDEASGLASS_TRANSCRIPT_INTERVAL_MS` — control the live Whisper streamer (set `IDEASGLASS_TRANSCRIBE=0` to disable if resources are tight)
+- `IDEASGLASS_TRANSCRIBE`, `IDEASGLASS_WHISPER_MODEL`, `IDEASGLASS_WHISPER_DEVICE`, `IDEASGLASS_TRANSCRIPT_INTERVAL_MS`, `IDEASGLASS_TRANSCRIPT_THRESHOLDS_MS` — control the live Whisper streamer (default thresholds `3000,6000,15000` ms); set `IDEASGLASS_TRANSCRIBE=0` to disable if resources are tight
 
 For debugging, the PWA still logs `[IdeasGlass][wave] …` entries to the browser console for history batches, live chunks, and finalized segments, so you can verify the stream at a glance.
 

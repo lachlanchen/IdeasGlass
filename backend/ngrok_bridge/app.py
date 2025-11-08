@@ -123,12 +123,37 @@ WHISPER_DEVICE = os.getenv("IDEASGLASS_WHISPER_DEVICE", WHISPER_DEVICE_DEFAULT)
 WHISPER_MODEL_NAME = os.getenv("IDEASGLASS_WHISPER_MODEL", "base")
 WHISPER_FP16 = os.getenv("IDEASGLASS_WHISPER_FP16", "1").lower() not in {"0", "false"}
 WHISPER_STREAM_INTERVAL_MS = int(os.getenv("IDEASGLASS_TRANSCRIPT_INTERVAL_MS", "3000"))
+WHISPER_STREAM_THRESHOLDS = os.getenv("IDEASGLASS_TRANSCRIPT_THRESHOLDS_MS", "3000,6000,15000")
 if TRANSCRIPTION_ENABLED and not whisper:
     TRANSCRIPTION_ENABLED = False
     print("[Transcription] openai-whisper not available; disabling automatic transcription.")
 SEGMENT_GAIN_TARGET_RMS = float(
     os.getenv("IDEASGLASS_SEGMENT_GAIN_TARGET", str(AUDIO_GAIN_TARGET_RMS))
 )
+
+
+def _parse_thresholds(raw: str) -> List[int]:
+    values: List[int] = []
+    for part in raw.split(","):
+        part = part.strip()
+        if not part:
+            continue
+        try:
+            ms = int(part)
+        except ValueError:
+            continue
+        if ms <= 0:
+            continue
+        values.append(ms)
+    if not values:
+        values = [WHISPER_STREAM_INTERVAL_MS, SEGMENT_TARGET_MS]
+    values = sorted(set(values))
+    if values[-1] < SEGMENT_TARGET_MS:
+        values.append(SEGMENT_TARGET_MS)
+    return values
+
+
+WHISPER_THRESHOLD_VALUES = _parse_thresholds(WHISPER_STREAM_THRESHOLDS)
 
 
 class MessageIn(BaseModel):
@@ -753,6 +778,7 @@ class WhisperStreamState:
     buffer: bytearray = field(default_factory=bytearray)
     last_emit_ms: int = 0
     last_chunks: List[TranscriptChunk] = field(default_factory=list)
+    threshold_index: int = 0
 
 
 class WhisperStreamManager:
@@ -769,6 +795,7 @@ class WhisperStreamManager:
         self.model_name = model_name
         self.fp16 = fp16 and device.startswith("cuda")
         self.interval_ms = max(500, interval_ms)
+        self.thresholds_ms = WHISPER_THRESHOLD_VALUES
         self.history_store = history_store
         self.ws_manager = ws_manager
         self.streams: Dict[str, WhisperStreamState] = {}
@@ -785,17 +812,18 @@ class WhisperStreamManager:
         audio = np.frombuffer(pcm_bytes, dtype=np.int16).astype(np.float32) / 32768.0
         return audio
 
-    def _transcribe_sync(self, audio: np.ndarray, sample_rate: int) -> List[TranscriptChunk]:
+    def _transcribe_sync(self, audio: np.ndarray) -> List[TranscriptChunk]:
         if audio.size == 0:
             return []
         self._ensure_model()
-        options = {
-            "sample_rate": sample_rate,
-            "fp16": self.fp16,
-            "condition_on_previous_text": False,
-            "verbose": False,
-        }
-        result = self.model.transcribe(audio, **options)
+        audio = whisper.pad_or_trim(audio)
+        result = self.model.transcribe(
+            audio,
+            verbose=False,
+            fp16=self.fp16,
+            condition_on_previous_text=False,
+            temperature=0.0,
+        )
         chunks: List[TranscriptChunk] = []
         for seg in result.get("segments", []):
             text = (seg.get("text") or "").strip()
@@ -835,10 +863,19 @@ class WhisperStreamManager:
                 self.streams[device_id] = stream
             stream.buffer.extend(raw_audio)
             buffer_ms = _bytes_to_ms(len(stream.buffer), sample_rate, bits_per_sample)
-            if buffer_ms - stream.last_emit_ms < self.interval_ms:
+            snapshot: Optional[bytes] = None
+            next_threshold = None
+            if stream.threshold_index < len(self.thresholds_ms):
+                next_threshold = self.thresholds_ms[stream.threshold_index]
+            if next_threshold and buffer_ms >= next_threshold:
+                stream.threshold_index += 1
+                stream.last_emit_ms = next_threshold
+                snapshot = bytes(stream.buffer)
+            if not snapshot and buffer_ms - stream.last_emit_ms < self.interval_ms:
                 return
-            stream.last_emit_ms = buffer_ms
-            snapshot = bytes(stream.buffer)
+            if not snapshot:
+                stream.last_emit_ms = buffer_ms
+                snapshot = bytes(stream.buffer)
         await self._emit_snapshot(stream, snapshot, is_final=False)
 
     async def finalize_segment(
@@ -892,7 +929,6 @@ class WhisperStreamManager:
         chunks = await asyncio.to_thread(
             self._transcribe_sync,
             self._pcm_bytes_to_audio(pcm_payload),
-            sample_rate,
         )
         if not chunks:
             return
