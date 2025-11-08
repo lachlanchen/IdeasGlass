@@ -2,7 +2,14 @@
 #include <WiFi.h>
 #include <WiFiMulti.h>
 
+#if __has_include("../wifi_credentials.h")
 #include "../wifi_credentials.h"
+#elif __has_include("../wifi_credentials.example.h")
+#warning "wifi_credentials.h not found. Falling back to wifi_credentials.example.h"
+#include "../wifi_credentials.example.h"
+#else
+#error "wifi_credentials.h missing. Copy wifi_credentials.example.h to wifi_credentials.h next to config.h."
+#endif
 
 WiFiMulti wifiMulti;
 unsigned long lastStatusPrint = 0;

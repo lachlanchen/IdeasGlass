@@ -16,7 +16,14 @@
 #include <cstring>
 
 #include "config.h"
+#if __has_include("wifi_credentials.h")
 #include "wifi_credentials.h"
+#elif __has_include("wifi_credentials.example.h")
+#warning "wifi_credentials.h not found. Falling back to wifi_credentials.example.h"
+#include "wifi_credentials.example.h"
+#else
+#error "wifi_credentials.h missing. Copy wifi_credentials.example.h to wifi_credentials.h and set your SSID/passwords."
+#endif
 
 // Camera pin map for Seeed XIAO ESP32S3 Sense
 #define PWDN_GPIO_NUM -1
