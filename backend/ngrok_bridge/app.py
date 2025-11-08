@@ -13,9 +13,11 @@ from datetime import datetime, timezone
 from io import BytesIO
 from pathlib import Path
 import site
+import ctypes
 from typing import Any, Coroutine, Dict, List, Optional
 import wave
 import math
+import numpy as np
 
 import asyncpg
 from fastapi import (
@@ -62,6 +64,26 @@ def _inject_cudnn_library_path() -> None:
     if existing:
         updated_parts.append(existing)
     os.environ["LD_LIBRARY_PATH"] = ":".join(updated_parts)
+    # Proactively load cuDNN libs so the dynamic linker sees them even if LD_LIBRARY_PATH was read earlier.
+    for base_path in candidate_paths:
+        libdir = Path(base_path)
+        for lib_name in (
+            "libcudnn.so.9",
+            "libcudnn_adv.so.9",
+            "libcudnn_ops.so.9",
+            "libcudnn_cnn.so.9",
+            "libcudnn_graph.so.9",
+            "libcudnn_heuristic.so.9",
+            "libcudnn_engines_precompiled.so.9",
+            "libcudnn_engines_runtime_compiled.so.9",
+        ):
+            lib_path = libdir / lib_name
+            if not lib_path.exists():
+                continue
+            try:
+                ctypes.CDLL(str(lib_path))
+            except OSError as exc:
+                print(f"[Transcription] Warning: failed to preload {lib_path}: {exc}")
 
 
 _inject_cudnn_library_path()
@@ -72,9 +94,9 @@ except Exception:  # pragma: no cover - optional dependency
     torch = None
 
 try:
-    import whisperx  # type: ignore
+    import whisper  # type: ignore
 except Exception:  # pragma: no cover - optional dependency
-    whisperx = None
+    whisper = None
 
 BASE_DIR = Path(__file__).parent
 STATIC_DIR = BASE_DIR / "static"
@@ -96,18 +118,14 @@ AUDIO_GAIN_MIN_RMS = float(os.getenv("IDEASGLASS_GAIN_MIN_RMS", "0.008"))
 SPEECH_RMS_THRESHOLD = float(os.getenv("IDEASGLASS_SPEECH_RMS", "0.03"))
 AUDIO_GAIN_FALSE_POSITIVE_MARGIN = float(os.getenv("IDEASGLASS_SPEECH_MARGIN", "0.005"))
 TRANSCRIPTION_ENABLED = os.getenv("IDEASGLASS_TRANSCRIBE", "1").lower() not in {"0", "false"}
-WHISPERX_DEVICE_DEFAULT = "cuda" if torch and torch.cuda.is_available() else "cpu"
-WHISPERX_DEVICE = os.getenv("IDEASGLASS_WHISPERX_DEVICE", WHISPERX_DEVICE_DEFAULT)
-WHISPERX_MODEL_NAME = os.getenv("IDEASGLASS_WHISPERX_MODEL", "large-v2")
-WHISPERX_BATCH_SIZE = int(os.getenv("IDEASGLASS_WHISPERX_BATCH", "4"))
-WHISPERX_COMPUTE_TYPE = os.getenv(
-    "IDEASGLASS_WHISPERX_COMPUTE", "float16" if WHISPERX_DEVICE.startswith("cuda") else "int8"
-)
-WHISPERX_ENABLE_DIARIZATION = os.getenv("IDEASGLASS_WHISPERX_DIARIZE", "1").lower() not in {"0", "false"}
-HUGGINGFACE_TOKEN = os.getenv("IDEASGLASS_HF_TOKEN") or os.getenv("HUGGINGFACE_TOKEN")
-if TRANSCRIPTION_ENABLED and not whisperx:
+WHISPER_DEVICE_DEFAULT = "cuda" if torch and torch.cuda.is_available() else "cpu"
+WHISPER_DEVICE = os.getenv("IDEASGLASS_WHISPER_DEVICE", WHISPER_DEVICE_DEFAULT)
+WHISPER_MODEL_NAME = os.getenv("IDEASGLASS_WHISPER_MODEL", "base")
+WHISPER_FP16 = os.getenv("IDEASGLASS_WHISPER_FP16", "1").lower() not in {"0", "false"}
+WHISPER_STREAM_INTERVAL_MS = int(os.getenv("IDEASGLASS_TRANSCRIPT_INTERVAL_MS", "3000"))
+if TRANSCRIPTION_ENABLED and not whisper:
     TRANSCRIPTION_ENABLED = False
-    print("[Transcription] whisperx not available; disabling automatic transcription.")
+    print("[Transcription] openai-whisper not available; disabling automatic transcription.")
 SEGMENT_GAIN_TARGET_RMS = float(
     os.getenv("IDEASGLASS_SEGMENT_GAIN_TARGET", str(AUDIO_GAIN_TARGET_RMS))
 )
@@ -180,6 +198,7 @@ class AudioTranscriptOut(BaseModel):
     started_at: str
     ended_at: str
     chunks: List[TranscriptChunk]
+    is_final: bool = False
 
 
 @dataclass
@@ -261,8 +280,6 @@ db_pool: asyncpg.pool.Pool | None = None
 vad_detector = webrtcvad.Vad(max(0, min(3, VAD_AGGRESSIVENESS)))
 segment_states: Dict[str, List[AudioSegmentBuffer]] = {}
 segment_lock = asyncio.Lock()
-transcription_lock = asyncio.Lock()
-transcription_manager: "TranscriptionManager | None" = None
 segment_cleanup_task: asyncio.Task | None = None
 SUPPORTED_VAD_RATES = {8000, 16000, 32000, 48000}
 SEGMENT_OVERLAP_MS = int(os.getenv("IDEASGLASS_SEGMENT_OVERLAP_MS", "2000"))
@@ -726,131 +743,184 @@ def _extract_overlap_payload(state: AudioSegmentBuffer) -> bytes:
     return bytes(state.buffer[-overlap_bytes:])
 
 
-class TranscriptionManager:
+@dataclass
+class WhisperStreamState:
+    device_id: str
+    segment_id: str
+    sample_rate: int
+    bits_per_sample: int
+    started_at: datetime
+    buffer: bytearray = field(default_factory=bytearray)
+    last_emit_ms: int = 0
+    last_chunks: List[TranscriptChunk] = field(default_factory=list)
+
+
+class WhisperStreamManager:
     def __init__(
         self,
-        model_name: str,
         device: str,
-        batch_size: int,
-        compute_type: str,
-        enable_diarization: bool,
-        hf_token: Optional[str],
+        model_name: str,
+        fp16: bool,
+        interval_ms: int,
+        history_store: deque,
+        ws_manager: ConnectionManager,
     ) -> None:
-        self.model_name = model_name
         self.device = device
-        self.batch_size = batch_size
-        self.compute_type = compute_type
-        self.enable_diarization = enable_diarization and bool(hf_token)
-        self.hf_token = hf_token
+        self.model_name = model_name
+        self.fp16 = fp16 and device.startswith("cuda")
+        self.interval_ms = max(500, interval_ms)
+        self.history_store = history_store
+        self.ws_manager = ws_manager
+        self.streams: Dict[str, WhisperStreamState] = {}
         self.model = None
-        self.align_models: Dict[str, tuple[Any, Any]] = {}
-        self.diarizer = None
+        self.lock = asyncio.Lock()
 
-    def _ensure_base_model(self):
+    def _ensure_model(self):
         if self.model is None:
-            self.model = whisperx.load_model(
-                self.model_name,
-                self.device,
-                compute_type=self.compute_type,
-            )
+            self.model = whisper.load_model(self.model_name, device=self.device)
 
-    def _ensure_align_model(self, language_code: str) -> tuple[Any, Any] | tuple[None, None]:
-        if language_code in self.align_models:
-            return self.align_models[language_code]
-        try:
-            model_a, metadata = whisperx.load_align_model(
-                language_code=language_code,
-                device=self.device,
-            )
-            self.align_models[language_code] = (model_a, metadata)
-            return model_a, metadata
-        except Exception as exc:
-            print(f"[Transcription] Failed to load alignment model for {language_code}: {exc}")
-            return None, None
+    def _pcm_bytes_to_audio(self, pcm_bytes: bytes) -> np.ndarray:
+        if not pcm_bytes:
+            return np.zeros(1, dtype=np.float32)
+        audio = np.frombuffer(pcm_bytes, dtype=np.int16).astype(np.float32) / 32768.0
+        return audio
 
-    def _ensure_diarizer(self):
-        if not self.enable_diarization:
-            return None
-        if not self.hf_token:
-            print("[Transcription] HuggingFace token not set; disabling diarization.")
-            self.enable_diarization = False
-            return None
-        if self.diarizer is None:
-            try:
-                from whisperx.diarize import DiarizationPipeline
-
-                self.diarizer = DiarizationPipeline(
-                    use_auth_token=self.hf_token,
-                    device=self.device,
-                )
-            except Exception as exc:
-                print(f"[Transcription] Failed to initialize diarization pipeline: {exc}")
-                self.enable_diarization = False
-                self.diarizer = None
-        return self.diarizer
-
-    def _transcribe_sync(self, audio_path: str) -> List[Dict[str, Any]]:
-        if whisperx is None:
+    def _transcribe_sync(self, audio: np.ndarray, sample_rate: int) -> List[TranscriptChunk]:
+        if audio.size == 0:
             return []
-        self._ensure_base_model()
-        audio = whisperx.load_audio(audio_path)
-        result = self.model.transcribe(audio, batch_size=self.batch_size)
-        segments = result.get("segments", [])
-        language = result.get("language", "en")
-        aligned = {"segments": segments}
-        align_model, metadata = self._ensure_align_model(language)
-        if align_model and metadata:
-            try:
-                aligned = whisperx.align(
-                    segments,
-                    align_model,
-                    metadata,
-                    audio,
-                    self.device,
-                    return_char_alignments=False,
-                )
-            except Exception as exc:
-                print(f"[Transcription] Alignment failed ({language}): {exc}")
-                aligned = {"segments": segments}
-        diarizer = self._ensure_diarizer()
-        if diarizer:
-            try:
-                diarize_segments = diarizer(audio)
-                if diarize_segments:
-                    aligned = whisperx.assign_word_speakers(diarize_segments, aligned)
-            except Exception as exc:
-                print(f"[Transcription] Diarization failed: {exc}")
-        formatted: List[Dict[str, Any]] = []
-        for seg in aligned.get("segments", []):
+        self._ensure_model()
+        options = {
+            "sample_rate": sample_rate,
+            "fp16": self.fp16,
+            "condition_on_previous_text": False,
+            "verbose": False,
+        }
+        result = self.model.transcribe(audio, **options)
+        chunks: List[TranscriptChunk] = []
+        for seg in result.get("segments", []):
             text = (seg.get("text") or "").strip()
             if not text:
                 continue
-            speaker = seg.get("speaker") or "Speaker"
-            formatted.append(
-                {
-                    "speaker": speaker,
-                    "text": text,
-                    "start": float(seg.get("start") or 0.0),
-                    "end": float(seg.get("end") or 0.0),
-                }
+            chunks.append(
+                TranscriptChunk(
+                    speaker="Speaker",
+                    text=text,
+                    start=float(seg.get("start") or 0.0),
+                    end=float(seg.get("end") or 0.0),
+                )
             )
-        return formatted
+        return chunks
 
-    async def transcribe(self, audio_path: str) -> List[Dict[str, Any]]:
-        return await asyncio.to_thread(self._transcribe_sync, audio_path)
+    async def handle_chunk(
+        self,
+        device_id: str,
+        segment_id: str,
+        started_at: datetime,
+        sample_rate: int,
+        bits_per_sample: int,
+        raw_audio: bytes,
+    ) -> None:
+        if not raw_audio:
+            return
+        async with self.lock:
+            stream = self.streams.get(device_id)
+            if not stream or stream.segment_id != segment_id:
+                stream = WhisperStreamState(
+                    device_id=device_id,
+                    segment_id=segment_id,
+                    sample_rate=sample_rate,
+                    bits_per_sample=bits_per_sample,
+                    started_at=started_at,
+                )
+                self.streams[device_id] = stream
+            stream.buffer.extend(raw_audio)
+            buffer_ms = _bytes_to_ms(len(stream.buffer), sample_rate, bits_per_sample)
+            if buffer_ms - stream.last_emit_ms < self.interval_ms:
+                return
+            stream.last_emit_ms = buffer_ms
+            snapshot = bytes(stream.buffer)
+        await self._emit_snapshot(stream, snapshot, is_final=False)
+
+    async def finalize_segment(
+        self,
+        record: AudioSegmentRecord,
+        pcm_payload: bytes,
+    ) -> None:
+        async with self.lock:
+            current = self.streams.get(record.device_id)
+            if current and current.segment_id == record.id:
+                del self.streams[record.device_id]
+        await self._emit_from_pcm(
+            device_id=record.device_id,
+            segment_id=record.id,
+            started_at=record.started_at,
+            ended_at=record.ended_at,
+            sample_rate=record.sample_rate,
+            bits_per_sample=record.bits_per_sample,
+            pcm_payload=pcm_payload,
+            is_final=True,
+        )
+
+    async def _emit_snapshot(
+        self,
+        stream: WhisperStreamState,
+        pcm_snapshot: bytes,
+        is_final: bool,
+    ) -> None:
+        await self._emit_from_pcm(
+            device_id=stream.device_id,
+            segment_id=stream.segment_id,
+            started_at=stream.started_at,
+            ended_at=datetime.now(tz=timezone.utc),
+            sample_rate=stream.sample_rate,
+            bits_per_sample=stream.bits_per_sample,
+            pcm_payload=pcm_snapshot,
+            is_final=is_final,
+        )
+
+    async def _emit_from_pcm(
+        self,
+        device_id: str,
+        segment_id: str,
+        started_at: datetime,
+        ended_at: datetime,
+        sample_rate: int,
+        bits_per_sample: int,
+        pcm_payload: bytes,
+        is_final: bool,
+    ) -> None:
+        chunks = await asyncio.to_thread(
+            self._transcribe_sync,
+            self._pcm_bytes_to_audio(pcm_payload),
+            sample_rate,
+        )
+        if not chunks:
+            return
+        transcript = AudioTranscriptOut(
+            segment_id=segment_id,
+            device_id=device_id,
+            started_at=started_at.isoformat(),
+            ended_at=ended_at.isoformat(),
+            chunks=chunks,
+            is_final=is_final,
+        )
+        if is_final:
+            self.history_store.appendleft(transcript)
+        await self.ws_manager.broadcast({"type": "audio_transcript", "payload": transcript.model_dump()})
 
 
-if TRANSCRIPTION_ENABLED and whisperx:
-    transcription_manager = TranscriptionManager(
-        model_name=WHISPERX_MODEL_NAME,
-        device=WHISPERX_DEVICE,
-        batch_size=WHISPERX_BATCH_SIZE,
-        compute_type=WHISPERX_COMPUTE_TYPE,
-        enable_diarization=WHISPERX_ENABLE_DIARIZATION,
-        hf_token=HUGGINGFACE_TOKEN,
+whisper_stream_manager: WhisperStreamManager | None = (
+    WhisperStreamManager(
+        device=WHISPER_DEVICE,
+        model_name=WHISPER_MODEL_NAME,
+        fp16=WHISPER_FP16,
+        interval_ms=WHISPER_STREAM_INTERVAL_MS,
+        history_store=audio_transcript_store,
+        ws_manager=manager,
     )
-else:
-    transcription_manager = None
+    if TRANSCRIPTION_ENABLED and whisper
+    else None
+)
 
 
 def row_to_segment_out(row) -> AudioSegmentOut:
@@ -975,44 +1045,14 @@ async def _flush_segment_state(state: AudioSegmentBuffer) -> None:
     segment_out = segment_record_to_out(record)
     audio_segment_store.append(segment_out)
     await manager.broadcast({"type": "audio_segment", "payload": segment_out.model_dump()})
-    schedule_background(
-        transcribe_and_broadcast(record, disk_path),
-        "segment_transcription",
-    )
+    if whisper_stream_manager:
+        schedule_background(
+            whisper_stream_manager.finalize_segment(record, enhanced_pcm),
+            "whisper_stream_finalize",
+        )
     state.temp_path = None
 
 
-async def transcribe_and_broadcast(record: AudioSegmentRecord, wav_path: Path) -> None:
-    if not transcription_manager:
-        return
-    try:
-        async with transcription_lock:
-            chunks = await transcription_manager.transcribe(str(wav_path))
-    except Exception as exc:
-        print(f"[Transcription] Failed for segment {record.id}: {exc}")
-        return
-    if not chunks:
-        return
-    transcript = AudioTranscriptOut(
-        segment_id=record.id,
-        device_id=record.device_id,
-        started_at=record.started_at.isoformat(),
-        ended_at=record.ended_at.isoformat(),
-        chunks=[
-            TranscriptChunk(
-                speaker=chunk.get("speaker", "Speaker"),
-                text=chunk.get("text", ""),
-                start=float(chunk.get("start", 0.0)),
-                end=float(chunk.get("end", 0.0)),
-            )
-            for chunk in chunks
-            if chunk.get("text")
-        ],
-    )
-    if not transcript.chunks:
-        return
-    audio_transcript_store.appendleft(transcript)
-    await manager.broadcast({"type": "audio_transcript", "payload": transcript.model_dump()})
 
 
 async def append_audio_to_segment_buffers(
@@ -1023,6 +1063,7 @@ async def append_audio_to_segment_buffers(
     now = datetime.fromisoformat(chunk.created_at)
     segments_to_flush: List[AudioSegmentBuffer] = []
     result = SegmentAppendResult()
+    transcript_args: Optional[tuple[str, str, datetime, int, int]] = None
     async with segment_lock:
         bucket = segment_states.setdefault(chunk.device_id, [])
 
@@ -1051,6 +1092,13 @@ async def append_audio_to_segment_buffers(
 
         progress_ms = min(state.duration_ms, SEGMENT_TARGET_MS)
         result = SegmentAppendResult(segment_id=state.segment_id, duration_ms=progress_ms)
+        transcript_args = (
+            state.device_id,
+            state.segment_id,
+            state.started_at,
+            state.sample_rate,
+            state.bits_per_sample,
+        )
 
         if _should_finalize_segment(state, now, speech_detected):
             segments_to_flush.append(bucket.pop())
@@ -1098,6 +1146,19 @@ async def append_audio_to_segment_buffers(
     for segment in segments_to_flush:
         if segment:
             await _flush_segment_state(segment)
+    if whisper_stream_manager and transcript_args:
+        device_id, segment_id, started_at, sample_rate, bits_per_sample = transcript_args
+        schedule_background(
+            whisper_stream_manager.handle_chunk(
+                device_id,
+                segment_id,
+                started_at,
+                sample_rate,
+                bits_per_sample,
+                raw_audio,
+            ),
+            "whisper_stream_chunk",
+        )
     return result
 
 

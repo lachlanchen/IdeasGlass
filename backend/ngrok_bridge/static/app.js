@@ -24,6 +24,7 @@ const state = {
   segmentTargetMs: 15000,
   transcriptSegments: [],
   activeTranscriptSegmentId: null,
+  transcriptFinal: false,
 };
 
 state.waveformLevels = Array(state.waveformLimit).fill(0);
@@ -323,6 +324,7 @@ function renderSegments() {
 function clearTranscriptDisplay(message = "Listening for transcript…") {
   state.transcriptSegments = [];
   state.activeTranscriptSegmentId = null;
+  state.transcriptFinal = false;
   if (!transcriptPanel) return;
   transcriptPanel.innerHTML = "";
   const placeholder = document.createElement("div");
@@ -337,6 +339,12 @@ function renderTranscript() {
   if (!state.transcriptSegments.length) {
     clearTranscriptDisplay();
     return;
+  }
+  if (!state.transcriptFinal) {
+    const badge = document.createElement("div");
+    badge.className = "transcript-placeholder";
+    badge.textContent = "Transcribing…";
+    transcriptPanel.appendChild(badge);
   }
   state.transcriptSegments.forEach((entry) => {
     const row = document.createElement("div");
@@ -356,6 +364,12 @@ function renderTranscript() {
     row.append(speaker, text);
     transcriptPanel.appendChild(row);
   });
+  if (state.transcriptFinal) {
+    const badge = document.createElement("div");
+    badge.className = "transcript-placeholder";
+    badge.textContent = "Segment complete";
+    transcriptPanel.appendChild(badge);
+  }
 }
 
 function applyTranscript(entry) {
@@ -367,6 +381,7 @@ function applyTranscript(entry) {
     start: chunk.start ?? 0,
     end: chunk.end ?? chunk.start ?? 0,
   }));
+  state.transcriptFinal = Boolean(entry.is_final);
   renderTranscript();
 }
 
