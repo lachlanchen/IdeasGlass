@@ -4,10 +4,11 @@ Minimal HTTPS backend + PWA dashboard for receiving Arduino telemetry over Ngrok
 
 ## Features
 
-- `POST /api/v1/messages` – Arduino devices send JSON payloads (`device_id`, `message`, optional `meta`, optional `photo_base64`)
-- WebSocket `/ws/stream` – pushes new entries (including photo URLs) to connected browsers in realtime
-- PWA front-end (`/static/index.html`) installable on Android/iOS/Desktop with a light-themed UI
-- Optional Postgres persistence (set `DATABASE_URL`), storing both message metadata and JPEG binaries (`ig_messages`, `ig_photos`)
+- `POST /api/v1/messages` – text + metadata + optional `photo_base64`
+- `POST /api/v1/audio` – Base64 PCM audio blocks (16 kHz mono) with RMS metadata
+- WebSocket `/ws/stream` – typed events (`history_messages`, `message`, `history_audio`, `audio_chunk`)
+- PWA front-end installable on Android/iOS/Desktop with a light-themed UI, live waveform, VAD badge, and infinite scroll for messages
+- Optional Postgres persistence (`DATABASE_URL`) for metadata (`ig_messages`) + photos (`ig_photos`) + audio chunks (`ig_audio_chunks`)
 
 ## Quickstart
 
@@ -52,6 +53,20 @@ Minimal HTTPS backend + PWA dashboard for receiving Arduino telemetry over Ngrok
        "message":"photo demo",
        "photo_base64":"'"$(base64 -w0 sample.jpg)"'",
        "photo_mime":"image/jpeg"
+     }'
+   ```
+7. **Send a test audio chunk**
+   ```bash
+   rec --bits 16 --channels 1 --rate 16000 -c 1 -b 16 -e signed-integer temp.raw trim 0 0.25
+   curl -X POST https://ideas.lazying.art/api/v1/audio \
+     -H 'Content-Type: application/json' \
+     -d '{
+       "device_id":"dev-001",
+       "sample_rate":16000,
+       "bits_per_sample":16,
+       "duration_ms":250,
+       "rms":0.05,
+       "audio_base64":"'"$(base64 -w0 temp.raw)"'"
      }'
    ```
 

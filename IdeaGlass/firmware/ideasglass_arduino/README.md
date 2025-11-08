@@ -49,9 +49,9 @@ ideasglass_arduino/
 `IdeasGlassNgrokClient/IdeasGlassNgrokClient.ino` demonstrates how to:
 
 1. Load Wi-Fi credentials from `wifi_credentials.h`
-2. Initialize the XIAO ESP32S3 Sense camera, capture a QVGA JPEG, encode it in Base64
-3. Trust the LetsEncrypt certificate for `ideas.lazying.art` (embedded in the sketch)
-4. Send JSON payloads (text + photo) to `https://ideas.lazying.art/api/v1/messages`
+2. Initialize the XIAO ESP32S3 Sense camera, capture a QVGA JPEG, encode it in Base64 (guarded by `#define ENABLE_PHOTO_CAPTURE 1`)
+3. Sample the onboard I²S microphone at 16 kHz, compute an RMS value, and post 256 ms PCM blocks to `https://ideas.lazying.art/api/v1/audio`
+4. Trust the LetsEncrypt certificate for `ideas.lazying.art` (embedded in the sketch) for both message + audio requests
 
 Update `kServerHost`, `kServerPort`, and `kDeviceId` if you expose the backend on a different hostname/port. Photos are sent every ~30 seconds by default.
 

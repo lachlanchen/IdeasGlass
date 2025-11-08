@@ -58,6 +58,33 @@ This guide documents the exact steps we used to relay Arduino data (text + photo
 3. Upload to the XIAO ESP32S3. Serial monitor will show Wi-Fi status, camera activity, and repeated `POST /api/v1/messages` responses.
 4. Each payload appears instantly in the PWA feed, and both the metadata + photo are stored in Postgres (`ig_messages` + `ig_photos`). The firmware flips the camera output (`set_vflip`/`set_hmirror`) so images arrive upright without server-side rotation.
 
+# 3. Audio streaming + waveform UI
+
+The firmware now treats audio as the primary data stream:
+
+- **ESP32 firmware** — set `Tools → PSRAM → Enabled`, then flash `IdeasGlassNgrokClient.ino`. It samples the onboard I²S microphone at 16 kHz, computes a simple RMS-based VAD, Base64-encodes 256 ms PCM blocks, and posts them to `/api/v1/audio`.
+- **Backend** — stores raw PCM bytes in `ig_audio_chunks`, exposes `GET /api/v1/audio` for history, and `GET /api/v1/audio/{id}` which returns a WAV on the fly.
+- **PWA** — adds a recorder-style panel with a SILENCE/SPEAKING badge, animated waveform bars, and a live timestamp. History loads lazily and more entries auto-load when you scroll near the bottom.
+
+API quick reference:
+
+```http
+POST /api/v1/audio
+{
+  "device_id": "ideasglass-devkit-01",
+  "sample_rate": 16000,
+  "bits_per_sample": 16,
+  "duration_ms": 256,
+  "rms": 0.0312,
+  "audio_base64": "...."
+}
+
+GET /api/v1/audio?limit=60&before=2025-11-08T09:00:00Z
+GET /api/v1/audio/{chunk_id}  -> audio/wav
+```
+
+The websocket stream now pushes typed events (`history_messages`, `message`, `history_audio`, `audio_chunk`). The front-end keeps the last 60 RMS values to animate the waveform and flips the VAD badge whenever `rms > 0.02`.
+
 # 3. Useful commands
 
 - **Manual photo test via curl:**

@@ -3,6 +3,8 @@
 #include <WiFiClientSecure.h>
 #include "esp_camera.h"
 #include "mbedtls/base64.h"
+#include <math.h>
+#include "driver/i2s.h"
 
 #if __has_include("../wifi_credentials.h")
 #include "../wifi_credentials.h"
@@ -37,7 +39,13 @@
 const char *kServerHost = "ideas.lazying.art";
 const uint16_t kServerPort = 443;
 const char *kDeviceId = "ideasglass-devkit-01";
+#define ENABLE_PHOTO_CAPTURE 0
 const unsigned long kSendIntervalMs = 30000;
+const int AUDIO_SAMPLE_RATE = 16000;
+const size_t AUDIO_BLOCK_SAMPLES = 4096;
+static int16_t g_audioBlock[AUDIO_BLOCK_SAMPLES];
+size_t g_bufferedSamples = 0;
+uint32_t g_audioChunkCounter = 0;
 
 // LetsEncrypt chain for ideas.lazying.art (PEM)
 static const char ideas_cert[] PROGMEM = R"(-----BEGIN CERTIFICATE-----
@@ -93,6 +101,9 @@ WiFiClientSecure secure_client;
 unsigned long lastSend = 0;
 bool cameraReady = false;
 framesize_t cameraFrameSize = FRAMESIZE_QVGA;
+const size_t AUDIO_TEMP_SAMPLES = 512;
+static int16_t g_audioTemp[AUDIO_TEMP_SAMPLES];
+bool audioInitialized = false;
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -158,6 +169,27 @@ bool initCamera()
     return false;
 }
 
+bool encodeBase64(const uint8_t *data, size_t length, String &outString)
+{
+    size_t encoded_len = 4 * ((length + 2) / 3) + 1;
+    unsigned char *encoded = (unsigned char *)malloc(encoded_len);
+    if (!encoded) {
+        Serial.println("[Base64] Out of memory");
+        return false;
+    }
+    size_t actual_len = 0;
+    int result = mbedtls_base64_encode(encoded, encoded_len, &actual_len, data, length);
+    if (result != 0) {
+        free(encoded);
+        Serial.printf("[Base64] encode failed: %d\n", result);
+        return false;
+    }
+    encoded[actual_len] = '\0';
+    outString = String((char *)encoded);
+    free(encoded);
+    return true;
+}
+
 bool capturePhotoBase64(String &outBase64)
 {
     camera_fb_t *fb = esp_camera_fb_get();
@@ -165,26 +197,123 @@ bool capturePhotoBase64(String &outBase64)
         Serial.println("[Camera] Failed to capture frame");
         return false;
     }
-    size_t encoded_len = 4 * ((fb->len + 2) / 3) + 1;
-    unsigned char *encoded = (unsigned char *)malloc(encoded_len);
-    if (!encoded) {
-        esp_camera_fb_return(fb);
-        Serial.println("[Camera] Out of memory");
-        return false;
-    }
-    size_t actual_len = 0;
-    int result = mbedtls_base64_encode(encoded, encoded_len, &actual_len, fb->buf, fb->len);
+    bool ok = encodeBase64(fb->buf, fb->len, outBase64);
     esp_camera_fb_return(fb);
-    if (result != 0) {
-        free(encoded);
-        Serial.printf("[Camera] Base64 encode failed: %d\n", result);
+    if (ok) {
+        Serial.printf("[Camera] Captured photo (%u bytes)\n", fb->len);
+    }
+    return ok;
+}
+
+void setupAudio()
+{
+    i2s_config_t config = {
+        .mode = (i2s_mode_t)(I2S_MODE_MASTER | I2S_MODE_RX),
+        .sample_rate = AUDIO_SAMPLE_RATE,
+        .bits_per_sample = I2S_BITS_PER_SAMPLE_16BIT,
+        .channel_format = I2S_CHANNEL_FMT_ONLY_LEFT,
+        .communication_format = I2S_COMM_FORMAT_STAND_I2S,
+        .intr_alloc_flags = ESP_INTR_FLAG_LEVEL1,
+        .dma_buf_count = 8,
+        .dma_buf_len = 256,
+        .use_apll = false,
+        .tx_desc_auto_clear = false,
+        .fixed_mclk = 0,
+    };
+
+    i2s_pin_config_t pin_config = {
+        .bck_io_num = 7,
+        .ws_io_num = 8,
+        .data_out_num = I2S_PIN_NO_CHANGE,
+        .data_in_num = 9,
+        .mck_io_num = I2S_PIN_NO_CHANGE,
+    };
+
+    if (i2s_driver_install(I2S_NUM_0, &config, 0, nullptr) != ESP_OK) {
+        Serial.println("[Audio] Failed to install I2S driver");
+        return;
+    }
+    if (i2s_set_pin(I2S_NUM_0, &pin_config) != ESP_OK) {
+        Serial.println("[Audio] Failed to set I2S pins");
+        return;
+    }
+    i2s_zero_dma_buffer(I2S_NUM_0);
+    audioInitialized = true;
+    Serial.println("[Audio] I2S microphone ready");
+}
+
+float computeRms(const int16_t *samples, size_t count)
+{
+    double sum = 0.0;
+    for (size_t i = 0; i < count; ++i) {
+        double norm = samples[i] / 32768.0;
+        sum += norm * norm;
+    }
+    return sqrt(sum / count);
+}
+
+bool sendAudioChunk(const String &encoded, float rms)
+{
+    if (!WiFi.isConnected())
+        return false;
+
+    secure_client.setCACert(ideas_cert);
+    if (!secure_client.connect(kServerHost, kServerPort)) {
+        Serial.println("[Audio] HTTPS connect failed");
         return false;
     }
-    encoded[actual_len] = '\0';
-    outBase64 = String((char *)encoded);
-    free(encoded);
-    Serial.printf("[Camera] Captured photo (%u bytes, %u base64)\n", fb->len, actual_len);
-    return true;
+
+    const uint32_t durationMs = (AUDIO_BLOCK_SAMPLES * 1000) / AUDIO_SAMPLE_RATE;
+    String body = String("{\"device_id\":\"") + kDeviceId + "\","
+                   "\"sample_rate\":" + AUDIO_SAMPLE_RATE + ","
+                   "\"bits_per_sample\":16,"
+                   "\"duration_ms\":" + durationMs + ","
+                   "\"rms\":" + String(rms, 4) + ","
+                   "\"audio_base64\":\"" + encoded + "\"}";
+
+    secure_client.printf(
+        "POST /api/v1/audio HTTP/1.1\r\n"
+        "Host: %s\r\n"
+        "Content-Type: application/json\r\n"
+        "Content-Length: %d\r\n"
+        "Connection: close\r\n\r\n",
+        kServerHost,
+        body.length());
+    secure_client.print(body);
+
+    String response = secure_client.readString();
+    secure_client.stop();
+    bool ok = response.indexOf("200") != -1;
+    Serial.printf("[Audio] chunk #%u %s (rms=%.3f)\n", g_audioChunkCounter++, ok ? "sent" : "FAILED", rms);
+    return ok;
+}
+
+void handleAudioStreaming()
+{
+    if (!audioInitialized)
+        return;
+
+    size_t bytesRead = 0;
+    if (i2s_read(I2S_NUM_0, g_audioTemp, sizeof(g_audioTemp), &bytesRead, 1) != ESP_OK) {
+        return;
+    }
+    size_t samplesRead = bytesRead / sizeof(int16_t);
+    for (size_t i = 0; i < samplesRead; ++i) {
+        if (g_bufferedSamples < AUDIO_BLOCK_SAMPLES) {
+            g_audioBlock[g_bufferedSamples++] = g_audioTemp[i];
+        } else {
+            break;
+        }
+    }
+
+    if (g_bufferedSamples >= AUDIO_BLOCK_SAMPLES) {
+        float rms = computeRms(g_audioBlock, g_bufferedSamples);
+        String encoded;
+        if (encodeBase64(reinterpret_cast<uint8_t *>(g_audioBlock), g_bufferedSamples * sizeof(int16_t), encoded)) {
+            sendAudioChunk(encoded, rms);
+        }
+        g_bufferedSamples = 0;
+    }
 }
 
 void connectToWiFi()
@@ -261,7 +390,10 @@ void setup()
     WiFi.setSleep(true);
     connectToWiFi();
 
+#if ENABLE_PHOTO_CAPTURE
     cameraReady = initCamera();
+#endif
+    setupAudio();
 }
 
 void loop()
@@ -272,6 +404,7 @@ void loop()
         return;
     }
 
+#if ENABLE_PHOTO_CAPTURE
     if (millis() - lastSend > kSendIntervalMs) {
         String payload = "Hello from IdeasGlass @ " + String(millis() / 1000) + "s";
         String photoBase64;
@@ -283,6 +416,7 @@ void loop()
         Serial.printf("[HTTP] send result: %s\n", ok ? "OK" : "FAILED");
         lastSend = millis();
     }
+#endif
 
-    delay(100);
+    handleAudioStreaming();
 }

@@ -8,8 +8,10 @@ import os
 import uuid
 from collections import deque
 from datetime import datetime, timezone
+from io import BytesIO
 from pathlib import Path
 from typing import Dict, List, Optional
+import wave
 
 import asyncpg
 from fastapi import (
@@ -42,6 +44,27 @@ class MessageOut(BaseModel):
     meta: Dict[str, str] | None
     received_at: str
     photo_url: Optional[str] = None
+
+
+class AudioChunkIn(BaseModel):
+    device_id: str = Field(min_length=1, max_length=128)
+    sample_rate: int = Field(default=16000, ge=8000, le=48000)
+    bits_per_sample: int = Field(default=16, ge=8, le=32)
+    duration_ms: int = Field(default=250, ge=10, le=10000)
+    rms: float = Field(ge=0.0)
+    audio_base64: str = Field(min_length=1)
+    mime: str = Field(default="audio/pcm")
+
+
+class AudioChunkOut(BaseModel):
+    id: str
+    device_id: str
+    sample_rate: int
+    bits_per_sample: int
+    duration_ms: int
+    rms: float
+    created_at: str
+    audio_url: Optional[str] = None
 
 
 class ConnectionManager:
@@ -80,6 +103,7 @@ app.add_middleware(
 
 manager = ConnectionManager()
 message_store: deque[MessageOut] = deque(maxlen=200)
+audio_store: deque[AudioChunkOut] = deque(maxlen=200)
 DATABASE_URL = os.getenv("DATABASE_URL")
 db_pool: asyncpg.pool.Pool | None = None
 
@@ -105,6 +129,20 @@ async def init_db() -> None:
                 id TEXT PRIMARY KEY,
                 message_id TEXT REFERENCES ig_messages(id) ON DELETE CASCADE,
                 mime_type TEXT NOT NULL,
+                data BYTEA NOT NULL,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            );
+            """
+        )
+        await conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS ig_audio_chunks (
+                id TEXT PRIMARY KEY,
+                device_id TEXT NOT NULL,
+                sample_rate INT NOT NULL,
+                bits_per_sample INT NOT NULL,
+                duration_ms INT NOT NULL,
+                rms REAL NOT NULL,
                 data BYTEA NOT NULL,
                 created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
             );
@@ -183,9 +221,14 @@ async def persist_entry(
             )
 
 
-async def fetch_messages(limit: int = 100) -> List[MessageOut]:
+async def fetch_messages(limit: int = 100, before: Optional[datetime] = None) -> List[MessageOut]:
     if not db_pool:
-        return list(message_store)
+        data = list(message_store)
+        if before:
+            data = [
+                m for m in data if datetime.fromisoformat(m.received_at) < before
+            ]
+        return data[:limit]
     async with db_pool.acquire() as conn:
         rows = await conn.fetch(
             """
@@ -197,10 +240,12 @@ async def fetch_messages(limit: int = 100) -> List[MessageOut]:
                    p.id as photo_id
             FROM ig_messages m
             LEFT JOIN ig_photos p ON p.message_id = m.id
+            WHERE ($2::timestamptz IS NULL OR m.received_at < $2)
             ORDER BY m.received_at DESC
             LIMIT $1;
             """,
             limit,
+            before,
         )
     entries: List[MessageOut] = []
     for row in rows:
@@ -223,6 +268,76 @@ async def fetch_messages(limit: int = 100) -> List[MessageOut]:
     return entries
 
 
+async def persist_audio_chunk(
+    chunk: AudioChunkOut,
+    raw_bytes: bytes,
+) -> None:
+    if not db_pool:
+        return
+    dt = datetime.fromisoformat(chunk.created_at)
+    async with db_pool.acquire() as conn:
+        await conn.execute(
+            """
+            INSERT INTO ig_audio_chunks (
+                id, device_id, sample_rate, bits_per_sample,
+                duration_ms, rms, data, created_at
+            ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+            ON CONFLICT (id) DO NOTHING;
+            """,
+            chunk.id,
+            chunk.device_id,
+            chunk.sample_rate,
+            chunk.bits_per_sample,
+            chunk.duration_ms,
+            chunk.rms,
+            raw_bytes,
+            dt,
+        )
+
+
+async def fetch_audio_chunks(limit: int = 60, before: Optional[datetime] = None) -> List[AudioChunkOut]:
+    if not db_pool:
+        data = list(audio_store)
+        if before:
+            data = [
+                c for c in data if datetime.fromisoformat(c.created_at) < before
+            ]
+        return data[:limit]
+    async with db_pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT id,
+                   device_id,
+                   sample_rate,
+                   bits_per_sample,
+                   duration_ms,
+                   rms,
+                   created_at
+            FROM ig_audio_chunks
+            WHERE ($2::timestamptz IS NULL OR created_at < $2)
+            ORDER BY created_at DESC
+            LIMIT $1;
+            """,
+            limit,
+            before,
+        )
+    chunks: List[AudioChunkOut] = []
+    for row in rows:
+        chunks.append(
+            AudioChunkOut(
+                id=row["id"],
+                device_id=row["device_id"],
+                sample_rate=row["sample_rate"],
+                bits_per_sample=row["bits_per_sample"],
+                duration_ms=row["duration_ms"],
+                rms=row["rms"],
+                created_at=row["created_at"].isoformat(),
+                audio_url=f"/api/v1/audio/{row['id']}",
+            )
+        )
+    return chunks
+
+
 @app.post("/api/v1/messages", response_model=MessageOut)
 async def ingest_message(payload: MessageIn):
     entry = _make_entry(payload)
@@ -239,22 +354,68 @@ async def ingest_message(payload: MessageIn):
 
     message_store.append(entry)
     await persist_entry(entry, photo_bytes, payload.photo_mime, photo_id)
-    await manager.broadcast(entry.model_dump())
+    await manager.broadcast({"type": "message", "payload": entry.model_dump()})
     return entry
 
 
 @app.get("/api/v1/messages", response_model=List[MessageOut])
-async def list_messages():
-    return await fetch_messages()
+async def list_messages(limit: int = 50, before: Optional[str] = None):
+    capped = max(1, min(limit, 200))
+    before_dt: Optional[datetime] = None
+    if before:
+        try:
+            before_dt = datetime.fromisoformat(before)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid 'before' timestamp")
+    return await fetch_messages(limit=capped, before=before_dt)
+
+
+@app.post("/api/v1/audio", response_model=AudioChunkOut)
+async def ingest_audio_chunk(payload: AudioChunkIn):
+    try:
+        raw_audio = base64.b64decode(payload.audio_base64.encode(), validate=True)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"Invalid audio_base64 data: {exc}") from exc
+
+    chunk_id = str(uuid.uuid4())
+    now = datetime.now(tz=timezone.utc)
+    chunk = AudioChunkOut(
+        id=chunk_id,
+        device_id=payload.device_id,
+        sample_rate=payload.sample_rate,
+        bits_per_sample=payload.bits_per_sample,
+        duration_ms=payload.duration_ms,
+        rms=payload.rms,
+        created_at=now.isoformat(),
+        audio_url=f"/api/v1/audio/{chunk_id}",
+    )
+
+    audio_store.append(chunk)
+    await persist_audio_chunk(chunk, raw_audio)
+    await manager.broadcast({"type": "audio_chunk", "payload": chunk.model_dump()})
+    return chunk
+
+
+@app.get("/api/v1/audio", response_model=List[AudioChunkOut])
+async def list_audio(limit: int = 60, before: Optional[str] = None):
+    capped = max(1, min(limit, 200))
+    before_dt: Optional[datetime] = None
+    if before:
+        try:
+            before_dt = datetime.fromisoformat(before)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid 'before' timestamp")
+    return await fetch_audio_chunks(limit=capped, before=before_dt)
 
 
 @app.websocket("/ws/stream")
 async def websocket_endpoint(websocket: WebSocket):
     await manager.connect(websocket)
     try:
-        # Send recent history upon connection
         history = await fetch_messages(limit=50)
-        await websocket.send_json({"type": "history", "data": [m.model_dump() for m in history]})
+        await websocket.send_json({"type": "history_messages", "data": [m.model_dump() for m in history]})
+        audio_history = await fetch_audio_chunks(limit=60)
+        await websocket.send_json({"type": "history_audio", "data": [c.model_dump() for c in audio_history]})
         while True:
             await websocket.receive_text()
     except WebSocketDisconnect:
@@ -273,6 +434,30 @@ async def get_photo(photo_id: str):
     if not row:
         raise HTTPException(status_code=404, detail="Photo not found.")
     return Response(content=bytes(row["data"]), media_type=row["mime_type"])
+
+
+@app.get("/api/v1/audio/{audio_id}")
+async def get_audio(audio_id: str):
+    if not db_pool:
+        raise HTTPException(status_code=404, detail="Audio storage disabled (DATABASE_URL not set).")
+    async with db_pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT data, sample_rate, bits_per_sample FROM ig_audio_chunks WHERE id=$1",
+            audio_id,
+        )
+    if not row:
+        raise HTTPException(status_code=404, detail="Audio not found.")
+    pcm_bytes: bytes = bytes(row["data"])
+    sample_rate = row["sample_rate"]
+    bits_per_sample = row["bits_per_sample"]
+    sampwidth = bits_per_sample // 8
+    buffer = BytesIO()
+    with wave.open(buffer, "wb") as wav_file:
+        wav_file.setnchannels(1)
+        wav_file.setsampwidth(sampwidth)
+        wav_file.setframerate(sample_rate)
+        wav_file.writeframes(pcm_bytes)
+    return Response(content=buffer.getvalue(), media_type="audio/wav")
 
 
 @app.get("/healthz")
