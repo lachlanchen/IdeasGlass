@@ -47,7 +47,6 @@ const uint16_t kServerPort = 443;
 const char *kDeviceId = "ideasglass-devkit-01";
 #define ENABLE_PHOTO_CAPTURE 1
 const char *kAudioWsPath = "/ws/audio-ingest";
-const unsigned long kPhotoIntervalMs = 30000;
 const int AUDIO_SAMPLE_RATE = 16000;
 const size_t AUDIO_BLOCK_SAMPLES = 4096;
 static int16_t g_audioBlock[AUDIO_BLOCK_SAMPLES];
