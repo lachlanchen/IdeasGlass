@@ -132,13 +132,17 @@ function initWaveformBars() {
 
 function computeLevel(chunk) {
   const rms = Math.max(0, Number(chunk?.rms || 0));
-  // Normalize RMS between a floor and ceiling; then apply a mild gamma (<1)
-  // to expand mid‑range differences so changes are more visible.
-  const floor = 0.015;
-  const ceiling = 0.05;
-  const norm = Math.min(1, Math.max(0, (rms - floor) / Math.max(1e-6, ceiling - floor)));
-  const gamma = 0.8; // expand mid‑range (0.5 -> ~0.57)
-  return Math.pow(norm, gamma);
+  // Simple, speech-first mapping:
+  // - Silence: very small bars (0.05–0.12)
+  // - Speech: clearly higher (0.5–1.0), scaled by normalized RMS
+  const floor = 0.012; // ignore tiny room noise
+  const ceiling = 0.06; // typical louder speech
+  const span = Math.max(1e-6, ceiling - floor);
+  const norm = Math.min(1, Math.max(0, (rms - floor) / span));
+  if (chunk?.speech_detected) {
+    return Math.min(1, 0.5 + 0.5 * norm); // 50%..100%
+  }
+  return Math.max(0.05, 0.05 + 0.07 * norm); // ~5%..12%
 }
 
 function updateWaveformBars() {
