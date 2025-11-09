@@ -1,0 +1,188 @@
+amera] Captured photo (6131 bytes)
+[Photo] Captured 8176 bytes
+ESP-ROM:esp32s3-20210327
+Build:Mar 27 2021
+rst:0x15 (USB_UART_CHIP_RESET),boot:0xa (SPI_FAST_FLASH_BOOT)
+Saved PC:0x420afe2f
+SPIWP:0xee
+mode:DIO, clock div:1
+load:0x3fce2820,len:0x116c
+load:0x403c8700,len:0xc2c
+load:0x403cb700,len:0x3108
+entry 0x403c88b8
+
+IdeasGlass Ngrok Client
+Device ID: ideasglass-devkit-01
+Chip MAC: 00:00:00:00:00:00
+[WiFi] Connecting...
+ -> SSID dd-wrt
+.....
+[WiFi] Connected (dd-wrt, RSSI -43)
+IP: 192.168.1.130
+[Camera] Ready (framesize=6 quality=12)
+[Audio] PDM microphone ready
+[Camera] Captured photo (5525 bytes)
+[Photo] Captured 7368 bytes
+Guru Meditation Error: Core  0 panic'ed (LoadProhibited). Exception was unhandled.
+
+Core  0 register dump:
+PC      : 0x400556b4  PS      : 0x00060830  A0      : 0x820a81fd  A1      : 0x3fcbf280  
+A2      : 0x000001bb  A3      : 0x000001b7  A4      : 0x000000ff  A5      : 0x0000ff00  
+A6      : 0x00ff0000  A7      : 0xff000000  A8      : 0x6469002e  A9      : 0x3fcbf600  
+A10     : 0x3fca9d50  A11     : 0x00000190  A12     : 0x00000000  A13     : 0x00000000  
+A14     : 0x3c0fd3cc  A15     : 0x3fcc4868  SAR     : 0x00000017  EXCCAUSE: 0x0000001c  
+EXCVADDR: 0x000001bb  LBEG    : 0x400556d5  LEND    : 0x400556e5  LCOUNT  : 0xffffffff  
+
+
+Backtrace: 0x400556b1:0x3fcbf280 0x420a81fa:0x3fcbf290 0x420a5679:0x3fcbf5b0 0x420a56b9:0x3fcbf640 0x42009f56:0x3fcbf680 0x42009fe5:0x3fcbf710 0x420039d5:0x3fcbf760 0x42003ba3:0x3fcbf780 0x42003d41:0x3fcbf800 0x4037e769:0x3fcbf830
+
+
+
+
+ELF file SHA256: e90ca3661
+
+Rebooting...
+ESP-ROM:esp32s3-20210327
+Build:Mar 27 2021
+rst:0xc (RTC_SW_CPU_RST),boot:0xa (SPI_FAST_FLASH_BOOT)
+Saved PC:0x4037d9cd
+SPIWP:0xee
+mode:DIO, clock div:1
+load:0x3fce2820,len:0x116c
+load:0x403c8700,len:0xc2c
+load:0x403cb700,len:0x3108
+entry 0x403c88b8
+
+IdeasGlass Ngrok Client
+Device ID: ideasglass-devkit-01
+Chip MAC: 00:00:00:00:00:00
+[WiFi] Connecting...
+ -> SSID dd-wrt
+.....
+[WiFi] Connected (dd-wrt, RSSI -44)
+IP: 192.168.1.130
+[Camera] Ready (framesize=6 quality=12)
+[Audio] PDM microphone ready
+[Camera] Captured photo (5728 bytes)
+[Photo] Captured 7640 bytes
+Guru Meditation Error: Core  0 panic'ed (LoadProhibited). Exception was unhandled.
+
+Core  0 register dump:
+PC      : 0x400556b4  PS      : 0x00060e30  A0      : 0x820a81fd  A1      : 0x3fcbf180  
+A2      : 0x000001bb  A3      : 0x000001b7  A4      : 0x000000ff  A5      : 0x0000ff00  
+A6      : 0x00ff0000  A7      : 0xff000000  A8      : 0x6469002e  A9      : 0x3fcbf500  
+A10     : 0x3fca9d50  A11     : 0x00000190  A12     : 0x8037ea06  A13     : 0x3fcb2ee0  
+A14     : 0x00060023  A15     : 0x3fcc4930  SAR     : 0x00000018  EXCCAUSE: 0x0000001c  
+EXCVADDR: 0x000001bb  LBEG    : 0x400556d5  LEND    : 0x400556e5  LCOUNT  : 0xffffffff  
+
+
+Backtrace: 0x400556b1:0x3fcbf180 0x420a81fa:0x3fcbf190 0x420a5679:0x3fcbf4b0 0x420a56b9:0x3fcbf540 0x42009f56:0x3fcbf580 0x42009fe5:0x3fcbf610 0x420039d5:0x3fcbf660 0x42003ba3:0x3fcbf680 0x42003d41:0x3fcbf700 0x4037e769:0x3fcbf730
+
+
+
+
+ELF file SHA256: e90ca3661
+
+Rebooting...
+ESP-ROM:esp32s3-20210327
+Build:Mar 27 2021
+rst:0xc (RTC_SW_CPU_RST),boot:0xa (SPI_FAST_FLASH_BOOT)
+Saved PC:0x4037d9cd
+SPIWP:0xee
+mode:DIO, clock div:1
+load:0x3fce2820,len:0x116c
+load:0x403c8700,len:0xc2c
+load:0x403cb700,len:0x3108
+entry 0x403c88b8
+
+IdeasGlass Ngrok Client
+Device ID: ideasglass-devkit-01
+Chip MAC: 00:00:00:00:00:00
+[WiFi] Connecting...
+ -> SSID dd-wrt
+....
+[WiFi] Connected (dd-wrt, RSSI -44)
+IP: 192.168.1.130
+[Camera] Ready (framesize=6 quality=12)
+[Audio] PDM microphone ready
+[Camera] Captured photo (6059 bytes)
+[Photo] Captured 8080 bytes
+Guru Meditation Error: Core  0 panic'ed (LoadProhibited). Exception was unhandled.
+
+Core  0 register dump:
+PC      : 0x400556b4  PS      : 0x00060a30  A0      : 0x820a81fd  A1      : 0x3fcbf170  
+A2      : 0x000001bb  A3      : 0x000001b7  A4      : 0x000000ff  A5      : 0x0000ff00  
+A6      : 0x00ff0000  A7      : 0xff000000  A8      : 0x6469002e  A9      : 0x3fcbf4f0  
+A10     : 0x3fca9d50  A11     : 0x00000190  A12     : 0x00000000  A13     : 0x00000000  
+A14     : 0x3c0fd3ec  A15     : 0x3fcc4910  SAR     : 0x0000001c  EXCCAUSE: 0x0000001c  
+EXCVADDR: 0x000001bb  LBEG    : 0x400556d5  LEND    : 0x400556e5  LCOUNT  : 0xffffffff  
+
+
+Backtrace: 0x400556b1:0x3fcbf170 0x420a81fa:0x3fcbf180 0x420a5679:0x3fcbf4a0 0x420a56b9:0x3fcbf530 0x42009f56:0x3fcbf570 0x42009fe5:0x3fcbf600 0x420039d5:0x3fcbf650 0x42003ba3:0x3fcbf670 0x42003d41:0x3fcbf6f0 0x4037e769:0x3fcbf720
+
+
+
+
+ELF file SHA256: e90ca3661
+
+Rebooting...
+ESP-ROM:esp32s3-20210327
+Build:Mar 27 2021
+rst:0xc (RTC_SW_CPU_RST),boot:0xa (SPI_FAST_FLASH_BOOT)
+Saved PC:0x4037d9cd
+SPIWP:0xee
+mode:DIO, clock div:1
+load:0x3fce2820,len:0x116c
+load:0x403c8700,len:0xc2c
+load:0x403cb700,len:0x3108
+entry 0x403c88b8
+
+IdeasGlass Ngrok Client
+Device ID: ideasglass-devkit-01
+Chip MAC: 00:00:00:00:00:00
+[WiFi] Connecting...
+ -> SSID dd-wrt
+.....
+[WiFi] Connected (dd-wrt, RSSI -43)
+IP: 192.168.1.130
+[Camera] Ready (framesize=6 quality=12)
+[Audio] PDM microphone ready
+[Camera] Captured photo (5700 bytes)
+[Photo] Captured 7600 bytes
+Guru Meditation Error: Core  1 panic'ed (LoadProhibited). Exception was unhandled.
+
+Core  1 register dump:
+PC      : 0x400556b4  PS      : 0x00060630  A0      : 0x820a81fd  A1      : 0x3fcc14b0  
+A2      : 0x000001bb  A3      : 0x000001b7  A4      : 0x000000ff  A5      : 0x0000ff00  
+A6      : 0x00ff0000  A7      : 0xff000000  A8      : 0x6469002e  A9      : 0x3fcc1830  
+A10     : 0x3fcaa5b4  A11     : 0x00000190  A12     : 0x00000000  A13     : 0x00000000  
+A14     : 0x3c0fd3a8  A15     : 0x3fcc4948  SAR     : 0x00000012  EXCCAUSE: 0x0000001c  
+EXCVADDR: 0x000001bb  LBEG    : 0x400556d5  LEND    : 0x400556e5  LCOUNT  : 0xffffffff  
+
+
+Backtrace: 0x400556b1:0x3fcc14b0 0x420a81fa:0x3fcc14c0 0x420a5679:0x3fcc17e0 0x420a56b9:0x3fcc1870 0x42009f56:0x3fcc18b0 0x42009fe5:0x3fcc1940 0x420039d5:0x3fcc1990 0x42003d8f:0x3fcc19b0 0x42003e8d:0x3fcc19f0 0x4037e769:0x3fcc1a20
+
+
+
+
+ELF file SHA256: e90ca3661
+
+Rebooting...
+ESP-ROM:esp32s3-20210327
+Build:Mar 27 2021
+rst:0xc (RTC_SW_CPU_RST),boot:0xa (SPI_FAST_FLASH_BOOT)
+Saved PC:0x40380ad5
+SPIWP:0xee
+mode:DIO, clock div:1
+load:0x3fce2820,len:0x116c
+load:0x403c8700,len:0xc2c
+load:0x403cb700,len:0x3108
+entry 0x403c88b8
+
+IdeasGlass Ngrok Client
+Device ID: ideasglass-devkit-01
+Chip MAC: 00:00:00:00:00:00
+[WiFi] Connecting...
+ -> SSID dd-wrt
+....
+BYTES=6519
