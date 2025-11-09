@@ -132,10 +132,9 @@ function initWaveformBars() {
 
 function computeLevel(chunk) {
   const rms = Math.max(0, Number(chunk?.rms || 0));
-  // Stronger VU: keep initial very small, amplify changes ~10x.
-  // Example: rms 0.02 -> ~0.28, 0.06 -> 1.0 (clamped)
-  const noiseFloor = 0.018; // baseline below typical speech
-  const gain = 140.0;       // ~10x previous gain
+  // Calibrated VU: small baseline, moderate gain so speech sits ~40–60%, cough ~80–90%.
+  const noiseFloor = 0.015; // ignore tiny room noise
+  const gain = 11.0;        // moderate gain
   const level = Math.max(0, (rms - noiseFloor) * gain);
   return Math.min(1, level);
 }
