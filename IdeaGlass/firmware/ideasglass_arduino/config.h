@@ -34,6 +34,10 @@ constexpr gpio_num_t PIN_MIC_SD = GPIO_NUM_41;
 
 constexpr gpio_num_t PIN_HAPTIC_INT = GPIO_NUM_6;
 
+// Long-press UX (milliseconds)
+constexpr uint32_t LONG_PRESS_BOOT_MS = 800;   // hold on boot to continue startup
+constexpr uint32_t LONG_PRESS_OFF_MS  = 2500;  // hold during run to enter deep sleep
+
 // ---------------------------------------------------------------------------
 // Battery sensing
 // ---------------------------------------------------------------------------

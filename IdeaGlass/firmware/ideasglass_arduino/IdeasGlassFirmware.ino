@@ -59,6 +59,8 @@ BLECharacteristic *photoChar = nullptr;
 bool bleConnected = false;
 bool captureRequested = false;
 bool buttonPressed = false;
+bool powerOffInitiated = false;
+unsigned long buttonDownAt = 0;
 bool imuReady = false;
 bool ambientReady = false;
 bool hapticsReady = false;
@@ -155,6 +157,33 @@ void setup()
     pinMode(PIN_BUTTON, INPUT_PULLUP);
     analogSetPinAttenuation(PIN_BATTERY_ADC, ADC_11db);
 
+    // Require a long press to fully boot; otherwise enter deep sleep
+    // This implements: long press to start the device (not to start streaming)
+    auto goDeepSleep = []() {
+        // Minimal shutdown before sleep
+        WiFi.disconnect(true);
+        WiFi.mode(WIFI_OFF);
+        // Wake on button low (PIN_BUTTON must be RTC-capable on your board)
+        esp_sleep_enable_ext0_wakeup(PIN_BUTTON, 0);
+        Serial.println("[IdeasGlass] Deep sleep. Hold button to start.");
+        delay(50);
+        esp_deep_sleep_start();
+    };
+
+    if (digitalRead(PIN_BUTTON) == LOW) {
+        unsigned long t0 = millis();
+        while (digitalRead(PIN_BUTTON) == LOW) {
+            if (millis() - t0 >= LONG_PRESS_BOOT_MS) break;
+            delay(10);
+        }
+        if (millis() - t0 < LONG_PRESS_BOOT_MS) {
+            goDeepSleep();
+        }
+    } else {
+        // No press at power-up → stay in deep sleep until user holds the button
+        goDeepSleep();
+    }
+
     Wire.begin(PIN_I2C_SDA, PIN_I2C_SCL, 400000);
 
     setupCamera();
@@ -173,10 +202,25 @@ void loop()
 {
     unsigned long now = millis();
 
-    if (digitalRead(PIN_BUTTON) == LOW && !buttonPressed) {
+    // Button: short press triggers a capture; long press powers off to deep sleep
+    int btn = digitalRead(PIN_BUTTON);
+    if (btn == LOW && !buttonPressed) {
         buttonPressed = true;
-        captureRequested = true;
-    } else if (digitalRead(PIN_BUTTON) == HIGH) {
+        buttonDownAt = now;
+        captureRequested = true; // preserve original behavior
+    } else if (btn == LOW && buttonPressed) {
+        unsigned long held = now - buttonDownAt;
+        if (!powerOffInitiated && held >= LONG_PRESS_OFF_MS) {
+            powerOffInitiated = true;
+            if (hapticsReady) { drv.setWaveform(0, 7); drv.setWaveform(1, 0); drv.go(); }
+            delay(120);
+            WiFi.disconnect(true);
+            WiFi.mode(WIFI_OFF);
+            Serial.println("[IdeasGlass] Entering deep sleep (hold to start)");
+            esp_sleep_enable_ext0_wakeup(PIN_BUTTON, 0);
+            esp_deep_sleep_start();
+        }
+    } else if (btn == HIGH && buttonPressed) {
         buttonPressed = false;
     }
 
