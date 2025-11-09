@@ -39,11 +39,12 @@
   <img src="figs/ideas.lazying.art_main.png" alt="IdeasGlass main dashboard" width="50%" />
 </p>
 
-<p align="center">
-  <img src="figs/ideasglass_app_and_hardware.png" alt="IdeasGlass app (left) and hardware (right)" width="85%" />
+<div align="center">
+  <img src="figs/ideas.lazying.art_main.png" alt="IdeasGlass App UI" width="49%" style="max-width:49%;display:inline-block;vertical-align:top;"/>
+  <img src="figs/ideasglass_hardware.png" alt="IdeasGlass hardware" width="49%" style="max-width:49%;display:inline-block;vertical-align:top;"/>
   <br/>
   <sub>App UI (left) · Hardware (right)</sub>
-</p>
+</div>
 
 Explore community experiments at <a href="https://onlyideas.art">onlyideas.art</a>.
 
