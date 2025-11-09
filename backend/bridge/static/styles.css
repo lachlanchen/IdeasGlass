@@ -587,6 +587,7 @@ main {
   justify-content: space-between;
   gap: 0.5rem;
   margin-bottom: 0.6rem;
+  grid-column: 1 / -1;
 }
 
 /* Status rows as neat chips */
