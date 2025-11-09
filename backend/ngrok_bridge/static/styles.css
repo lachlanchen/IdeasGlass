@@ -189,8 +189,8 @@ main {
   border-radius: 999px;
   background: linear-gradient(180deg, #38bdf8, #6366f1 45%, #a855f7);
   transform-origin: bottom center;
-  /* Baseline at 1/4 height; delta can double to 1/2 total */
-  transform: scaleY(calc(0.25 + var(--level) * 0.25));
+  /* Baseline at 1/4 height; amplify delta for clearer changes */
+  transform: scaleY(calc(0.25 + var(--level) * 0.5));
   opacity: calc(0.2 + var(--level));
   transition: transform 0.06s ease-out;
   filter: drop-shadow(0 6px 12px rgba(99, 102, 241, 0.25));

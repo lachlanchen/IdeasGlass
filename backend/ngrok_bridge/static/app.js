@@ -132,12 +132,13 @@ function initWaveformBars() {
 
 function computeLevel(chunk) {
   const rms = Math.max(0, Number(chunk?.rms || 0));
-  // Normalize RMS between a floor and ceiling so UI maps to 0..1 delta.
-  // Floor ~0.015 (room noise), ceiling ~0.06 (loud speech), clamp to [0,1].
+  // Normalize RMS between a floor and ceiling; then apply a mild gamma (<1)
+  // to expand mid‑range differences so changes are more visible.
   const floor = 0.015;
-  const ceiling = 0.06;
-  const norm = (rms - floor) / Math.max(1e-6, ceiling - floor);
-  return Math.min(1, Math.max(0, norm));
+  const ceiling = 0.05;
+  const norm = Math.min(1, Math.max(0, (rms - floor) / Math.max(1e-6, ceiling - floor)));
+  const gamma = 0.8; // expand mid‑range (0.5 -> ~0.57)
+  return Math.pow(norm, gamma);
 }
 
 function updateWaveformBars() {
