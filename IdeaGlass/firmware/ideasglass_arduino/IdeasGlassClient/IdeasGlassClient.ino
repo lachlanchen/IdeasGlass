@@ -789,7 +789,7 @@ void setup()
     Serial.begin(115200);
     delay(200);
 
-    Serial.println("\nIdeasGlass Ngrok Client");
+    Serial.println("\nIdeasGlass Client");
     Serial.printf("Device ID: %s\n", kDeviceId);
     Serial.printf("Chip MAC: %s\n", WiFi.macAddress().c_str());
 

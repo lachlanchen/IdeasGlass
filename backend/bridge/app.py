@@ -1698,6 +1698,10 @@ async def get_audio_segment(segment_id: str):
         disk_path = BASE_DIR / file_path
         if disk_path.exists():
             return FileResponse(disk_path, media_type="audio/wav", filename=f"{segment_id}.wav")
+        # Fallback for legacy file paths saved under the previous package folder
+        legacy = Path(__file__).parent.parent / "ngrok_bridge" / file_path
+        if legacy.exists():
+            return FileResponse(legacy, media_type="audio/wav", filename=f"{segment_id}.wav")
     return Response(content=bytes(row["data"]), media_type="audio/wav")
 
 

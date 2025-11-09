@@ -8,7 +8,7 @@ description: Deep dive on the current OmiGlass stack to inform the redesigned Ar
 - The synced `OmiGlass` repo is a full-stack wearable platform that already spans custom hardware (`omiGlass/hardware`), an embedded firmware stack (`omiGlass/firmware`), a cross-platform Flutter app (`app/`), a FastAPI backend (`backend/`), and public-facing docs (`docs/`).
 - The reference hardware centers on the Seeed XIAO ESP32-S3 camera module + OV2640 sensor with dual 250 mAh LiPo cells and a BLE + photo capture workload tuned for ~6–8 h battery life.
 - Firmware exposes an Omi BLE service (UUID `19B1…1214`) for audio/photo data, battery status, and device management while implementing aggressive power management, scheduled imaging, and button/LED UX.
-- The Flutter client already targets Android/iOS/Web/Desktop, talks to the wearable over BLE (`flutter_blue_plus` etc.), then syncs up to a FastAPI service that leans on Firebase, Redis, Pinecone, OpenAI/Deepgram, Ngrok, and Modal serverless workers.
+- The Flutter client already targets Android/iOS/Web/Desktop, talks to the wearable over BLE (`flutter_blue_plus` etc.), then syncs up to a FastAPI service that leans on Firebase, Redis, Pinecone, OpenAI/Deepgram, and Modal serverless workers.
 - To redesign for a bespoke IdeasGlass flow we need: (1) a hardware abstraction that can run on Arduino-class MCUs, (2) firmware hooks that buffer/send multi-modal data, (3) a Tornado + Postgres ingestion surface, (4) a PWA build of the Flutter app (or interoperable web shell) that can subscribe to the backend, and (5) a data contract that keeps BLE/device telemetry, cloud state, and mobile experiences in sync.
 
 # 2. Object inventory
@@ -72,7 +72,7 @@ description: Deep dive on the current OmiGlass stack to inform the redesigned Ar
 # 6. Cloud/backend services
 
 - `backend/main.py` spins up a FastAPI app with dozens of routers (transcription, conversations, workflows, auth, payments, MCP integration, etc.).
-- Deployment story mixes Modal serverless (`modal_app`), Ngrok for local tunneling, Firebase Admin SDK, and GCP secrets.
+- Deployment story mixes Modal serverless (`modal_app`), Firebase Admin SDK, and GCP secrets.
 - Data persistence spans Firebase (firestore/auth), Redis/Upstash for queues, Pinecone for vector search, OpenAI/Deepgram for AI tasks, plus optional Typesense/Datadog.
 - Existing database scripts (`backend/database`, `migration/`, `migrations/`) target Postgres for some features, but the production reference leans heavily on managed Firebase services.
 
@@ -80,7 +80,7 @@ description: Deep dive on the current OmiGlass stack to inform the redesigned Ar
 
 1. **Capture:** ESP32-S3 firmware samples imagery/battery data and advertises over BLE.
 2. **Pairing:** Flutter app connects via BLE, requests frames/audio, handles DFU, and shows live status.
-3. **Sync:** App uploads transcripts/media to the FastAPI backend via HTTPS (ngrok/Modal), which then pushes data into Firebase/Pinecone/OpenAI pipelines.
+3. **Sync:** App uploads transcripts/media to the FastAPI backend via HTTPS, which then pushes data into Firebase/Pinecone/OpenAI pipelines.
 4. **Surfacing:** Docs (`docs/`, `web/`) and ecosystem clients consume API responses to fuel EchoMind, OnlyIdeas, etc.
 
 # 8. Redesign levers for IdeasGlass

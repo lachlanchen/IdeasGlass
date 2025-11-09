@@ -15,7 +15,7 @@ ideasglass_arduino/
 ├── config.h                 # Central pin assignments + BLE UUIDs
 ├── wifi_credentials.h       # (gitignored) user Wi-Fi list
 ├── WifiTest/                # Standalone Wi-Fi connectivity sketch
-├── IdeasGlassNgrokClient/   # HTTPS client demo posting to ngrok bridge
+├── IdeasGlassClient/   # HTTPS client demo posting to backend
 └── README.md
 ```
 
@@ -44,9 +44,9 @@ ideasglass_arduino/
 2. Open `WifiTest/WifiTest.ino` in Arduino IDE – it auto-detects `wifi_credentials.h` or falls back to the example file.
 3. Upload to the XIAO ESP32S3 and watch the serial monitor for connection / RSSI logs.
 
-### Ngrok HTTPS client + Photo capture
+### HTTPS client + Photo capture
 
-`IdeasGlassNgrokClient/IdeasGlassNgrokClient.ino` demonstrates how to:
+`IdeasGlassClient/IdeasGlassClient.ino` demonstrates how to:
 
 1. Load Wi-Fi credentials from `wifi_credentials.h`
 2. Initialize the XIAO ESP32S3 Sense camera, capture a QVGA JPEG, encode it in Base64 (guarded by `#define ENABLE_PHOTO_CAPTURE 1`)

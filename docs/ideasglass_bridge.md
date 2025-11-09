@@ -1,15 +1,15 @@
 ---
-title: IdeasGlass Ngrok Bridge
-description: End-to-end setup for the FastAPI backend, PWA, Ngrok tunnel, and Arduino HTTPS client.
+title: IdeasGlass Bridge
+description: End-to-end setup for the FastAPI backend, PWA, , and Arduino HTTPS client.
 ---
 
 # Overview
 
-This guide documents the exact steps we used to relay Arduino data (text + photos) to a public HTTPS endpoint (`https://ideas.lazying.art`), persist it in Postgres, and display it in a light-themed PWA installable on Android/iOS/Desktop. The stack consists of:
+This guide documents the exact steps we used to relay Arduino data (text + photos) to a public HTTPS endpoint (`https://localhost:8765`), persist it in Postgres, and display it in a light-themed PWA installable on Android/iOS/Desktop. The stack consists of:
 
-- `backend/ngrok_bridge` — FastAPI + WebSocket server with a PWA front-end
-- `ngrok` — exposes the local server over `ideas.lazying.art`
-- `IdeaGlass/firmware/ideasglass_arduino/IdeasGlassNgrokClient/` — ESP32 sketch that posts JSON payloads over TLS
+- `backend/bridge` — FastAPI + WebSocket server with a PWA front-end
+- `ngrok` — exposes the local server over `localhost:8765`
+- `IdeaGlass/firmware/ideasglass_arduino/IdeasGlassClient/` — ESP32 sketch that posts JSON payloads over TLS
 
 # 1. Backend & PWA
 
@@ -19,7 +19,7 @@ This guide documents the exact steps we used to relay Arduino data (text + photo
    ```
 2. **Install requirements (already done but harmless to repeat):**
    ```bash
-   pip install -r backend/ngrok_bridge/requirements.txt
+   pip install -r backend/bridge/requirements.txt
    ```
 3. **Export your Postgres connection (runs migrations automatically):**
    ```bash
@@ -27,23 +27,23 @@ This guide documents the exact steps we used to relay Arduino data (text + photo
    ```
 4. **Launch uvicorn on an unused port (8765 chosen to avoid collisions):**
    ```bash
-   uvicorn backend.ngrok_bridge.app:app \
+   uvicorn backend.bridge.app:app \
      --host 0.0.0.0 \
      --port 8765 \
      --proxy-headers \
      --forwarded-allow-ips="*"
    ```
    - Use a different port if 8765 becomes occupied.
-   - If you want end-to-end TLS locally, add `--ssl-certfile` / `--ssl-keyfile` pointing to your cert + key. Otherwise let Ngrok terminate TLS.
-5. **Ngrok tunnel (maps the public domain to your local port):**
+   - If you want end-to-end TLS locally, add `--ssl-certfile` / `--ssl-keyfile` pointing to your cert + key. Otherwise let  terminate TLS.
+5. ** (maps the public domain to your local port):**
    ```bash
    ngrok http http://localhost:8765 \
-     --domain=ideas.lazying.art \
+     --domain=localhost:8765 \
      --host-header=rewrite
    ```
-   Once Ngrok reports `Forwarding  https://ideas.lazying.art -> http://localhost:8765`, the public URL is live.
-6. **Verify backend health:** `curl https://ideas.lazying.art/healthz` should return `{"status":"ok","messages":...}`.
-7. **Open the PWA dashboard** at `https://ideas.lazying.art/`:
+   Once  reports `Forwarding  https://localhost:8765 -> http://localhost:8765`, the public URL is live.
+6. **Verify backend health:** `curl https://localhost:8765/healthz` should return `{"status":"ok","messages":...}`.
+7. **Open the PWA dashboard** at `https://localhost:8765/`:
    - Shows **Backend Online / WebSocket Connected** states.
    - Live feed cards now include inline photos if the Arduino sent one.
    - Use “Add to Home Screen” (or the built-in “Add” button) to install it on Android/iOS.
@@ -51,8 +51,8 @@ This guide documents the exact steps we used to relay Arduino data (text + photo
 # 2. Arduino HTTPS client
 
 1. Ensure `IdeaGlass/firmware/ideasglass_arduino/wifi_credentials.h` exists (copy the `.example` if needed) with your Wi-Fi SSID/password.
-2. Open `IdeaGlass/firmware/ideasglass_arduino/IdeasGlassNgrokClient/IdeasGlassNgrokClient.ino` in Arduino IDE.
-   - Defaults: `kServerHost = "ideas.lazying.art"`, `kServerPort = 443`, `kDeviceId = "ideasglass-devkit-01"`.
+2. Open `IdeaGlass/firmware/ideasglass_arduino/IdeasGlassClient/IdeasGlassClient.ino` in Arduino IDE.
+   - Defaults: `kServerHost = "localhost:8765"`, `kServerPort = 443`, `kDeviceId = "ideasglass-devkit-01"`.
    - The sketch now initializes the XIAO ESP32S3 Sense camera, captures QVGA JPEG frames, Base64-encodes them, and embeds them in the HTTPS payload (`photo_base64` + MIME type) alongside the text message.
    - **Important:** set `Tools → PSRAM → Enabled` before flashing; the framebuffer lives in PSRAM and the sketch falls back to QQVGA if memory runs low.
 3. Upload to the XIAO ESP32S3. Serial monitor will show Wi-Fi status, camera activity, and repeated `POST /api/v1/messages` responses.
@@ -63,8 +63,8 @@ This guide documents the exact steps we used to relay Arduino data (text + photo
 The firmware now keeps a persistent TLS WebSocket open to the bridge so audio can flow continuously with almost no sample loss:
 
 - **ESP32 firmware**
-  - Keep `Tools → PSRAM → Enabled`, then flash `IdeasGlassNgrokClient.ino`.
-  - I2S reads still happen at 16 kHz, but every 4096-sample block is copied into PSRAM and pushed to a FreeRTOS queue immediately. A dedicated sender task Base64-encodes the chunk and writes a masked WebSocket frame to `wss://ideas.lazying.art/ws/audio-ingest`, so capture never stalls while HTTPS handshakes complete.
+  - Keep `Tools → PSRAM → Enabled`, then flash `IdeasGlassClient.ino`.
+  - I2S reads still happen at 16 kHz, but every 4096-sample block is copied into PSRAM and pushed to a FreeRTOS queue immediately. A dedicated sender task Base64-encodes the chunk and writes a masked WebSocket frame to `wss://localhost:8765/ws/audio-ingest`, so capture never stalls while HTTPS handshakes complete.
   - Serial logs show per-chunk RMS/peak (from the capture loop) plus the final WebSocket send status (from the sender task).
 - **Backend**
   - Accepts the same JSON payload via HTTP (`POST /api/v1/audio`) or WebSocket (`/ws/audio-ingest`) and runs WebRTC VAD (`webrtcvad`) + gain staging on every chunk.
@@ -72,8 +72,8 @@ The firmware now keeps a persistent TLS WebSocket open to the bridge so audio ca
   - When a segment is sealed we apply a second-stage gain (`IDEASGLASS_SEGMENT_GAIN_TARGET`, defaults to the per-chunk target) before emitting the WAV so every clip lands at a consistent loudness.
   - A background openai-whisper worker performs rolling transcription every few seconds (default 3 s) so you see live text appear beneath the waveform. Tweak `IDEASGLASS_WHISPER_MODEL`, `IDEASGLASS_WHISPER_DEVICE`, `IDEASGLASS_TRANSCRIBE`, and `IDEASGLASS_TRANSCRIPT_INTERVAL_MS` to suit your hardware. Final transcripts are cached and replayed via `history_audio_transcripts`.
   - `/healthz` reports `segment_target_ms`, and every chunk broadcast includes `segment_duration_ms` + `active_segment_id`, letting the UI show exact recorder progress.
-  - PCM buffers stream straight to `backend/ngrok_bridge/audio_segments/in_progress/` during capture, then promote to `audio_segments/<segment>.wav` (with the Postgres row pointing at the file).
-  - Photo uploads hit `/api/v1/messages`; when Postgres is unavailable, the backend writes the decoded image to `backend/ngrok_bridge/static/photos/` and serves it at `/static/photos/<photo-id>.jpg`, so the dashboard continues to display images without a database.
+  - PCM buffers stream straight to `backend/bridge/audio_segments/in_progress/` during capture, then promote to `audio_segments/<segment>.wav` (with the Postgres row pointing at the file).
+  - Photo uploads hit `/api/v1/messages`; when Postgres is unavailable, the backend writes the decoded image to `backend/bridge/static/photos/` and serves it at `/static/photos/<photo-id>.jpg`, so the dashboard continues to display images without a database.
 - **PWA**
   - The waveform still uses 72 neon bars with the speaking glow, but the timer now shows `Recording X.X s / 15.0 s` with a progress bar that fills as the backend reports `segment_duration_ms`.
   - The “Last chunk” label includes RMS plus the current segment’s elapsed time; the list of recordings updates immediately because clips finalize as soon as they cross the target duration (no more waiting for silence).
@@ -97,7 +97,7 @@ GET /api/v1/audio/{chunk_id}              -> audio/wav
 GET /api/v1/audio/segments
 GET /api/v1/audio/segments/{segment_id}   -> audio/wav (~15 s clip with overlap)
 GET /api/v1/audio/segments/{segment_id}/transcript -> JSON transcript payload
-WS  wss://ideas.lazying.art/ws/audio-ingest (send the same JSON payload as POST /api/v1/audio)
+WS  wss://localhost:8765/ws/audio-ingest (send the same JSON payload as POST /api/v1/audio)
 ```
 - WebSocket events also include `audio_transcript` payloads with `{segment_id, chunks: [{speaker, text, start, end}], is_final}`, plus a `history_audio_transcripts` bootstrap so the UI can show the latest block on refresh.
 
@@ -115,7 +115,7 @@ For debugging, the PWA logs `[IdeasGlass][wave] …` entries to the browser cons
 
 - **Manual photo test via curl:**
   ```bash
-  curl -X POST https://ideas.lazying.art/api/v1/messages \
+  curl -X POST https://localhost:8765/api/v1/messages \
     -H 'Content-Type: application/json' \
     -d '{
       "device_id":"curl-test",
@@ -126,16 +126,16 @@ For debugging, the PWA logs `[IdeasGlass][wave] …` entries to the browser cons
   ```
 - **List stored messages (served from Postgres when `DATABASE_URL` is set):**
   ```bash
-  curl https://ideas.lazying.art/api/v1/messages | jq
+  curl https://localhost:8765/api/v1/messages | jq
   ```
-- **Local access (without Ngrok):** open `http://localhost:8765` while uvicorn runs.
+- **Local access (without ):** open `http://localhost:8765` while uvicorn runs.
 
 # 5. Troubleshooting
 
-- **Port already in use:** pick another port (`--port 9123`) and update the Ngrok command to match.
-- **SSL key missing:** either provide the real private key path via `--ssl-keyfile` or omit the SSL flags and let Ngrok handle TLS.
+- **Port already in use:** pick another port (`--port 9123`) and update the  command to match.
+- **SSL key missing:** either provide the real private key path via `--ssl-keyfile` or omit the SSL flags and let  handle TLS.
 - **Postgres offline:** the server logs `[DB] Failed to initialize Postgres...` and falls back to in-memory mode (photos unavailable). Fix `DATABASE_URL` and restart uvicorn.
-- **Arduino cannot connect:** ensure Ngrok is running, host is reachable, and the Wi-Fi credentials are correct. Serial logs will show HTTP responses; status code `200` confirms success.
-- **PWA offline:** check `https://ideas.lazying.art/healthz`; if offline, restart uvicorn/Ngrok.
+- **Arduino cannot connect:** ensure  is running, host is reachable, and the Wi-Fi credentials are correct. Serial logs will show HTTP responses; status code `200` confirms success.
+- **PWA offline:** check `https://localhost:8765/healthz`; if offline, restart uvicorn/.
 
-The logs shown earlier confirm the full pipeline works: Arduino sends `"Hello from IdeasGlass @ {n}s"` every ~20s, backend persists/broadcasts it, and the PWA shows the live feed. Keep both uvicorn and Ngrok terminals open for continuous testing.
+The logs shown earlier confirm the full pipeline works: Arduino sends `"Hello from IdeasGlass @ {n}s"` every ~20s, backend persists/broadcasts it, and the PWA shows the live feed. Keep both uvicorn and  terminals open for continuous testing.

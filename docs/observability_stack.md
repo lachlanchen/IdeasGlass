@@ -37,8 +37,8 @@ or filter by source:
 
 ## Feeding logs
 
-- Serial: run `backend/ngrok_bridge/tools/serial_logger.py` (writes to `logs/ideasglass-serial`).
-- Backend: run `backend/ngrok_bridge/tools/backend_logger.py` (writes to `logs/ideasglass-backend`).
+- Serial: run `backend/bridge/tools/serial_logger.py` (writes to `logs/ideasglass-serial`).
+- Backend: run `backend/bridge/tools/backend_logger.py` (writes to `logs/ideasglass-backend`).
 - Frontend: if desired, append browser logs to files under `logs/frontend/` or add a tiny POST endpoint in FastAPI that writes to a log file in that directory. Promtail will pick them up automatically.
 
 ## Stop / Clean
@@ -52,4 +52,3 @@ docker volume rm ops_observability_grafana-storage ops_observability_loki-data #
 
 - Promtail stores read offsets in `ops/observability/promtail-positions.yaml` (created at runtime).
 - You can adjust Loki retention in `loki-config.yml` (`retention_period`).
-

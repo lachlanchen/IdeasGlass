@@ -49,7 +49,7 @@ Set variables as needed and run compile + upload:
 ```bash
 export PATH="$PWD/bin:$PATH"
 PORT=/dev/ttyACM0
-SKETCH=IdeaGlass/firmware/ideasglass_arduino/IdeasGlassNgrokClient
+SKETCH=IdeaGlass/firmware/ideasglass_arduino/IdeasGlassClient
 FQBN=esp32:esp32:XIAO_ESP32S3:PSRAM=opi,USBMode=hwcdc,CDCOnBoot=default,UploadSpeed=921600
 
 # Compile
@@ -69,8 +69,8 @@ Use the built‑in logger to capture firmware logs with timestamps and tags:
 
 ```bash
 pip install pyserial
-python backend/ngrok_bridge/tools/serial_logger.py --list
-python backend/ngrok_bridge/tools/serial_logger.py --port /dev/ttyACM0 --baud 115200 --out logs/ideasglass-serial
+python backend/bridge/tools/serial_logger.py --list
+python backend/bridge/tools/serial_logger.py --port /dev/ttyACM0 --baud 115200 --out logs/ideasglass-serial
 ```
 
 - Output files: `logs/ideasglass-serial/*.log` (text), `*.jsonl` (structured).
@@ -83,7 +83,7 @@ python backend/ngrok_bridge/tools/serial_logger.py --port /dev/ttyACM0 --baud 11
 Quick 3‑minute capture (non‑interactive):
 
 ```bash
-timeout 185s python backend/ngrok_bridge/tools/serial_logger.py --port /dev/ttyACM0 --baud 115200 --out logs/ideasglass-serial || true
+timeout 185s python backend/bridge/tools/serial_logger.py --port /dev/ttyACM0 --baud 115200 --out logs/ideasglass-serial || true
 ```
 
 ## 5) Backend DB correlation (optional)
@@ -141,9 +141,9 @@ Compile, upload, then log for 3 minutes:
 ```bash
 export PATH="$PWD/bin:$PATH" && \
 FQBN=esp32:esp32:XIAO_ESP32S3:PSRAM=opi,USBMode=hwcdc,CDCOnBoot=default,UploadSpeed=921600 && \
-arduino-cli compile --fqbn "$FQBN" "IdeaGlass/firmware/ideasglass_arduino/IdeasGlassNgrokClient" && \
-arduino-cli upload -p /dev/ttyACM0 --fqbn "$FQBN" "IdeaGlass/firmware/ideasglass_arduino/IdeasGlassNgrokClient" && \
-timeout 185s python backend/ngrok_bridge/tools/serial_logger.py --port /dev/ttyACM0 --baud 115200 --out logs/ideasglass-serial || true
+arduino-cli compile --fqbn "$FQBN" "IdeaGlass/firmware/ideasglass_arduino/IdeasGlassClient" && \
+arduino-cli upload -p /dev/ttyACM0 --fqbn "$FQBN" "IdeaGlass/firmware/ideasglass_arduino/IdeasGlassClient" && \
+timeout 185s python backend/bridge/tools/serial_logger.py --port /dev/ttyACM0 --baud 115200 --out logs/ideasglass-serial || true
 ```
 
 ## 8) Troubleshooting
@@ -155,4 +155,3 @@ timeout 185s python backend/ngrok_bridge/tools/serial_logger.py --port /dev/ttyA
   - Confirm PSRAM option matches your board: `PSRAM=opi` vs `PSRAM=disabled`.
 - Gaps in photo cadence with continuous audio:
   - Look for `photo_ws_failed` tags; short bursts imply transient WS/TLS hitches. Frames are dropped to keep timing; cadence should recover by the next 15 s tick.
-

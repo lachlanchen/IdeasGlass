@@ -72,4 +72,4 @@ IdeasGlass is where AI wearables stop listening and start building with you.
 - [IdeasGlass Object Analysis](OmiGlass/docs/ideasglass_analysis.mdx)
 - [Arduino Hardware Blueprint](OmiGlass/docs/ideasglass_arduino_hardware.md)
 - [Multi-platform App / PWA Plan](OmiGlass/docs/ideasglass_pwa_plan.md)
-- [Ngrok Bridge & Arduino HTTPS Client](docs/ideasglass_ngrok_bridge.md)
+- [Bridge & Arduino HTTPS Client](docs/ideasglass_bridge.md)

@@ -7,7 +7,7 @@ This note captures how to verify that incoming audio/photo uploads are healthy, 
 - Start backend with logging (reload optional):
   ```bash
   source ~/miniconda3/bin/activate glass
-  python backend/ngrok_bridge/tools/backend_logger.py --reload --port 8765
+  python backend/bridge/tools/backend_logger.py --reload --port 8765
   ```
 - Healthy signs:
   - `[ThreadPool] Default executor workers set to …`
@@ -21,7 +21,7 @@ This note captures how to verify that incoming audio/photo uploads are healthy, 
 - Quick capture (e.g., 60–180 s):
   ```bash
   source ~/miniconda3/bin/activate glass
-  python backend/ngrok_bridge/tools/serial_logger.py --port /dev/ttyACM0 --baud 115200 --out logs/ideasglass-serial
+  python backend/bridge/tools/serial_logger.py --port /dev/ttyACM0 --baud 115200 --out logs/ideasglass-serial
   ```
 - Healthy signs:
   - `WiFi Connected …`
@@ -89,4 +89,3 @@ ORDER BY p.created_at DESC LIMIT 10;"
 ## 6) Optional: dashboards
 
 Use the provided Grafana + Loki stack in `ops/observability/` to aggregate backend + serial logs and query in one UI. See `docs/observability_stack.md` for setup.
-
