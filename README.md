@@ -73,3 +73,8 @@ IdeasGlass is where AI wearables stop listening and start building with you.
 - [Arduino Hardware Blueprint](OmiGlass/docs/ideasglass_arduino_hardware.md)
 - [Multi-platform App / PWA Plan](OmiGlass/docs/ideasglass_pwa_plan.md)
 - [Bridge & Arduino HTTPS Client](docs/ideasglass_bridge.md)
+
+Quick device binding
+- Generate ID (in conda "glass"): `python backend/bridge/tools/generate_device_id.py`
+- Set it in firmware: `IdeaGlass/firmware/ideasglass_arduino/IdeasGlassClient/IdeasGlassClient.ino` (`kDeviceId`)
+- Run backend and open `http://localhost:8765`, register/login, then bind the device ID in the Account panel

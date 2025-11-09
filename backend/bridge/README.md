@@ -33,19 +33,19 @@ Minimal HTTPS backend + PWA dashboard for receiving Arduino telemetry and printi
    ```
    > If Ngrok terminates TLS for you, plain HTTP locally is fine. Add `--ssl-*` flags if you want end-to-end TLS.
 
-4. **Open the dashboard**
-   - Browser/PWA: https://localhost:8765/  (install on Android/iOS via browser menu)
-   - Healthcheck: https://localhost:8765/healthz
+3. **Open the dashboard**
+   - Browser/PWA: http://localhost:8765/  (install on Android/iOS via browser menu)
+   - Healthcheck: http://localhost:8765/healthz
 
-5. **Send a test message**
+4. **Send a test message**
    ```bash
-   curl -X POST https://localhost:8765/api/v1/messages \
+   curl -X POST http://localhost:8765/api/v1/messages \
      -H 'Content-Type: application/json' \
      -d '{"device_id":"dev-001","message":"hello from curl"}'
    ```
-6. **Send a test photo**
+5. **Send a test photo**
    ```bash
-   curl -X POST https://localhost:8765/api/v1/messages \
+   curl -X POST http://localhost:8765/api/v1/messages \
      -H 'Content-Type: application/json' \
      -d '{
        "device_id":"dev-001",
@@ -54,10 +54,10 @@ Minimal HTTPS backend + PWA dashboard for receiving Arduino telemetry and printi
        "photo_mime":"image/jpeg"
      }'
    ```
-7. **Send a test audio chunk**
+6. **Send a test audio chunk**
    ```bash
    rec --bits 16 --channels 1 --rate 16000 -c 1 -b 16 -e signed-integer temp.raw trim 0 0.25
-   curl -X POST https://localhost:8765/api/v1/audio \
+   curl -X POST http://localhost:8765/api/v1/audio \
      -H 'Content-Type: application/json' \
      -d '{
        "device_id":"dev-001",
@@ -68,18 +68,54 @@ Minimal HTTPS backend + PWA dashboard for receiving Arduino telemetry and printi
        "audio_base64":"'"$(base64 -w0 temp.raw)"'"
      }'
    ```
-8. **List audio segments & download WAV**
+7. **List audio segments & download WAV**
    ```bash
-   curl https://localhost:8765/api/v1/audio/segments | jq '.[0]'
-   curl -o latest.wav https://localhost:8765/api/v1/audio/segments/<segment-id>
+   curl http://localhost:8765/api/v1/audio/segments | jq '.[0]'
+   curl -o latest.wav http://localhost:8765/api/v1/audio/segments/<segment-id>
+
+## Device ID & Binding
+
+Each device streams with a fixed `device_id`. Bind a device to a user account to view its data.
+
+1. Generate a device ID (optional QR)
+   ```bash
+   # in conda "glass" env
+   python backend/bridge/tools/generate_device_id.py --out logs/device-id.png
+   # output example: ideasglass-abc123def456
+   ```
+2. Flash the ID into firmware
+   - Edit `IdeaGlass/firmware/ideasglass_arduino/IdeasGlassClient/IdeasGlassClient.ino`
+   - Set: `const char *kDeviceId = "<your-device-id>";`
+3. Start the backend and open http://localhost:8765/
+4. Register or login (Account section)
+5. Bind the device ID
+   - Enter your ID in the Device ID field and click “Bind device”
+   - Or API:
+     ```bash
+     curl -X POST http://localhost:8765/api/v1/devices/bind \
+       -H 'Content-Type: application/json' \
+       -d '{"device_id":"<your-device-id>"}' -b cookies.txt -c cookies.txt
+     ```
+6. Verify current user and bound devices
+   ```bash
+   curl -s http://localhost:8765/api/v1/auth/me -b cookies.txt -c cookies.txt | jq
+   ```
+
+Migration (rename existing data to a new device_id):
+```bash
+curl -X POST http://localhost:8765/api/v1/devices/rename \
+  -H 'Content-Type: application/json' \
+  -d '{"from_id":"old-id","to_id":"<your-device-id>"}' \
+  -b cookies.txt -c cookies.txt
+```
    ```
 
 ## Arduino integration
 
-- Use the provided example sketch `IdeaGlass/firmware/ideasglass_arduino/IdeasGlassNgrokClient/IdeasGlassNgrokClient.ino`
+- Use the provided example sketch `IdeaGlass/firmware/ideasglass_arduino/IdeasGlassClient/IdeasGlassClient.ino`
 - The sketch loads Wi-Fi credentials from `wifi_credentials.h`, connects to your AP, then uses `WiFiClientSecure` with the LetsEncrypt PEM (embedded) to POST JSON to `/api/v1/messages`
 - Audio capture uses a FreeRTOS queue plus a tiny WebSocket client that keeps a persistent TLS connection to `/ws/audio-ingest`, so 16 kHz PCM blocks keep flowing even while uploads happen in the background
-- Update `kServerHost`, `kServerPort` (default `localhost:8765:443`) and `kDeviceId` as needed
+- Update `kServerHost`, `kServerPort` (default `localhost:8765`) and `kDeviceId` as needed
 
 ## Folder structure
 
