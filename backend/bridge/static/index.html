@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>IdeasGlass Live Stream</title>
+    <title>IdeasGlass</title>
     <link rel="manifest" href="/static/manifest.webmanifest" />
     <link rel="stylesheet" href="/static/styles.css" />
     <link rel="icon" type="image/png" href="/static/icons/icon-192.png" />
@@ -12,7 +12,7 @@
   <body>
     <header>
       <div>
-        <h1>IdeasGlass Stream</h1>
+        <h1>IdeasGlass</h1>
         <p class="subtitle">Live device feed</p>
       </div>
       <button id="installBtn" hidden>Add to Home Screen</button>
@@ -103,21 +103,22 @@
           <h2>Account</h2>
           <div class="account-forms">
             <div id="currentAccount" class="account-info">
+              <div id="accountAvatar" class="avatar hidden">U</div>
               <span id="currentEmail"></span>
-              <span id="currentDevices"></span>
+              <button id="authLogoutBtn" type="button" class="ghost-btn hidden">Logout</button>
             </div>
             <form id="authForm" class="auth-form" action="javascript:void(0)">
               <input id="authEmail" type="email" placeholder="Email" required />
               <input id="authPassword" type="password" placeholder="Password" required />
               <button id="authRegisterBtn" type="button">Register</button>
               <button id="authLoginBtn" type="button">Login</button>
-              <button id="authLogoutBtn" type="button">Logout</button>
             </form>
             <form id="bindForm" class="bind-form" action="javascript:void(0)">
               <input id="deviceIdInput" placeholder="Device ID" />
               <button id="bindBtn" type="button">Bind device</button>
               <span id="authStatus" class="status"></span>
             </form>
+            <div id="currentDevices"></div>
           </div>
         </section>
       </main>
@@ -128,10 +129,22 @@
     </footer>
 
     <nav id="bottomNav" class="bottom-nav">
-      <button class="tab-btn active" data-tab="live">Live</button>
-      <button class="tab-btn" data-tab="ideas">Ideas</button>
-      <button class="tab-btn" data-tab="creation">Creation</button>
-      <button class="tab-btn" data-tab="settings">Settings</button>
+      <button class="tab-btn active" data-tab="live" aria-label="Live">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12h3l2-4 3 8 2-6 2 2h4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <span>Live</span>
+      </button>
+      <button class="tab-btn" data-tab="ideas" aria-label="Ideas">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18h6M10 15h4M8 10a6 6 0 1 1 8 0c-1.2 1.1-2 2.2-2 3.5V15H10v-1.5c0-1.3-.8-2.4-2-3.5z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <span>Ideas</span>
+      </button>
+      <button class="tab-btn" data-tab="creation" aria-label="Creation">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 8v8M8 12h8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        <span>Creation</span>
+      </button>
+      <button class="tab-btn" data-tab="settings" aria-label="Settings">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h10M4 16h16M10 6v4M16 14v4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        <span>Settings</span>
+      </button>
     </nav>
 
     <script src="/static/app.js" type="module"></script>
