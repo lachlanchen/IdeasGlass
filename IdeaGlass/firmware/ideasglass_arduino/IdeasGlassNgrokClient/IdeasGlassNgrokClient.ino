@@ -52,7 +52,7 @@ const int AUDIO_SAMPLE_RATE = 16000;
 const size_t AUDIO_BLOCK_SAMPLES = 4096;
 static int16_t g_audioBlock[AUDIO_BLOCK_SAMPLES];
 size_t g_bufferedSamples = 0;
-uint32_t g_audioChunkCounter = 0;
+uint32_t g_audioChunkCounter = 1;
 const size_t AUDIO_QUEUE_LENGTH = 6;
 const size_t AUDIO_SENDER_STACK = 8192;
 
@@ -251,6 +251,8 @@ public:
         }
         close();
         if (!_client.connect(_host, _port)) {
+            Serial.printf("[WS] Connect failed to %s:%u for %s\n",
+                          _host ? _host : "(null)", _port, _path ? _path : "/");
             return false;
         }
         if (!handshake()) {
@@ -271,6 +273,26 @@ public:
             return false;
         }
         return true;
+    }
+
+    bool sendPing()
+    {
+        if (!ensureConnected()) {
+            return false;
+        }
+        // Build a masked ping frame with zero-length payload
+        uint8_t header[2 + 4];
+        size_t headerLen = 0;
+        header[0] = 0x80 | 0x09; // FIN + PING opcode
+        header[1] = 0x80 | 0;    // MASK bit set, 0-length payload
+        headerLen = 2;
+        uint8_t mask[4];
+        for (int i = 0; i < 4; ++i) {
+            mask[i] = static_cast<uint8_t>(esp_random() & 0xFF);
+        }
+        memcpy(header + headerLen, mask, 4);
+        headerLen += 4;
+        return _client.write(header, headerLen) == (int)headerLen;
     }
 
     void close()
@@ -307,7 +329,15 @@ private:
         }
         _client.print("\r\n");
         String status = _client.readStringUntil('\n');
+        status.trim();
         if (!status.startsWith("HTTP/1.1 101")) {
+            Serial.printf("[WS] Handshake failed for %s %s: %s\n", _path ? _path : "/", _host ? _host : "(null)", status.c_str());
+            // Drain remaining headers quickly
+            unsigned long s = millis();
+            while (_client.connected() && millis() - s < 300) {
+                String line = _client.readStringUntil('\n');
+                if (line.length() == 0 || line == "\r") break;
+            }
             return false;
         }
         unsigned long start = millis();
@@ -460,18 +490,31 @@ bool enqueuePhotoUploadJob(const String &message, const String &rssi, const Stri
 
 void photoUploadTask(void *param)
 {
+    const TickType_t pingInterval = pdMS_TO_TICKS(1000); // 1s
+    TickType_t lastPing = xTaskGetTickCount();
     while (true) {
         PhotoUploadJob *job = nullptr;
-        if (xQueueReceive(g_photoUploadQueue, &job, portMAX_DELAY) != pdPASS || !job) {
-            continue;
+        // poll queue with 1s timeout to allow heartbeat pings
+        if (xQueueReceive(g_photoUploadQueue, &job, pdMS_TO_TICKS(1000)) == pdPASS && job) {
+            const String *photoPtr = job->photoBase64.length() > 0 ? &job->photoBase64 : nullptr;
+            bool ok = sendPhotoOverWebSocket(job->message, job->rssi, photoPtr);
+            if (!ok) {
+                Serial.println("[PhotoUpload] WS send failed, falling back to HTTPS");
+                ok = sendPayload(job->message, job->rssi, photoPtr);
+            }
+            Serial.printf("[PhotoUpload] send result: %s (%d chars)\n", ok ? "OK" : "FAILED", photoPtr ? photoPtr->length() : 0);
+            delete job;
+            lastPing = xTaskGetTickCount();
+        } else {
+            // No job; send a ping if interval elapsed to keep WS alive
+            TickType_t now = xTaskGetTickCount();
+            if (now - lastPing >= pingInterval) {
+                if (!g_photoWsClient.sendPing()) {
+                    // Silent; next job will trigger reconnect logic
+                }
+                lastPing = now;
+            }
         }
-        const String *photoPtr = job->photoBase64.length() > 0 ? &job->photoBase64 : nullptr;
-        bool ok = sendPhotoOverWebSocket(job->message, job->rssi, photoPtr);
-        if (!ok) {
-            Serial.println("[PhotoUpload] WS send failed — dropping frame (no fallback)");
-        }
-        Serial.printf("[PhotoUpload] send result: %s (%d chars)\n", ok ? "OK" : "FAILED", photoPtr ? photoPtr->length() : 0);
-        delete job;
     }
 }
 
