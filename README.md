@@ -127,6 +127,19 @@ Open the dashboard
 - http://localhost:8765/ (installable PWA)
 - http://localhost:8765/healthz
 
+### Firmware (XIAO ESP32S3)
+
+- Power UX: Hold the button ~0.8s at power‑up to boot. Hold ~2.5s while running to enter deep sleep. Short press still triggers a capture.
+- Arduino IDE:
+  - Board: ESP32 → XIAO_ESP32S3
+  - PSRAM: OPI PSRAM (required for camera)
+  - Partition Scheme: Default with spiffs (3MB APP/1.5MB SPIFFS) or Maximum APP (no FS)
+  - Port: select `/dev/ttyACM0` (Linux) or the corresponding serial device
+- Arduino CLI (included at `bin/arduino-cli`):
+  - Compile: `bin/arduino-cli compile --fqbn esp32:esp32:XIAO_ESP32S3:PartitionScheme=default_8MB,PSRAM=opi IdeaGlass/firmware/ideasglass_arduino/IdeasGlassClient`
+  - Upload: `bin/arduino-cli upload -p /dev/ttyACM0 --fqbn esp32:esp32:XIAO_ESP32S3:PartitionScheme=default_8MB,PSRAM=opi IdeaGlass/firmware/ideasglass_arduino/IdeasGlassClient`
+  - If port busy: `fuser -k /dev/ttyACM0`; if permission denied: `sudo usermod -aG dialout $USER` and re‑login (or `sudo chmod a+rw /dev/ttyACM0`).
+
 Choose a Whisper model
 - Defaults to `base`. For higher quality, set `IDEASGLASS_WHISPER_MODEL` to `small`, `medium`, or `large-v3`/`large-v3-turbo` (GPU recommended for larger models).
 - Device: `IDEASGLASS_WHISPER_DEVICE=cuda` for NVIDIA GPUs, or `cpu`.

@@ -34,7 +34,67 @@ ideasglass_arduino/
    - `ArduinoJson`
    - `ESP32 BLE Arduino`
 3. Copy `wifi_credentials.example.h` to `wifi_credentials.h` and fill in one or more SSIDs + passwords. (If you skip this step, the sketches will fall back to the example file, which you can also edit directly, but keeping a separate `wifi_credentials.h` prevents accidental commits of secrets.)
-4. Select the board **Seeed XIAO ESP32S3** (PSRAM enabled) and flash the sketch.
+4. Select the board **Seeed XIAO ESP32S3** and flash the sketch.
+
+### Power UX (long‑press)
+
+- Hold the button ~0.8s at power‑on to boot. If not held, the device enters deep sleep and waits for the next hold.
+- While running, hold ~2.5s to enter deep sleep. A short press still triggers a capture.
+
+Timings can be tuned in `config.h`:
+
+```
+constexpr uint32_t LONG_PRESS_BOOT_MS = 800;   // hold on boot to start
+constexpr uint32_t LONG_PRESS_OFF_MS  = 2500;  // hold during run to sleep
+```
+
+### Build & Upload (Arduino IDE)
+
+1. Board: Tools → Board → ESP32 → XIAO_ESP32S3
+2. PSRAM: Tools → PSRAM → OPI PSRAM (required for camera)
+3. Partition: Tools → Partition Scheme → Default with spiffs (3MB APP/1.5MB SPIFFS)
+   - Or choose “Maximum APP (7.9MB No OTA/No FS)” if you don’t need a filesystem.
+4. Port: select your serial device (e.g., `/dev/ttyACM0` on Linux)
+5. Upload
+
+If the serial port is missing or permission‑denied on Linux:
+- Add your user to `dialout` and re‑login: `sudo usermod -aG dialout $USER`
+- Or temporarily: `sudo chmod a+rw /dev/ttyACM0`
+
+If the port is busy: close any serial monitor, or `fuser -k /dev/ttyACM0`
+
+### Build & Upload (Arduino CLI)
+
+The repo includes a local CLI binary at `bin/arduino-cli`. You can also install your own.
+
+1) Install board core + libs (first time)
+
+```
+bin/arduino-cli core update-index
+bin/arduino-cli core install esp32:esp32
+bin/arduino-cli lib install "ArduinoJson" "Adafruit BNO08x" "Adafruit BusIO" "Adafruit Unified Sensor" "Adafruit VEML7700 Library" "Adafruit DRV2605 Library"
+```
+
+2) Compile (XIAO_ESP32S3 + PSRAM OPI + default 8MB partitions)
+
+```
+FQBN='esp32:esp32:XIAO_ESP32S3:PartitionScheme=default_8MB,PSRAM=opi'
+SKETCH='IdeaGlass/firmware/ideasglass_arduino/IdeasGlassClient'
+bin/arduino-cli compile --fqbn "$FQBN" "$SKETCH"
+```
+
+3) Upload (adjust port as needed)
+
+```
+PORT=/dev/ttyACM0
+bin/arduino-cli upload -p "$PORT" --fqbn "$FQBN" "$SKETCH"
+```
+
+Notes
+- XIAO ESP32S3 valid PSRAM options are `PSRAM=opi` or `PSRAM=disabled`. Use `opi` for the Sense camera.
+- Valid partition schemes include `default_8MB` and `max_app_8MB` (no FS). `huge_app` is not defined for this board.
+- If upload fails with “port busy”, free it: `fuser -k /dev/ttyACM0` and retry.
+- If you prefer the full firmware instead of the HTTPS client demo, open or point the CLI to `IdeasGlassFirmware.ino` and use the same board options.
 
 ### Wi-Fi test sketch
 
