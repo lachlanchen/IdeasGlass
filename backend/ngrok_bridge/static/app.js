@@ -10,6 +10,7 @@ const timerEl = document.getElementById("timer");
 const segmentList = document.getElementById("segmentList");
 const segmentTranscriptPanel = document.getElementById("segmentTranscriptPanel");
 const segmentTranscriptBody = document.getElementById("segmentTranscriptBody");
+const loadMoreBtn = document.getElementById("loadMoreBtn");
 const segmentTranscriptClose = document.getElementById("segmentTranscriptClose");
 
 segmentTranscriptClose?.addEventListener("click", () => {
@@ -23,6 +24,11 @@ const state = {
   messageOldestTs: null,
   loadingOlder: false,
   reachedEnd: false,
+  messageBuffer: [],
+  renderedMessages: 0,
+  messagePageSize: 5,
+  hasManualMessageLoad: false,
+  userHasScrolled: false,
   audioHistory: [],
   waveformLimit: 72,
   waveformLevels: [],
@@ -33,6 +39,8 @@ const state = {
   activeTranscriptSegmentId: null,
   transcriptFinal: false,
 };
+
+let loadMoreObserver = null;
 
 state.waveformLevels = Array(state.waveformLimit).fill(0);
 
@@ -60,6 +68,11 @@ installBtn?.addEventListener("click", async () => {
   await deferredPrompt.userChoice;
   deferredPrompt = null;
   installBtn.hidden = true;
+});
+
+loadMoreBtn?.addEventListener("click", () => {
+  state.userHasScrolled = true;
+  triggerMessageLoad(false);
 });
 
 async function checkBackend() {
@@ -120,8 +133,7 @@ function updateWaveformBars() {
   });
 }
 
-function renderEntry(entry, position = "top") {
-  if (!entry) return;
+function buildEntryElement(entry) {
   const li = document.createElement("li");
   li.className = "entry";
 
@@ -145,12 +157,140 @@ function renderEntry(entry, position = "top") {
     photo.className = "entry-photo";
     li.appendChild(photo);
   }
+  return li;
+}
 
+function renderEntry(entry, position = "top") {
+  if (!entry || !list) return;
+  const li = buildEntryElement(entry);
   if (position === "top") {
     list.prepend(li);
   } else {
     list.appendChild(li);
   }
+}
+
+function trimToRecentWindow() {
+  if (state.hasManualMessageLoad || !list) return;
+  while (list.children.length > state.messagePageSize) {
+    list.removeChild(list.lastElementChild);
+  }
+  state.renderedMessages = Math.min(
+    state.messagePageSize,
+    state.messageBuffer.length
+  );
+}
+
+function renderNextMessageBatch() {
+  if (!list) return 0;
+  if (state.renderedMessages >= state.messageBuffer.length) {
+    return 0;
+  }
+  const start = state.renderedMessages;
+  const end = Math.min(
+    state.messageBuffer.length,
+    start + state.messagePageSize
+  );
+  const fragment = document.createDocumentFragment();
+  for (let i = start; i < end; i += 1) {
+    fragment.appendChild(buildEntryElement(state.messageBuffer[i]));
+  }
+  list.appendChild(fragment);
+  state.renderedMessages = end;
+  return end - start;
+}
+
+function updateLoadMoreButton() {
+  if (!loadMoreBtn) return;
+  const hasMessages = state.messageBuffer.length > 0;
+  const hasBuffered = state.renderedMessages < state.messageBuffer.length;
+  if (!hasMessages) {
+    loadMoreBtn.hidden = true;
+    return;
+  }
+  if (hasBuffered) {
+    loadMoreBtn.hidden = false;
+    loadMoreBtn.disabled = false;
+    loadMoreBtn.classList.remove("loading");
+    loadMoreBtn.textContent = "Show older photos";
+    return;
+  }
+  if (state.reachedEnd) {
+    loadMoreBtn.hidden = true;
+    return;
+  }
+  loadMoreBtn.hidden = false;
+  loadMoreBtn.disabled = state.loadingOlder;
+  if (state.loadingOlder) {
+    loadMoreBtn.classList.add("loading");
+    loadMoreBtn.textContent = "Loading…";
+  } else {
+    loadMoreBtn.classList.remove("loading");
+    loadMoreBtn.textContent = "Show older photos";
+  }
+}
+
+function triggerMessageLoad(autoTriggered = false) {
+  if (!state.messageBuffer.length) return;
+  if (autoTriggered && !state.userHasScrolled) return;
+  state.hasManualMessageLoad = true;
+  const added = renderNextMessageBatch();
+  updateLoadMoreButton();
+  if (added === 0 && !state.reachedEnd && !state.loadingOlder) {
+    loadOlderMessages();
+  }
+}
+
+function handleRealtimeMessage(entry) {
+  if (!entry) return;
+  state.messageBuffer.unshift(entry);
+  renderEntry(entry, "top");
+  if (state.hasManualMessageLoad) {
+    state.renderedMessages = Math.min(
+      state.renderedMessages + 1,
+      state.messageBuffer.length
+    );
+  } else {
+    trimToRecentWindow();
+  }
+  state.messageOldestTs =
+    state.messageBuffer[state.messageBuffer.length - 1]?.received_at ||
+    entry.received_at;
+  updateLoadMoreButton();
+}
+
+function maybeLoadMoreViaFallback() {
+  if (!loadMoreBtn || state.loadingOlder) return;
+  const rect = loadMoreBtn.getBoundingClientRect();
+  if (rect.top <= window.innerHeight + 100) {
+    triggerMessageLoad(true);
+  }
+}
+
+function handleGlobalScroll() {
+  if (!state.userHasScrolled && window.scrollY > 20) {
+    state.userHasScrolled = true;
+  }
+  if (!("IntersectionObserver" in window)) {
+    maybeLoadMoreViaFallback();
+  }
+}
+
+function initLoadMoreObserver() {
+  if (!loadMoreBtn || typeof IntersectionObserver === "undefined") {
+    return;
+  }
+  loadMoreObserver = new IntersectionObserver(
+    (entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting && state.userHasScrolled) {
+          triggerMessageLoad(true);
+        }
+      });
+    },
+    { rootMargin: "150px" }
+  );
+  loadMoreObserver.observe(loadMoreBtn);
 }
 
 function decorateStatus(connected) {
@@ -161,7 +301,12 @@ function decorateStatus(connected) {
 }
 
 async function loadOlderMessages() {
-  if (state.loadingOlder || state.reachedEnd || !state.messageOldestTs) return;
+  if (state.loadingOlder || state.reachedEnd) return;
+  if (!state.messageOldestTs) {
+    state.reachedEnd = true;
+    updateLoadMoreButton();
+    return;
+  }
   state.loadingOlder = true;
   try {
     const res = await fetch(
@@ -173,23 +318,18 @@ async function loadOlderMessages() {
     if (!Array.isArray(data) || data.length === 0) {
       state.reachedEnd = true;
     } else {
-      data.forEach((entry) => renderEntry(entry, "bottom"));
+      state.messageBuffer = state.messageBuffer.concat(data);
       state.messageOldestTs =
         data[data.length - 1]?.received_at || state.messageOldestTs;
+      if (state.hasManualMessageLoad) {
+        renderNextMessageBatch();
+      }
     }
   } catch (err) {
     console.error("Failed to load older messages", err);
   } finally {
     state.loadingOlder = false;
-  }
-}
-
-function handleScroll() {
-  if (
-    window.innerHeight + window.scrollY >=
-    document.body.offsetHeight - 200
-  ) {
-    loadOlderMessages();
+    updateLoadMoreButton();
   }
 }
 
@@ -451,16 +591,21 @@ async function handleSegmentTranscript(segmentId) {
 }
 
 function handleHistoryMessages(entries) {
+  if (!list) return;
   list.innerHTML = "";
   const ordered = Array.isArray(entries) ? entries.slice() : [];
+  state.messageBuffer = ordered;
+  state.renderedMessages = 0;
+  state.hasManualMessageLoad = false;
   state.reachedEnd = false;
   state.loadingOlder = false;
-  ordered.forEach((entry) => renderEntry(entry, "bottom"));
   if (ordered.length) {
+    renderNextMessageBatch();
     state.messageOldestTs = ordered[ordered.length - 1].received_at;
   } else {
     state.messageOldestTs = null;
   }
+  updateLoadMoreButton();
 }
 
 function handleHistoryAudio(entries) {
@@ -517,7 +662,7 @@ function connectWs() {
         handleHistoryMessages(data.data || []);
         break;
       case "message":
-        renderEntry(data.payload, "top");
+        handleRealtimeMessage(data.payload);
         break;
       case "history_audio":
         handleHistoryAudio(data.data || []);
@@ -552,4 +697,5 @@ initWaveformBars();
 checkBackend();
 setInterval(checkBackend, 10000);
 connectWs();
-window.addEventListener("scroll", handleScroll);
+initLoadMoreObserver();
+window.addEventListener("scroll", handleGlobalScroll);
