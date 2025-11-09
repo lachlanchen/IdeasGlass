@@ -51,8 +51,9 @@
       </section>
 
       <section id="logPanel">
-        <h2>Incoming messages</h2>
+        <h2>Incoming photos</h2>
         <ul id="messageList"></ul>
+        <div id="galleryGrid" class="gallery-grid"></div>
         <div class="load-more-container">
           <button id="loadMoreBtn" type="button" hidden>Show older photos</button>
         </div>
@@ -127,6 +128,19 @@
     <footer>
       <p>Install this page on Android/iOS for a native-like IdeasGlass dashboard.</p>
     </footer>
+
+    <!-- Photo modal -->
+    <div id="photoModal" class="modal hidden" role="dialog" aria-modal="true" aria-label="Photo details">
+      <div class="modal-backdrop"></div>
+      <div class="modal-content">
+        <button id="photoModalClose" class="modal-close" aria-label="Close">×</button>
+        <img id="modalImage" alt="Photo" />
+        <div class="modal-meta">
+          <div id="modalMetaPrimary"></div>
+          <small id="modalMetaSecondary"></small>
+        </div>
+      </div>
+    </div>
 
     <nav id="bottomNav" class="bottom-nav">
       <button class="tab-btn active" data-tab="live" aria-label="Live">

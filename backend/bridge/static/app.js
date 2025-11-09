@@ -15,6 +15,12 @@ const loadMoreBtn = document.getElementById("loadMoreBtn");
 const transcriptList = document.getElementById("transcriptList");
 const transcriptMoreBtn = document.getElementById("transcriptMoreBtn");
 const segmentTranscriptClose = document.getElementById("segmentTranscriptClose");
+const galleryGrid = document.getElementById("galleryGrid");
+const photoModal = document.getElementById("photoModal");
+const photoModalClose = document.getElementById("photoModalClose");
+const modalImage = document.getElementById("modalImage");
+const modalMetaPrimary = document.getElementById("modalMetaPrimary");
+const modalMetaSecondary = document.getElementById("modalMetaSecondary");
 // Tabs
 const bottomNav = document.getElementById("bottomNav");
 const tabButtons = bottomNav ? Array.from(bottomNav.querySelectorAll('.tab-btn')) : [];
@@ -188,46 +194,36 @@ function updateWaveformBars() {
 }
 
 function buildEntryElement(entry) {
-  const li = document.createElement("li");
-  li.className = "entry";
-
-  const heading = document.createElement("div");
-  heading.className = "heading";
-  heading.innerHTML = `<span>${entry.device_id}</span><span>${new Date(
-    entry.received_at
-  ).toLocaleString()}</span>`;
-
-  const message = document.createElement("p");
-  message.className = "message";
-  message.textContent = entry.message;
-
-  li.appendChild(heading);
-  li.appendChild(message);
-  if (entry.photo_url) {
-    const photo = document.createElement("img");
-    photo.src = entry.photo_url;
-    photo.alt = "IdeasGlass photo";
-    photo.loading = "lazy";
-    photo.className = "entry-photo";
-    li.appendChild(photo);
-  }
-  return li;
+  if (!entry || !entry.photo_url) return null;
+  const card = document.createElement("div");
+  card.className = "gallery-card";
+  const img = document.createElement("img");
+  img.src = entry.photo_url;
+  img.alt = entry.message || "IdeasGlass photo";
+  img.loading = "lazy";
+  card.appendChild(img);
+  const badge = document.createElement("div");
+  badge.className = "gallery-badge";
+  badge.textContent = new Date(entry.received_at).toLocaleTimeString();
+  card.appendChild(badge);
+  card.addEventListener("click", () => openPhotoModal(entry));
+  return card;
 }
 
 function renderEntry(entry, position = "top") {
-  if (!entry || !list) return;
-  const li = buildEntryElement(entry);
-  if (position === "top") {
-    list.prepend(li);
-  } else {
-    list.appendChild(li);
+  if (!entry) return;
+  const el = buildEntryElement(entry);
+  if (!el) return;
+  if (galleryGrid) {
+    if (position === "top") galleryGrid.prepend(el);
+    else galleryGrid.appendChild(el);
   }
 }
 
 function trimToRecentWindow() {
-  if (state.hasManualMessageLoad || !list) return;
-  while (list.children.length > state.messagePageSize) {
-    list.removeChild(list.lastElementChild);
+  if (state.hasManualMessageLoad || !galleryGrid) return;
+  while (galleryGrid.children.length > state.messagePageSize) {
+    galleryGrid.removeChild(galleryGrid.lastElementChild);
   }
   state.renderedMessages = Math.min(
     state.messagePageSize,
@@ -236,7 +232,7 @@ function trimToRecentWindow() {
 }
 
 function renderNextMessageBatch() {
-  if (!list) return 0;
+  if (!galleryGrid) return 0;
   if (state.renderedMessages >= state.messageBuffer.length) {
     return 0;
   }
@@ -247,9 +243,10 @@ function renderNextMessageBatch() {
   );
   const fragment = document.createDocumentFragment();
   for (let i = start; i < end; i += 1) {
-    fragment.appendChild(buildEntryElement(state.messageBuffer[i]));
+    const el = buildEntryElement(state.messageBuffer[i]);
+    if (el) fragment.appendChild(el);
   }
-  list.appendChild(fragment);
+  galleryGrid.appendChild(fragment);
   state.renderedMessages = end;
   return end - start;
 }
@@ -681,8 +678,7 @@ async function handleSegmentTranscript(segmentId) {
 }
 
 function handleHistoryMessages(entries) {
-  if (!list) return;
-  list.innerHTML = "";
+  if (galleryGrid) galleryGrid.innerHTML = "";
   const ordered = Array.isArray(entries) ? entries.slice() : [];
   state.messageBuffer = ordered;
   state.renderedMessages = 0;
@@ -920,6 +916,10 @@ if (tabButtons.length) {
   setActiveTab(valid.has(saved) ? saved : 'live');
 }
 
+// Modal wiring
+photoModalClose?.addEventListener('click', closePhotoModal);
+photoModal?.addEventListener('click', (e) => { if (e.target === photoModal) closePhotoModal(); });
+
 // VU variance animator: keep base level but add subtle bar-to-bar/time variance
 function renderVuVariance() {
   if (!state.vuMode || !state.waveBars.length) return;
@@ -946,6 +946,15 @@ function renderVuVariance() {
 
 // Run animator at ~60–80 FPS budget friendly
 setInterval(renderVuVariance, 80);
+function openPhotoModal(entry) {
+  if (!photoModal || !modalImage) return;
+  modalImage.src = entry.photo_url;
+  modalImage.alt = entry.message || "Photo";
+  if (modalMetaPrimary) modalMetaPrimary.textContent = entry.message || "(no message)";
+  if (modalMetaSecondary) modalMetaSecondary.textContent = `${entry.device_id} · ${new Date(entry.received_at).toLocaleString()}`;
+  photoModal.classList.remove('hidden');
+}
+function closePhotoModal() { photoModal && photoModal.classList.add('hidden'); }
 async function apiPost(url, body) {
   const res = await fetch(url, {
     method: "POST",
