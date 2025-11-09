@@ -749,9 +749,6 @@ bool sendAudioChunkPacket(const AudioPacket &packet)
         g_audioWsClient.close();
         return false;
     }
-    if (!g_audioWsClient.ensureConnected()) {
-        return false;
-    }
 
     String encoded;
     const size_t byteCount = packet.sampleCount * sizeof(int16_t);
@@ -768,7 +765,42 @@ bool sendAudioChunkPacket(const AudioPacket &packet)
                    "\"rms\":" + String(packet.rms, 4) + ","
                    "\"audio_base64\":\"" + encoded + "\"}";
 
-    return g_audioWsClient.sendText(body);
+    // Try WebSocket first for lowest overhead
+    if (g_audioWsClient.ensureConnected()) {
+        if (g_audioWsClient.sendText(body)) {
+            return true;
+        }
+        Serial.println("[AudioUpload] WS send failed, falling back to HTTPS");
+    } else {
+        Serial.println("[AudioUpload] WS not connected, falling back to HTTPS");
+    }
+
+    // HTTP fallback to /api/v1/audio (fast timeout to avoid blocking the sender)
+    WiFiClientSecure client;
+    client.setCACert(ideas_cert);
+    client.setTimeout(6000); // keep it short for responsiveness
+    if (!client.connect(kServerHost, kServerPort)) {
+        Serial.println("[AudioUpload][HTTP] Connection failed");
+        return false;
+    }
+    client.printf(
+        "POST /api/v1/audio HTTP/1.1\r\n"
+        "Host: %s\r\n"
+        "Content-Type: application/json\r\n"
+        "Content-Length: %d\r\n"
+        "Connection: close\r\n\r\n",
+        kServerHost,
+        body.length());
+    client.print(body);
+    // Read status line only; no need to consume full body
+    String status = client.readStringUntil('\n');
+    status.trim();
+    client.stop();
+    bool ok = status.startsWith("HTTP/1.1 200") || status.startsWith("HTTP/1.1 201");
+    if (!ok) {
+        Serial.printf("[AudioUpload][HTTP] Failed: %s\n", status.c_str());
+    }
+    return ok;
 }
 
 void audioSenderTask(void *param)
