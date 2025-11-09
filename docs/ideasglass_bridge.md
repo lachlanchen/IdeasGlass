@@ -232,3 +232,45 @@ Expect to see (in order):
 - If corporate or campus networks block UDP/123, NTP sync will timeout; use the gateway fallback or open NTP.
 - If WSS still hiccups on the WAN path, enable audio HTTP fallback in firmware to POST chunks to `/api/v1/audio` when WS send fails.
 - The device remembers the last email for the PWA login overlay; session auth uses HTTP‑only cookies.
+
+## 7. Live observations: photos smooth, audio occasional lag
+
+With the current setup, we observed the following behavior during extended runs behind ngrok on a home router (dd‑wrt):
+
+- Photos are smooth and reliable.
+  - Reason: the firmware already has an HTTP fallback. If the `/ws/photo-ingest` socket stalls, it posts the same JSON to `POST /api/v1/messages`, which the backend accepts immediately. You’ll see consistent `200 OK` for `/api/v1/photos/<id>` in server logs and in the ngrok dashboard.
+
+- Audio can feel bursty/laggy at times.
+  - Reason: audio currently prefers the persistent WSS path `/ws/audio-ingest`. Short WAN or proxy stalls can block the sender briefly, causing the FreeRTOS audio queue to fill and print `Send queue full, dropping chunk`. The connection is then re‑established and chunks resume, so the PWA shows transcriptions in small bursts. Backend logs show `/ws/audio-ingest 101` followed by occasional disconnect/reconnect (expected during short drops).
+
+What you can do to minimize lag:
+
+1) Add audio HTTP fallback (recommended if WAN is flaky)
+   - Mirror the photo strategy: when a WSS `send` fails or times out, `POST` the chunk to `/api/v1/audio`. The backend already supports this endpoint. This removes stalls at the cost of a small per‑request overhead.
+
+2) Network and router
+   - Ensure hairpin NAT (NAT loopback) is enabled so LAN devices can reliably reach the public domain.
+   - Keep 2.4 GHz radio at 20 MHz on channel 1/6/11; WPA2‑AES only; PMF disabled/optional.
+   - If you can, A/B test by temporarily pointing the firmware at the backend’s LAN IP; if WSS is rock‑solid on LAN but not over the domain, the edge/proxy path is the bottleneck.
+
+3) Firmware tunables (optional)
+   - Increase `AUDIO_QUEUE_LENGTH` (e.g., 6 → 12) to absorb brief network hiccups.
+   - Reduce `AUDIO_BLOCK_SAMPLES` (e.g., 4096 → 2048) for lower per‑chunk latency.
+   - Keep WSS ping at 1 s; consider shorter socket timeouts and quicker reconnect backoff.
+
+4) Backend/PWA
+   - Keep `IDEASGLASS_WHISPER_DEVICE=cuda` and a model your GPU can handle in real‑time (you’re using `large-v3-turbo`, which is good with CUDA).
+   - `IDEASGLASS_TRANSCRIPT_INTERVAL_MS` near 3000 ms keeps live text responsive without overloading the GPU.
+
+Verification cues in logs:
+
+- Backend shows:
+  - `('...') - "WebSocket /ws/audio-ingest" [accepted]`
+  - `Detected language: …` each time a segment is finalized
+  - Occasional `connection closed` followed by a new `accepted` ⇒ short network blips recovered
+- Firmware serial shows:
+  - `[Time] SNTP synced: …` after Wi‑Fi connects
+  - `[PhotoUpload] send result: OK (…)` regularly
+  - If lag happens: a burst of `[Audio] Send queue full, dropping chunk` lines, then recovery
+
+Note: We already fixed intermittent `422` on `/api/v1/messages` by sending `meta` values as strings from the firmware; ngrok should no longer show those.
