@@ -534,8 +534,17 @@ main {
 #recordLenInput { width: 5.5rem; }
 .suffix { color:#6b7280; }
 
+/* Status header shows title + backend pill */
+#statusPanel .status-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.6rem;
+}
+
 /* Status rows as neat chips */
-#statusPanel > div {
+#statusPanel > div:not(.status-header) {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -545,7 +554,7 @@ main {
   border-radius: 12px;
   padding: 0.5rem 0.75rem;
 }
-#statusPanel h2 { margin-bottom: 0.6rem; }
+#statusPanel h2 { margin: 0; }
 
 #segmentList {
   list-style: none;
