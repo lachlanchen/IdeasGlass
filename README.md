@@ -71,6 +71,51 @@ IdeasGlass is an AI-first wearable built for people who live in streams of ideas
 
 IdeasGlass is where AI wearables stop listening and start building with you.
 
+## Setup & Run
+
+Prereqs
+- Python 3.10+ and a modern pip
+- Optional: PostgreSQL (for persistent photos/segments/transcripts)
+
+Install dependencies
+- `cd backend/bridge && python -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt`
+
+Configure environment (safe examples)
+- If you use Postgres, set `DATABASE_URL` in your shell (or a local `.env` that you do NOT commit):
+  - `export DATABASE_URL="postgresql://<db_user>@localhost/ideasglass_db"` (peer/local auth)
+  - or `export DATABASE_URL="postgresql://<db_user>:<db_password>@localhost/ideasglass_db"` (with password)
+  - Avoid putting real usernames/passwords into shared docs or commits.
+
+Run the backend (two options)
+- Direct with uvicorn:
+  - ``
+    IDEASGLASS_WHISPER_MODEL=base IDEASGLASS_WHISPER_DEVICE=cuda \
+    uvicorn backend.bridge.app:app --host 0.0.0.0 --port 8765 --proxy-headers --forwarded-allow-ips="*" --reload
+    ``
+- Via helper with argparse:
+  - ``
+    python backend/bridge/serve.py --whisper-model base --whisper-device cuda --reload
+    ``
+
+Open the dashboard
+- http://localhost:8765/ (installable PWA)
+- http://localhost:8765/healthz
+
+Choose a Whisper model
+- Defaults to `base`. For higher quality, set `IDEASGLASS_WHISPER_MODEL` to `small`, `medium`, or `large-v3`/`large-v3-turbo` (GPU recommended for larger models).
+- Device: `IDEASGLASS_WHISPER_DEVICE=cuda` for NVIDIA GPUs, or `cpu`.
+- Mixed precision: `IDEASGLASS_WHISPER_FP16=1` (GPU) or `0` (CPU).
+
+Prefetch models (optional)
+- ``
+  python backend/bridge/tools/prefetch_whisper_models.py --models tiny,base,small,medium,large-v3 --device cuda --fp16 1
+  ``
+
+Login & bind your device
+- Register or login from Settings in the dashboard.
+- Bind your device ID in the “Bind device” field. Only your bound devices will stream to your account.
+- To generate a device ID + QR: `python backend/bridge/tools/generate_device_id.py --out logs/device-id.png`
+
 ## Developer Docs
 
 - [IdeasGlass Object Analysis](OmiGlass/docs/ideasglass_analysis.mdx)
