@@ -588,6 +588,29 @@ function renderSegments() {
     meta.append(duration, ts);
     li.appendChild(meta);
     if (segment.file_url) {
+      // Play/Pause button
+      const playBtn = document.createElement('button');
+      playBtn.type = 'button';
+      playBtn.className = 'segment-play-btn';
+      playBtn.textContent = 'Play';
+      let audioEl = null;
+      playBtn.addEventListener('click', () => {
+        try {
+          if (!audioEl) {
+            audioEl = new Audio(segment.file_url);
+            audioEl.addEventListener('ended', () => { playBtn.textContent = 'Play'; });
+          }
+          if (audioEl.paused) {
+            audioEl.play();
+            playBtn.textContent = 'Pause';
+          } else {
+            audioEl.pause();
+            playBtn.textContent = 'Play';
+          }
+        } catch {}
+      });
+      li.appendChild(playBtn);
+
       const link = document.createElement("a");
       link.href = segment.file_url;
       link.target = "_blank";
