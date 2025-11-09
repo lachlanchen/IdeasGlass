@@ -132,11 +132,12 @@ function initWaveformBars() {
 
 function computeLevel(chunk) {
   const rms = Math.max(0, Number(chunk?.rms || 0));
-  // Calibrated VU: small baseline, moderate gain so speech sits ~40–60%, cough ~80–90%.
-  const noiseFloor = 0.015; // ignore tiny room noise
-  const gain = 11.0;        // moderate gain
-  const level = Math.max(0, (rms - noiseFloor) * gain);
-  return Math.min(1, level);
+  // Normalize RMS between a floor and ceiling so UI maps to 0..1 delta.
+  // Floor ~0.015 (room noise), ceiling ~0.06 (loud speech), clamp to [0,1].
+  const floor = 0.015;
+  const ceiling = 0.06;
+  const norm = (rms - floor) / Math.max(1e-6, ceiling - floor);
+  return Math.min(1, Math.max(0, norm));
 }
 
 function updateWaveformBars() {
