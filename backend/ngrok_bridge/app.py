@@ -1486,13 +1486,10 @@ async def process_audio_payload(payload: AudioChunkIn) -> AudioChunkOut:
     return chunk
 
 
-@app.post("/api/v1/messages", response_model=MessageOut)
-async def ingest_message(payload: MessageIn):
+async def process_message_payload(payload: MessageIn) -> MessageOut:
     entry = _make_entry(payload)
     photo_bytes: Optional[bytes] = None
     photo_id: Optional[str] = None
-    photo_url: Optional[str] = None
-
     if payload.photo_base64:
         try:
             photo_bytes = base64.b64decode(payload.photo_base64.encode(), validate=True)
@@ -1502,8 +1499,7 @@ async def ingest_message(payload: MessageIn):
         if db_pool:
             entry.photo_url = f"/api/v1/photos/{photo_id}"
         else:
-            photo_url = await save_photo_to_disk(photo_id, photo_bytes, payload.photo_mime)
-            entry.photo_url = photo_url
+            entry.photo_url = await save_photo_to_disk(photo_id, photo_bytes, payload.photo_mime)
 
     message_store.append(entry)
     if photo_bytes and db_pool:
@@ -1515,6 +1511,36 @@ async def ingest_message(payload: MessageIn):
         )
     await manager.broadcast({"type": "message", "payload": entry.model_dump()})
     return entry
+
+
+@app.post("/api/v1/messages", response_model=MessageOut)
+async def ingest_message(payload: MessageIn):
+    return await process_message_payload(payload)
+
+
+@app.websocket("/ws/photo-ingest")
+async def photo_ingest_socket(websocket: WebSocket):
+    await websocket.accept()
+    try:
+        while True:
+            text_message = await websocket.receive_text()
+            try:
+                payload_dict = json.loads(text_message)
+            except json.JSONDecodeError as exc:
+                print(f"[Photo][WS] Dropping invalid JSON payload: {exc}")
+                continue
+            try:
+                message_payload = MessageIn(**payload_dict)
+            except ValidationError as exc:
+                print(f"[Photo][WS] Validation failed: {exc}")
+                continue
+            try:
+                await process_message_payload(message_payload)
+            except HTTPException as exc:
+                print(f"[Photo][WS] Failed to process payload: {exc.detail}")
+                continue
+    except WebSocketDisconnect:
+        pass
 
 
 @app.get("/api/v1/messages", response_model=List[MessageOut])

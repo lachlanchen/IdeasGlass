@@ -47,6 +47,7 @@ const uint16_t kServerPort = 443;
 const char *kDeviceId = "ideasglass-devkit-01";
 #define ENABLE_PHOTO_CAPTURE 1
 const char *kAudioWsPath = "/ws/audio-ingest";
+const char *kPhotoWsPath = "/ws/photo-ingest";
 const int AUDIO_SAMPLE_RATE = 16000;
 const size_t AUDIO_BLOCK_SAMPLES = 4096;
 static int16_t g_audioBlock[AUDIO_BLOCK_SAMPLES];
@@ -230,11 +231,12 @@ bool encodeBase64(const uint8_t *data, size_t length, String &outString)
 class SimpleWebSocketClient
 {
 public:
-    void begin(const char *host, uint16_t port, const char *path, const char *caCert)
+    void begin(const char *host, uint16_t port, const char *path, const char *caCert, const char *protocol = nullptr)
     {
         _host = host;
         _port = port;
         _path = path;
+        _protocol = protocol;
         if (caCert) {
             _client.setCACert(caCert);
         }
@@ -296,11 +298,14 @@ private:
             "Upgrade: websocket\r\n"
             "Connection: Upgrade\r\n"
             "Sec-WebSocket-Version: 13\r\n"
-            "Sec-WebSocket-Key: %s\r\n"
-            "Sec-WebSocket-Protocol: ideasglass-audio\r\n\r\n",
+            "Sec-WebSocket-Key: %s\r\n",
             _path,
             _host,
             key.c_str());
+        if (_protocol && _protocol[0]) {
+            _client.printf("Sec-WebSocket-Protocol: %s\r\n", _protocol);
+        }
+        _client.print("\r\n");
         String status = _client.readStringUntil('\n');
         if (!status.startsWith("HTTP/1.1 101")) {
             return false;
@@ -368,9 +373,11 @@ private:
     const char *_path = nullptr;
     uint16_t _port = 0;
     bool _connected = false;
+    const char *_protocol = nullptr;
 };
 
 static SimpleWebSocketClient g_audioWsClient;
+static SimpleWebSocketClient g_photoWsClient;
 
 bool capturePhotoBase64(String &outBase64)
 {
@@ -459,7 +466,11 @@ void photoUploadTask(void *param)
             continue;
         }
         const String *photoPtr = job->photoBase64.length() > 0 ? &job->photoBase64 : nullptr;
-        bool ok = sendPayload(job->message, job->rssi, photoPtr);
+        bool ok = sendPhotoOverWebSocket(job->message, job->rssi, photoPtr);
+        if (!ok) {
+            Serial.println("[PhotoUpload] WebSocket send failed, falling back to HTTPS");
+            ok = sendPayload(job->message, job->rssi, photoPtr);
+        }
         Serial.printf("[PhotoUpload] send result: %s (%d chars)\n", ok ? "OK" : "FAILED", photoPtr ? photoPtr->length() : 0);
         delete job;
     }
@@ -562,7 +573,7 @@ void initAudioStreamer()
         Serial.println("[Audio] Failed to allocate audio queue");
         return;
     }
-    g_audioWsClient.begin(kServerHost, kServerPort, kAudioWsPath, ideas_cert);
+    g_audioWsClient.begin(kServerHost, kServerPort, kAudioWsPath, ideas_cert, "ideasglass-audio");
     BaseType_t ok = xTaskCreatePinnedToCore(audioSenderTask, "AudioSender", AUDIO_SENDER_STACK, nullptr, 1, &g_audioSenderHandle, 0);
     if (ok != pdPASS) {
         Serial.println("[Audio] Failed to start audio sender task");
@@ -635,6 +646,9 @@ void connectToWiFi()
 {
     Serial.println("[WiFi] Connecting...");
     g_audioWsClient.close();
+#if ENABLE_PHOTO_CAPTURE
+    g_photoWsClient.close();
+#endif
     for (size_t i = 0; i < WIFI_NETWORK_COUNT; ++i) {
         const auto &cred = WIFI_NETWORKS[i];
         Serial.printf(" -> SSID %s\n", cred.ssid);
@@ -653,6 +667,31 @@ void connectToWiFi()
     }
 }
 
+String buildMessageBody(const String &message, const String &metaValue, const String *photoBase64)
+{
+    String body = String("{\"device_id\":\"") + kDeviceId + "\","
+                   "\"message\":\"" + message + "\","
+                   "\"meta\":{\"rssi\":\"" + metaValue + "\"}";
+    if (photoBase64 && photoBase64->length() > 0) {
+        body += ",\"photo_base64\":\"" + *photoBase64 + "\",\"photo_mime\":\"image/jpeg\"";
+    }
+    body += "}";
+    return body;
+}
+
+bool sendPhotoOverWebSocket(const String &message, const String &metaValue, const String *photoBase64)
+{
+    if (WiFi.status() != WL_CONNECTED) {
+        return false;
+    }
+    String body = buildMessageBody(message, metaValue, photoBase64);
+    if (!g_photoWsClient.sendText(body)) {
+        Serial.println("[PhotoUpload] WS send failed");
+        return false;
+    }
+    return true;
+}
+
 bool sendPayload(const String &message, const String &metaValue, const String *photoBase64)
 {
     WiFiClientSecure messageClient;
@@ -665,13 +704,7 @@ bool sendPayload(const String &message, const String &metaValue, const String *p
         return false;
     }
 
-    String body = String("{\"device_id\":\"") + kDeviceId + "\","
-                   "\"message\":\"" + message + "\","
-                   "\"meta\":{\"rssi\":\"" + metaValue + "\"}";
-    if (photoBase64 && photoBase64->length() > 0) {
-        body += ",\"photo_base64\":\"" + *photoBase64 + "\",\"photo_mime\":\"image/jpeg\"";
-    }
-    body += "}";
+    String body = buildMessageBody(message, metaValue, photoBase64);
 
     messageClient.printf(
         "POST /api/v1/messages HTTP/1.1\r\n"
@@ -709,6 +742,7 @@ void setup()
 
 #if ENABLE_PHOTO_CAPTURE
     cameraReady = initCamera();
+    g_photoWsClient.begin(kServerHost, kServerPort, kPhotoWsPath, ideas_cert, "ideasglass-photo");
 #endif
     setupAudio();
 #if ENABLE_PHOTO_CAPTURE
