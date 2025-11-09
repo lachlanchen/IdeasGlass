@@ -4,13 +4,21 @@
 
 *A wearable AI glass that turns ideas into actions, income, and creative momentum.*
 
-| Ecosystem |
-| --- |
-| <a href="https://lazying.art" >LazyingArt</a> · <a href="https://onlyideas.art">OnlyIdeas</a> · <a href="https://chat.lazying.art">EchoMind</a> · <a href="https://coin.lazying.art">LazyingArt Coin</a> |
-
-| Support IdeasGlass |
-| --- |
-| <a href="https://chat.lazying.art/donate"><img src="figs/donate_button.svg" alt="Donate" height="32" style="vertical-align: middle; margin-left:6px;"/></a> |
+<table>
+  <tr>
+    <td align="center" style="padding:6px 10px;">
+      <b>Ecosystem</b><br/>
+      <a href="https://lazying.art">LazyingArt</a>
+      · <a href="https://onlyideas.art">OnlyIdeas</a>
+      · <a href="https://chat.lazying.art">EchoMind</a>
+      · <a href="https://coin.lazying.art">LazyingArt Coin</a>
+    </td>
+    <td align="center" style="padding:6px 10px;">
+      <b>Support IdeasGlass</b><br/>
+      <a href="https://chat.lazying.art/donate"><img src="figs/donate_button.svg" alt="Donate" height="32" style="vertical-align: middle;"/></a>
+    </td>
+  </tr>
+  </table>
 
 </div>
 
