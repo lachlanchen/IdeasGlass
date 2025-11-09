@@ -50,6 +50,7 @@ const state = {
   vuMode: true, // show uniform VU bars reflecting current volume only
   vuBaseLevel: 0.08,
   vuSpeech: false,
+  vuEmaLevel: 0.08,
   waveJitterSeeds: [],
 };
 
@@ -139,17 +140,17 @@ function initWaveformBars() {
 
 function computeLevel(chunk) {
   const rms = Math.max(0, Number(chunk?.rms || 0));
-  // Simple, speech-first mapping:
-  // - Silence: very small bars (0.05–0.12)
-  // - Speech: clearly higher (0.5–1.0), scaled by normalized RMS
-  const floor = 0.012; // ignore tiny room noise
-  const ceiling = 0.06; // typical louder speech
+  // Continuous mapping with speech-aware bands, keeping smooth mid values.
+  const floor = 0.012; // room noise
+  const ceiling = 0.06; // loud speech
   const span = Math.max(1e-6, ceiling - floor);
   const norm = Math.min(1, Math.max(0, (rms - floor) / span));
   if (chunk?.speech_detected) {
-    return Math.min(1, 0.5 + 0.5 * norm); // 50%..100%
+    // Speech: 35%..90%
+    return 0.35 + 0.55 * norm;
   }
-  return Math.max(0.05, 0.05 + 0.07 * norm); // ~5%..12%
+  // Silence: 03%..12%
+  return 0.03 + 0.09 * norm;
 }
 
 function updateWaveformBars() {
@@ -393,6 +394,9 @@ function addAudioSample(chunk) {
     // Update base VU level and speech flag; per-bar variance animator will render
     state.vuBaseLevel = level;
     state.vuSpeech = Boolean(chunk?.speech_detected);
+    // Smooth with an EMA so we get intermediate values, not binary jumps
+    const prev = Number.isFinite(state.vuEmaLevel) ? state.vuEmaLevel : level;
+    state.vuEmaLevel = Math.min(1, Math.max(0, prev * 0.8 + level * 0.2));
     state.waveformLevels = state.waveformLevels.length
       ? state.waveformLevels
       : Array(state.waveformLimit).fill(level);
@@ -875,17 +879,20 @@ if (logPanelEl) {
 function renderVuVariance() {
   if (!state.vuMode || !state.waveBars.length) return;
   const t = performance.now() * 0.001; // seconds
-  const base = Math.min(1, Math.max(0.01, state.vuBaseLevel || 0.08));
+  const base = Math.min(1, Math.max(0.01, state.vuEmaLevel || state.vuBaseLevel || 0.08));
   const speak = state.vuSpeech;
-  const amp = speak ? 0.12 : 0.04; // variance amplitude
-  const speed = speak ? 2.2 : 1.4; // oscillation speed
+  const amp = speak ? 0.08 : 0.03; // lower amplitude to avoid pegging
+  const speed = speak ? 2.0 : 1.2; // oscillation speed
   const phaseStep = 0.35;
   const levels = new Array(state.waveformLimit);
   for (let i = 0; i < state.waveformLimit; i += 1) {
     const seed = state.waveJitterSeeds[i] || 1.0;
     const wobble = 1 + amp * Math.sin(t * speed + i * phaseStep);
     const raw = base * seed * wobble;
-    const clamped = Math.min(1, Math.max(speak ? 0.45 : 0.04, raw));
+    // Clamp to avoid binary look and keep speech below full height
+    const minL = speak ? 0.30 : 0.03;
+    const maxL = speak ? 0.92 : 0.14;
+    const clamped = Math.min(maxL, Math.max(minL, raw));
     levels[i] = clamped;
   }
   state.waveformLevels = levels;
