@@ -269,6 +269,31 @@ main {
   border: 1px solid rgba(15, 23, 42, 0.05);
 }
 
+#transcriptList {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 1rem;
+}
+
+.transcript-item {
+  padding: 0.6rem 0;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.06);
+}
+
+.transcript-item:last-child {
+  border-bottom: none;
+}
+
+.transcript-text-inline {
+  margin: 0.2rem 0 0.1rem;
+  color: #1a1f36;
+}
+
+.transcript-meta-inline {
+  color: #4c5673;
+  font-size: 0.9rem;
+}
+
 #segmentList {
   list-style: none;
   padding: 0;

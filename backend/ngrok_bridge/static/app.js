@@ -12,6 +12,8 @@ const segmentList = document.getElementById("segmentList");
 const segmentTranscriptPanel = document.getElementById("segmentTranscriptPanel");
 const segmentTranscriptBody = document.getElementById("segmentTranscriptBody");
 const loadMoreBtn = document.getElementById("loadMoreBtn");
+const transcriptList = document.getElementById("transcriptList");
+const transcriptMoreBtn = document.getElementById("transcriptMoreBtn");
 const segmentTranscriptClose = document.getElementById("segmentTranscriptClose");
 
 segmentTranscriptClose?.addEventListener("click", () => {
@@ -39,6 +41,10 @@ const state = {
   transcriptSegments: [],
   activeTranscriptSegmentId: null,
   transcriptFinal: false,
+  transcriptFeed: [],
+  transcriptRendered: 0,
+  transcriptPageSize: 5,
+  transcriptOldestEndedAt: null,
 };
 
 let loadMoreObserver = null;
@@ -76,6 +82,11 @@ installBtn?.addEventListener("click", async () => {
 loadMoreBtn?.addEventListener("click", () => {
   state.userHasScrolled = true;
   triggerMessageLoad(false);
+});
+
+transcriptMoreBtn?.addEventListener("click", () => {
+  state.userHasScrolled = true;
+  triggerTranscriptLoad(false);
 });
 
 async function checkBackend() {
@@ -655,10 +666,124 @@ function handleHistoryAudioTranscripts(entries) {
     return;
   }
   applyTranscript(entries[0]);
+  // Populate transcript feed with latest entries
+  state.transcriptFeed = (entries || []).slice().map((t) => ({
+    segment_id: t.segment_id,
+    device_id: t.device_id,
+    started_at: t.started_at,
+    ended_at: t.ended_at,
+    text: (Array.isArray(t.chunks) ? t.chunks.map((c) => c.text).join(" ") : "").trim(),
+    is_final: Boolean(t.is_final),
+  }));
+  state.transcriptRendered = 0;
+  renderNextTranscriptBatch();
 }
 
 function handleAudioTranscript(entry) {
   applyTranscript(entry);
+  // When final, prepend to feed
+  if (entry && entry.is_final) {
+    state.transcriptFeed.unshift({
+      segment_id: entry.segment_id,
+      device_id: entry.device_id,
+      started_at: entry.started_at,
+      ended_at: entry.ended_at,
+      text: (Array.isArray(entry.chunks) ? entry.chunks.map((c) => c.text).join(" ") : "").trim(),
+      is_final: true,
+    });
+    // If we already rendered some, add this one to the top visually
+    if (transcriptList) {
+      const li = buildTranscriptItem(state.transcriptFeed[0]);
+      transcriptList.prepend(li);
+      if (state.transcriptRendered < state.transcriptFeed.length) {
+        state.transcriptRendered += 1;
+      }
+      updateTranscriptMoreButton();
+    }
+  }
+}
+
+function buildTranscriptItem(item) {
+  const li = document.createElement("li");
+  li.className = "transcript-item";
+  const text = document.createElement("p");
+  text.className = "transcript-text-inline";
+  text.textContent = item.text || "";
+  const meta = document.createElement("div");
+  meta.className = "transcript-meta-inline";
+  const dt = new Date(item.ended_at || item.started_at || Date.now());
+  meta.textContent = `${item.device_id || "device"} · ${dt.toLocaleTimeString()}`;
+  li.append(text, meta);
+  return li;
+}
+
+function renderNextTranscriptBatch() {
+  if (!transcriptList) return 0;
+  const start = state.transcriptRendered;
+  const end = Math.min(state.transcriptFeed.length, start + state.transcriptPageSize);
+  if (start >= end) return 0;
+  const frag = document.createDocumentFragment();
+  for (let i = start; i < end; i += 1) {
+    frag.appendChild(buildTranscriptItem(state.transcriptFeed[i]));
+  }
+  transcriptList.appendChild(frag);
+  state.transcriptRendered = end;
+  // Track oldest ended_at for paging
+  if (state.transcriptFeed.length) {
+    const last = state.transcriptFeed[state.transcriptFeed.length - 1];
+    state.transcriptOldestEndedAt = last.ended_at || last.started_at || null;
+  }
+  updateTranscriptMoreButton();
+  return end - start;
+}
+
+function updateTranscriptMoreButton() {
+  if (!transcriptMoreBtn) return;
+  const hasBuffered = state.transcriptRendered < state.transcriptFeed.length;
+  transcriptMoreBtn.hidden = !hasBuffered && !state.transcriptOldestEndedAt;
+  transcriptMoreBtn.disabled = false;
+  transcriptMoreBtn.textContent = hasBuffered ? "Show older transcripts" : "Load more";
+}
+
+async function triggerTranscriptLoad(auto = false) {
+  // If we still have buffered items, render them
+  const added = renderNextTranscriptBatch();
+  if (added > 0) return;
+  // Else fetch older segments and pull transcripts
+  if (!state.transcriptOldestEndedAt) return;
+  try {
+    const res = await fetch(`/api/v1/audio/segments?limit=10&before=${encodeURIComponent(state.transcriptOldestEndedAt)}`);
+    if (!res.ok) return;
+    const segments = await res.json();
+    if (!Array.isArray(segments) || segments.length === 0) {
+      transcriptMoreBtn && (transcriptMoreBtn.hidden = true);
+      return;
+    }
+    // Fetch transcripts for each segment;
+    const older = [];
+    for (const seg of segments) {
+      try {
+        const tRes = await fetch(`/api/v1/audio/segments/${seg.id}/transcript`);
+        if (!tRes.ok) continue;
+        const t = await tRes.json();
+        older.push({
+          segment_id: t.segment_id,
+          device_id: t.device_id,
+          started_at: t.started_at,
+          ended_at: t.ended_at,
+          text: (Array.isArray(t.chunks) ? t.chunks.map((c) => c.text).join(" ") : "").trim(),
+          is_final: Boolean(t.is_final),
+        });
+      } catch {}
+    }
+    // Append older to feed end and render next batch
+    if (older.length) {
+      state.transcriptFeed = state.transcriptFeed.concat(older);
+      renderNextTranscriptBatch();
+    } else {
+      transcriptMoreBtn && (transcriptMoreBtn.hidden = true);
+    }
+  } catch {}
 }
 
 function connectWs() {
