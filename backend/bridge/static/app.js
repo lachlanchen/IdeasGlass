@@ -835,6 +835,7 @@ function handleHistoryAudioTranscripts(entries) {
     ended_at: t.ended_at,
     text: (Array.isArray(t.chunks) ? t.chunks.map((c) => c.text).join(" ") : "").trim(),
     is_final: Boolean(t.is_final),
+    language: t.language || null,
   }));
   state.transcriptRendered = 0;
   renderNextTranscriptBatch();
@@ -852,6 +853,7 @@ function handleAudioTranscript(entry) {
       ended_at: entry.ended_at,
       text: (Array.isArray(entry.chunks) ? entry.chunks.map((c) => c.text).join(" ") : "").trim(),
       is_final: true,
+      language: entry.language || null,
     });
     // If we already rendered some, add this one to the top visually
     if (transcriptList) {
@@ -874,6 +876,12 @@ function buildTranscriptCompactItem(item) {
   left.append(text);
   left.addEventListener('click', () => openLiveTranscriptDetailPage(item.segment_id));
   const actions = document.createElement('div'); actions.className = 'tci-actions';
+  if (item.language) {
+    const langEl = document.createElement('div');
+    langEl.className = 'tci-lang';
+    langEl.textContent = String(item.language).toUpperCase();
+    actions.appendChild(langEl);
+  }
   const playBtn = document.createElement('button'); playBtn.type = 'button'; playBtn.className = 'tci-play'; playBtn.textContent = 'Play';
   let audioEl = null;
   playBtn.addEventListener('click', () => {
@@ -952,6 +960,12 @@ function buildTranscriptItem(item) {
   // Right side: time + Play
   const right = document.createElement('div');
   right.className = 'transcript-item-right tci-actions';
+  if (item.language) {
+    const langEl = document.createElement('div');
+    langEl.className = 'tci-lang';
+    langEl.textContent = String(item.language).toUpperCase();
+    right.appendChild(langEl);
+  }
   const time = document.createElement('div');
   time.className = 'tci-time';
   time.textContent = new Date(item.ended_at || item.started_at || Date.now()).toLocaleTimeString();
@@ -1033,6 +1047,7 @@ async function triggerTranscriptLoad(auto = false) {
           ended_at: t.ended_at,
           text: (Array.isArray(t.chunks) ? t.chunks.map((c) => c.text).join(" ") : "").trim(),
           is_final: Boolean(t.is_final),
+          language: t.language || null,
         });
       } catch {}
     }
