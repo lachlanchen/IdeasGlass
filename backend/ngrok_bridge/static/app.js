@@ -132,10 +132,10 @@ function initWaveformBars() {
 
 function computeLevel(chunk) {
   const rms = Math.max(0, Number(chunk?.rms || 0));
-  // Amplified VU mapping: small noise floor, strong gain so cough/speech spike visibly.
-  // Example: 0.02 -> ~0.11, 0.06 -> ~0.67, 0.10 -> ~1.12 (clamped to 1).
-  const noiseFloor = 0.012;
-  const gain = 14.0;
+  // Stronger VU: keep initial very small, amplify changes ~10x.
+  // Example: rms 0.02 -> ~0.28, 0.06 -> 1.0 (clamped)
+  const noiseFloor = 0.018; // baseline below typical speech
+  const gain = 140.0;       // ~10x previous gain
   const level = Math.max(0, (rms - noiseFloor) * gain);
   return Math.min(1, level);
 }
