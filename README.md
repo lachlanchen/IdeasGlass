@@ -35,12 +35,21 @@
 
 </div>
 
-<div align="center">
-  <img src="figs/ideas.lazying.art_main.png" alt="IdeasGlass App UI" width="49%" style="max-width:49%;display:inline-block;vertical-align:top;"/>
-  <img src="figs/ideasglass_hardware.png" alt="IdeasGlass hardware" width="49%" style="max-width:49%;display:inline-block;vertical-align:top;"/>
-  <br/>
-  <sub>App UI (left) · Hardware (right)</sub>
-</div>
+<table align="center" width="100%" style="border:0; border-collapse:collapse;">
+  <tr>
+    <td align="center" valign="top" width="50%" style="padding:0;">
+      <img src="figs/ideas.lazying.art_main.png" alt="IdeasGlass App UI" style="width:100%; height:auto;"/>
+    </td>
+    <td align="center" valign="top" width="50%" style="padding:0;">
+      <img src="figs/ideasglass_hardware.png" alt="IdeasGlass hardware" style="width:100%; height:auto;"/>
+    </td>
+  </tr>
+  <tr>
+    <td colspan="2" align="center" style="padding-top:6px;">
+      <sub>App UI (left) · Hardware (right)</sub>
+    </td>
+  </tr>
+</table>
 
 Explore community experiments at <a href="https://onlyideas.art">onlyideas.art</a>.
 
