@@ -53,6 +53,11 @@ const liveGalleryOverlay = document.getElementById('liveGalleryOverlay');
 const liveGalleryBack = document.getElementById('liveGalleryBack');
 const liveTranscriptsView = document.getElementById('liveTranscriptsView');
 const liveTranscriptsBack = document.getElementById('liveTranscriptsBack');
+// Transcript detail page refs
+const liveTranscriptDetailView = document.getElementById('liveTranscriptDetailView');
+const liveTranscriptDetailBack = document.getElementById('liveTranscriptDetailBack');
+const transcriptDetailAudio = document.getElementById('transcriptDetailAudio');
+const transcriptDetailBody = document.getElementById('transcriptDetailBody');
 const transcriptCompactList = document.getElementById('transcriptCompactList');
 const transcriptsMoreCompactBtn = document.getElementById('transcriptsMoreCompactBtn');
 const ideasBackBtn = document.getElementById('ideasBackBtn');
@@ -98,6 +103,9 @@ const state = {
   waveJitterSeeds: [],
   authed: false,
 };
+
+// Track any programmatic Audio() players to pause on nav
+const playingAudios = new Set();
 
 let loadMoreObserver = null;
 
@@ -851,6 +859,7 @@ function buildTranscriptCompactItem(item) {
   const text = document.createElement('div'); text.className = 'tci-text'; text.textContent = item.text || '';
   const time = document.createElement('div'); time.className = 'tci-time'; time.textContent = new Date(item.ended_at || item.started_at || Date.now()).toLocaleTimeString();
   left.append(text, time);
+  left.addEventListener('click', () => openLiveTranscriptDetailPage(item.segment_id));
   const actions = document.createElement('div'); actions.className = 'tci-actions';
   const playBtn = document.createElement('button'); playBtn.type = 'button'; playBtn.className = 'tci-play'; playBtn.textContent = 'Play';
   let audioEl = null;
@@ -859,6 +868,7 @@ function buildTranscriptCompactItem(item) {
       const url = `/api/v1/audio/segments/${item.segment_id}`;
       if (!audioEl) {
         audioEl = new Audio(url);
+        try { playingAudios.add(audioEl); } catch {}
         audioEl.addEventListener('ended', () => { playBtn.textContent = 'Play'; });
       }
       if (audioEl.paused) { audioEl.play(); playBtn.textContent = 'Pause'; } else { audioEl.pause(); playBtn.textContent = 'Play'; }
@@ -887,12 +897,14 @@ function openLiveTranscriptsPage() {
 }
 function closeLiveTranscriptsPage() {
   if (!liveMainView || !liveTranscriptsView) return;
+  pauseAllAudio();
   liveMainView.classList.remove('hidden');
   liveMainView.classList.add('slide-in');
   setTimeout(() => liveMainView.classList.remove('slide-in'), 300);
   liveTranscriptsView.classList.add('hidden');
 }
-liveTranscriptsBack?.addEventListener('click', closeLiveTranscriptsPage);
+// Use direct lookup to avoid TDZ issues in some caches
+document.getElementById('liveTranscriptsBack')?.addEventListener('click', closeLiveTranscriptsPage);
 transcriptsMoreCompactBtn?.addEventListener('click', openLiveTranscriptsPage);
 
 function buildTranscriptItem(item) {
@@ -906,6 +918,7 @@ function buildTranscriptItem(item) {
   const dt = new Date(item.ended_at || item.started_at || Date.now());
   meta.textContent = `${item.device_id || "device"} · ${dt.toLocaleTimeString()}`;
   li.append(text, meta);
+  li.addEventListener('click', () => openLiveTranscriptDetailPage(item.segment_id));
   return li;
 }
 
@@ -1053,6 +1066,35 @@ if (tabButtons.length) {
 photoModalClose?.addEventListener('click', closePhotoModal);
 photoModal?.addEventListener('click', (e) => { if (e.target === photoModal) closePhotoModal(); });
 
+// Transcript detail page
+function openLiveTranscriptDetailPage(segmentId) {
+  if (!liveTranscriptDetailView) return;
+  // ensure audio source
+  if (transcriptDetailAudio) {
+    transcriptDetailAudio.src = `/api/v1/audio/segments/${segmentId}`;
+  }
+  if (transcriptDetailBody) transcriptDetailBody.textContent = 'Loading transcript…';
+  fetch(`/api/v1/audio/segments/${segmentId}/transcript`).then(async (res) => {
+    if (!res.ok) throw new Error('Transcript not found');
+    const data = await res.json();
+    renderTranscriptDetail(data);
+  }).catch(() => { if (transcriptDetailBody) transcriptDetailBody.textContent = 'Transcript unavailable'; });
+  // If coming from Live main, ensure transcripts page is hidden
+  if (liveTranscriptsView && !liveTranscriptsView.classList.contains('hidden')) {
+    liveTranscriptsView.classList.add('hidden');
+  }
+  liveTranscriptDetailView.classList.remove('hidden');
+  liveTranscriptDetailView.classList.add('slide-in');
+  setTimeout(() => liveTranscriptDetailView.classList.remove('slide-in'), 300);
+}
+
+function closeLiveTranscriptDetailPage() {
+  if (!liveTranscriptDetailView) return;
+  pauseAllAudio();
+  liveTranscriptDetailView.classList.add('hidden');
+}
+document.getElementById('liveTranscriptDetailBack')?.addEventListener('click', closeLiveTranscriptDetailPage);
+
 // Login overlay wiring
 function updateLoginOverlay() {
   if (!loginOverlay) return;
@@ -1109,12 +1151,13 @@ function openLivePhotosPage() {
 }
 function closeLivePhotosPage() {
   if (!liveMainView || !livePhotosView) return;
+  pauseAllAudio();
   liveMainView.classList.remove('hidden');
   liveMainView.classList.add('slide-in');
   setTimeout(() => liveMainView.classList.remove('slide-in'), 300);
   livePhotosView.classList.add('hidden');
 }
-livePhotosBack?.addEventListener('click', closeLivePhotosPage);
+document.getElementById('livePhotosBack')?.addEventListener('click', closeLivePhotosPage);
 ideasBackBtn?.addEventListener('click', () => setActiveTab('live'));
 
 // Swipe-to-go-back on Live Photos page (iOS-like)
@@ -1144,6 +1187,62 @@ ideasBackBtn?.addEventListener('click', () => setActiveTab('live'));
       if (dx > THRESHOLD_X && dy <= MAX_Y) {
         closeLivePhotosPage();
       }
+    }
+    swiping = false;
+  });
+})();
+
+// Swipe-to-go-back on Live Transcripts list page
+(function enableLiveTranscriptsSwipeBack() {
+  if (!liveTranscriptsView) return;
+  let startX = 0, startY = 0, swiping = false;
+  const THRESHOLD_X = 60;
+  const MAX_Y = 40;
+  liveTranscriptsView.addEventListener('touchstart', (e) => {
+    if (!e.touches || e.touches.length !== 1) return;
+    const t = e.touches[0];
+    startX = t.clientX; startY = t.clientY; swiping = true;
+  }, { passive: true });
+  liveTranscriptsView.addEventListener('touchmove', (e) => {
+    if (!swiping || !e.touches || e.touches.length !== 1) return;
+    const t = e.touches[0];
+    const dy = Math.abs(t.clientY - startY);
+    if (dy > MAX_Y) swiping = false;
+  }, { passive: true });
+  liveTranscriptsView.addEventListener('touchend', (e) => {
+    if (!swiping) return;
+    const changed = e.changedTouches && e.changedTouches[0];
+    if (changed) {
+      const dx = changed.clientX - startX; const dy = Math.abs(changed.clientY - startY);
+      if (dx > THRESHOLD_X && dy <= MAX_Y) closeLiveTranscriptsPage();
+    }
+    swiping = false;
+  });
+})();
+
+// Swipe-to-go-back on Transcript detail page
+(function enableLiveTranscriptDetailSwipeBack() {
+  if (!liveTranscriptDetailView) return;
+  let startX = 0, startY = 0, swiping = false;
+  const THRESHOLD_X = 60;
+  const MAX_Y = 40;
+  liveTranscriptDetailView.addEventListener('touchstart', (e) => {
+    if (!e.touches || e.touches.length !== 1) return;
+    const t = e.touches[0];
+    startX = t.clientX; startY = t.clientY; swiping = true;
+  }, { passive: true });
+  liveTranscriptDetailView.addEventListener('touchmove', (e) => {
+    if (!swiping || !e.touches || e.touches.length !== 1) return;
+    const t = e.touches[0];
+    const dy = Math.abs(t.clientY - startY);
+    if (dy > MAX_Y) swiping = false;
+  }, { passive: true });
+  liveTranscriptDetailView.addEventListener('touchend', (e) => {
+    if (!swiping) return;
+    const changed = e.changedTouches && e.changedTouches[0];
+    if (changed) {
+      const dx = changed.clientX - startX; const dy = Math.abs(changed.clientY - startY);
+      if (dx > THRESHOLD_X && dy <= MAX_Y) closeLiveTranscriptDetailPage();
     }
     swiping = false;
   });
@@ -1184,6 +1283,16 @@ function openPhotoModal(entry) {
   photoModal.classList.remove('hidden');
 }
 function closePhotoModal() { photoModal && photoModal.classList.add('hidden'); }
+function pauseAllAudio() {
+  try {
+    // Pause DOM audio elements
+    document.querySelectorAll('audio').forEach((a) => { try { a.pause(); } catch {} });
+  } catch {}
+  try {
+    // Pause any programmatically created Audio()
+    playingAudios.forEach((a) => { try { a.pause(); } catch {} });
+  } catch {}
+}
 async function apiPost(url, body) {
   const res = await fetch(url, {
     method: "POST",
