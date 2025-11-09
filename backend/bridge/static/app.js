@@ -877,8 +877,9 @@ function buildTranscriptCompactItem(item) {
   const time = document.createElement('div');
   time.className = 'tci-time';
   time.textContent = new Date(item.ended_at || item.started_at || Date.now()).toLocaleTimeString();
-  actions.appendChild(playBtn);
+  // Order: time then play, so Play sits at the right edge
   actions.appendChild(time);
+  actions.appendChild(playBtn);
   li.append(left, actions);
   return li;
 }
