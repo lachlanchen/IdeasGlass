@@ -45,6 +45,8 @@ const state = {
   transcriptRendered: 0,
   transcriptPageSize: 5,
   transcriptOldestEndedAt: null,
+  lastAudioAt: 0,
+  micActive: false,
 };
 
 let loadMoreObserver = null;
@@ -89,6 +91,8 @@ transcriptMoreBtn?.addEventListener("click", () => {
   triggerTranscriptLoad(false);
 });
 
+// (Mic waveform removed; waveform is driven by backend audio chunks only.)
+
 async function checkBackend() {
   try {
     const res = await fetch("/healthz");
@@ -126,10 +130,11 @@ function initWaveformBars() {
 }
 
 function computeLevel(chunk) {
-  const rms = Math.max(0, chunk?.rms ?? 0);
-  const boosted = Math.sqrt(rms * 1600);
-  const speechBoost = chunk?.speech_detected ? 0.15 : 0;
-  return Math.min(1, Math.max(0.02, boosted + speechBoost));
+  const rms = Math.max(0, Number(chunk?.rms || 0));
+  // Map typical RMS 0.02–0.06 into ~0.1–0.6 range without saturating
+  const scaled = Math.sqrt(rms * 4); // 0.04 -> ~0.4
+  const speechBoost = chunk?.speech_detected ? 0.08 : 0;
+  return Math.min(1, Math.max(0.02, scaled + speechBoost));
 }
 
 function updateWaveformBars() {
@@ -356,6 +361,7 @@ async function loadOlderMessages() {
 
 function addAudioSample(chunk) {
   if (!chunk) return;
+  state.lastAudioAt = Date.now();
   logWave("audio_chunk", {
     id: chunk.id,
     rms: chunk.rms,
