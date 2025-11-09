@@ -468,8 +468,7 @@ void photoUploadTask(void *param)
         const String *photoPtr = job->photoBase64.length() > 0 ? &job->photoBase64 : nullptr;
         bool ok = sendPhotoOverWebSocket(job->message, job->rssi, photoPtr);
         if (!ok) {
-            Serial.println("[PhotoUpload] WebSocket send failed, falling back to HTTPS");
-            ok = sendPayload(job->message, job->rssi, photoPtr);
+            Serial.println("[PhotoUpload] WS send failed — dropping frame (no fallback)");
         }
         Serial.printf("[PhotoUpload] send result: %s (%d chars)\n", ok ? "OK" : "FAILED", photoPtr ? photoPtr->length() : 0);
         delete job;

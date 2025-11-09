@@ -105,7 +105,13 @@ def main():
     while True:
         try:
             with serial.Serial(args.port, args.baud, timeout=1) as ser:
-                time.sleep(0.2)
+                # Nudge DTR/RTS to prompt output on some boards
+                try:
+                    ser.setDTR(False); ser.setRTS(False); time.sleep(0.05)
+                    ser.setDTR(True); ser.setRTS(True); time.sleep(0.1)
+                except Exception:
+                    pass
+                # Non-blocking read loop
                 while True:
                     raw = ser.readline()
                     if not raw:
@@ -132,4 +138,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
