@@ -1505,8 +1505,10 @@ async def process_message_payload(payload: MessageIn) -> MessageOut:
     if payload.photo_base64:
         # Offload base64 decoding to thread to avoid blocking event loop
         try:
+            # Use keyword arg validate=True; wrap to preserve kwarg when offloading
             photo_bytes = await asyncio.to_thread(
-                base64.b64decode, payload.photo_base64.encode(), True
+                lambda s: base64.b64decode(s, validate=True),
+                payload.photo_base64.encode(),
             )
         except Exception as exc:
             raise HTTPException(status_code=400, detail=f"Invalid photo_base64 data: {exc}") from exc
