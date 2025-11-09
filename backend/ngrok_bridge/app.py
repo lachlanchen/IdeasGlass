@@ -1503,24 +1503,27 @@ async def process_message_payload(payload: MessageIn) -> MessageOut:
     photo_bytes: Optional[bytes] = None
     photo_id: Optional[str] = None
     if payload.photo_base64:
+        # Offload base64 decoding to thread to avoid blocking event loop
         try:
-            photo_bytes = base64.b64decode(payload.photo_base64.encode(), validate=True)
+            photo_bytes = await asyncio.to_thread(
+                base64.b64decode, payload.photo_base64.encode(), True
+            )
         except Exception as exc:
             raise HTTPException(status_code=400, detail=f"Invalid photo_base64 data: {exc}") from exc
         photo_id = str(uuid.uuid4())
         if db_pool:
+            # Provide a URL immediately (data will be persisted in background)
             entry.photo_url = f"/api/v1/photos/{photo_id}"
         else:
+            # Disk write is already offloaded inside save_photo_to_disk
             entry.photo_url = await save_photo_to_disk(photo_id, photo_bytes, payload.photo_mime)
 
     message_store.append(entry)
-    if photo_bytes and db_pool:
-        await persist_entry(entry, photo_bytes, payload.photo_mime, photo_id)
-    else:
-        schedule_background(
-            persist_entry(entry, photo_bytes, payload.photo_mime, photo_id),
-            "persist_entry",
-        )
+    # Always persist in background to keep request handler free
+    schedule_background(
+        persist_entry(entry, photo_bytes, payload.photo_mime, photo_id),
+        "persist_entry",
+    )
     await manager.broadcast({"type": "message", "payload": entry.model_dump()})
     return entry
 
