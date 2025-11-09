@@ -358,6 +358,8 @@ function handleRealtimeMessage(entry) {
   if (!entry) return;
   state.messageBuffer.unshift(entry);
   renderEntry(entry, "top");
+  // Keep the compact gallery in sync with the latest items (microrefresh)
+  try { renderCompactGallery && renderCompactGallery(); } catch {}
   if (state.hasManualMessageLoad) {
     state.renderedMessages = Math.min(
       state.renderedMessages + 1,
