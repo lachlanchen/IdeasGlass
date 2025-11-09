@@ -189,7 +189,8 @@ main {
   border-radius: 999px;
   background: linear-gradient(180deg, #38bdf8, #6366f1 45%, #a855f7);
   transform-origin: bottom center;
-  transform: scaleY(calc(0.04 + var(--level) * 1.6));
+  /* Very short bars; volume influences only a little */
+  transform: scaleY(calc(0.02 + var(--level) * 0.25));
   opacity: calc(0.2 + var(--level));
   transition: transform 0.06s ease-out;
   filter: drop-shadow(0 6px 12px rgba(99, 102, 241, 0.25));

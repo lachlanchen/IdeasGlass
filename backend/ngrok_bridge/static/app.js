@@ -132,10 +132,11 @@ function initWaveformBars() {
 
 function computeLevel(chunk) {
   const rms = Math.max(0, Number(chunk?.rms || 0));
-  // Map typical RMS 0.02–0.06 into a visible range without saturating.
-  // No speech boost; pure volume-driven VU.
-  const scaled = Math.sqrt(rms * 6); // 0.02 -> ~0.346, 0.06 -> ~0.6
-  return Math.min(1, Math.max(0, scaled));
+  // Gentle VU mapping: ignore tiny noise, compress speech range heavily.
+  // Typical RMS ~0.02–0.06 -> level ~0.05–0.25 (small change on UI).
+  const adjusted = Math.max(0, rms - 0.01);
+  const level = Math.min(1, adjusted * 5);
+  return level;
 }
 
 function updateWaveformBars() {
