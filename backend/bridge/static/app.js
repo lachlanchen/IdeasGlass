@@ -16,6 +16,7 @@ const transcriptList = document.getElementById("transcriptList");
 const transcriptMoreBtn = document.getElementById("transcriptMoreBtn");
 const segmentTranscriptClose = document.getElementById("segmentTranscriptClose");
 const galleryGrid = document.getElementById("galleryGrid");
+const galleryGridCompact = document.getElementById("galleryGridCompact");
 const photoModal = document.getElementById("photoModal");
 const photoModalClose = document.getElementById("photoModalClose");
 const modalImage = document.getElementById("modalImage");
@@ -25,6 +26,9 @@ const modalMetaSecondary = document.getElementById("modalMetaSecondary");
 const bottomNav = document.getElementById("bottomNav");
 const tabButtons = bottomNav ? Array.from(bottomNav.querySelectorAll('.tab-btn')) : [];
 const liveView = document.getElementById('liveView');
+const liveMainView = document.getElementById('liveMainView');
+const livePhotosView = document.getElementById('livePhotosView');
+const livePhotosBack = document.getElementById('livePhotosBack');
 const ideasView = document.getElementById('ideasView');
 const creationView = document.getElementById('creationView');
 const settingsView = document.getElementById('settingsView');
@@ -37,6 +41,17 @@ const authLogoutBtn = document.getElementById("authLogoutBtn");
 const deviceIdInput = document.getElementById("deviceIdInput");
 const bindBtn = document.getElementById("bindBtn");
 const authStatus = document.getElementById("authStatus");
+// Overlay auth elements
+const overlayEmail = document.getElementById('overlayEmail');
+const overlayPassword = document.getElementById('overlayPassword');
+const overlayLoginBtn = document.getElementById('overlayLoginBtn');
+const overlayRegisterBtn = document.getElementById('overlayRegisterBtn');
+const overlayToSettingsBtn = document.getElementById('overlayToSettingsBtn');
+const overlayAuthStatus = document.getElementById('overlayAuthStatus');
+const loginOverlay = document.getElementById('loginOverlay');
+const liveGalleryOverlay = document.getElementById('liveGalleryOverlay');
+const liveGalleryBack = document.getElementById('liveGalleryBack');
+const ideasBackBtn = document.getElementById('ideasBackBtn');
 const currentEmail = document.getElementById("currentEmail");
 const currentDevices = document.getElementById("currentDevices");
 const accountAvatar = document.getElementById("accountAvatar");
@@ -77,6 +92,7 @@ const state = {
   vuSpeech: false,
   vuEmaLevel: 0.08,
   waveJitterSeeds: [],
+  authed: false,
 };
 
 let loadMoreObserver = null;
@@ -208,6 +224,34 @@ function buildEntryElement(entry) {
   card.appendChild(badge);
   card.addEventListener("click", () => openPhotoModal(entry));
   return card;
+}
+
+function buildMoreCard() {
+  const more = document.createElement('div');
+  more.className = 'gallery-card gallery-more';
+  more.textContent = 'More »';
+  more.addEventListener('click', () => openLivePhotosPage());
+  return more;
+}
+
+function renderCompactGallery() {
+  if (!galleryGridCompact) return;
+  galleryGridCompact.innerHTML = '';
+  // Estimate columns to keep exactly 2 rows visible and place More tile bottom-right
+  const cardWidth = 150; // approx min tile width incl gap
+  const cols = Math.max(1, Math.floor(galleryGridCompact.clientWidth / cardWidth));
+  const limit = Math.max(1, cols * 2 - 1);
+  const fragment = document.createDocumentFragment();
+  let added = 0;
+  for (let i = 0; i < state.messageBuffer.length && added < limit; i += 1) {
+    const el = buildEntryElement(state.messageBuffer[i]);
+    if (el) {
+      fragment.appendChild(el);
+      added += 1;
+    }
+  }
+  fragment.appendChild(buildMoreCard());
+  galleryGridCompact.appendChild(fragment);
 }
 
 function renderEntry(entry, position = "top") {
@@ -363,6 +407,7 @@ function setActiveTab(tab) {
   try {
     localStorage.setItem('ig.selectedTab', tab);
   } catch {}
+  updateLoginOverlay();
 }
 
 function decorateStatus(connected) {
@@ -679,6 +724,7 @@ async function handleSegmentTranscript(segmentId) {
 
 function handleHistoryMessages(entries) {
   if (galleryGrid) galleryGrid.innerHTML = "";
+  if (galleryGridCompact) galleryGridCompact.innerHTML = '';
   const ordered = Array.isArray(entries) ? entries.slice() : [];
   state.messageBuffer = ordered;
   state.renderedMessages = 0;
@@ -687,6 +733,7 @@ function handleHistoryMessages(entries) {
   state.loadingOlder = false;
   if (ordered.length) {
     renderNextMessageBatch();
+    renderCompactGallery();
     state.messageOldestTs = ordered[ordered.length - 1].received_at;
   } else {
     state.messageOldestTs = null;
@@ -914,11 +961,81 @@ if (tabButtons.length) {
   try { saved = localStorage.getItem('ig.selectedTab'); } catch {}
   const valid = new Set(['live','ideas','creation','settings']);
   setActiveTab(valid.has(saved) ? saved : 'live');
+  // Defer overlay update until after first auth check
+  setTimeout(() => { try { updateLoginOverlay && updateLoginOverlay(); } catch {} }, 0);
+  // Re-render compact gallery on resize for accurate column fit
+  window.addEventListener('resize', () => {
+    try { renderCompactGallery && renderCompactGallery(); } catch {}
+  });
 }
 
 // Modal wiring
 photoModalClose?.addEventListener('click', closePhotoModal);
 photoModal?.addEventListener('click', (e) => { if (e.target === photoModal) closePhotoModal(); });
+
+// Login overlay wiring
+function updateLoginOverlay() {
+  if (!loginOverlay) return;
+  const tab = (tabButtons.find(b => b.classList.contains('active'))?.dataset.tab) || 'live';
+  const show = (tab === 'live') && !state.authed;
+  loginOverlay.classList.toggle('hidden', !show);
+  try { loginOverlay.setAttribute('aria-hidden', (!show).toString()); } catch {}
+}
+
+overlayToSettingsBtn?.addEventListener('click', () => setActiveTab('settings'));
+overlayLoginBtn?.addEventListener('click', async () => {
+  const email = (overlayEmail?.value || '').trim();
+  const pwd = overlayPassword?.value || '';
+  if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email) || !pwd) {
+    setOverlayStatus('Enter valid email and password');
+    return;
+  }
+  try {
+    await apiPost('/api/v1/auth/login', { email, password: pwd });
+    setOverlayStatus('Logged in ✔');
+    try { localStorage.setItem('ig.lastEmail', email); } catch {}
+    connectWs();
+    refreshAccount();
+  } catch {
+    setOverlayStatus('Login failed');
+  }
+});
+
+overlayRegisterBtn?.addEventListener('click', async () => {
+  const email = (overlayEmail?.value || '').trim();
+  const pwd = overlayPassword?.value || '';
+  if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email) || pwd.length < 8) {
+    setOverlayStatus('Enter valid email and 8+ char password');
+    return;
+  }
+  try {
+    await apiPost('/api/v1/auth/register', { email, password: pwd });
+    setOverlayStatus('Registered ✔');
+    try { localStorage.setItem('ig.lastEmail', email); } catch {}
+    connectWs();
+    refreshAccount();
+  } catch {
+    setOverlayStatus('Register failed');
+  }
+});
+
+// Live photos page (push-style) handlers
+function openLivePhotosPage() {
+  if (!liveMainView || !livePhotosView) return;
+  livePhotosView.classList.remove('hidden');
+  livePhotosView.classList.add('slide-in');
+  liveMainView.classList.add('hidden');
+  setTimeout(() => livePhotosView.classList.remove('slide-in'), 300);
+}
+function closeLivePhotosPage() {
+  if (!liveMainView || !livePhotosView) return;
+  liveMainView.classList.remove('hidden');
+  liveMainView.classList.add('slide-in');
+  setTimeout(() => liveMainView.classList.remove('slide-in'), 300);
+  livePhotosView.classList.add('hidden');
+}
+livePhotosBack?.addEventListener('click', closeLivePhotosPage);
+ideasBackBtn?.addEventListener('click', () => setActiveTab('live'));
 
 // VU variance animator: keep base level but add subtle bar-to-bar/time variance
 function renderVuVariance() {
@@ -980,12 +1097,18 @@ function setAuthStatus(msg) {
   authStatus.textContent = msg || "";
 }
 
+function setOverlayStatus(msg) {
+  if (!overlayAuthStatus) return;
+  overlayAuthStatus.textContent = msg || '';
+}
+
 async function refreshAccount() {
   let me = null;
   try {
     me = await apiGet("/api/v1/auth/me");
   } catch {}
   const authed = Boolean(me && me.email);
+  state.authed = authed;
   if (currentEmail) currentEmail.textContent = authed ? (me.email || '') : '';
   if (accountAvatar) {
     if (authed && me.email) {
@@ -1030,6 +1153,15 @@ async function refreshAccount() {
   if (authed && deviceIdInput && Array.isArray(me.devices) && me.devices.length && !deviceIdInput.value) {
     deviceIdInput.value = me.devices[0];
   }
+  // Prefill email fields with last used
+  try {
+    const last = localStorage.getItem('ig.lastEmail');
+    if (!authed && last) {
+      if (authEmail && !authEmail.value) authEmail.value = last;
+      if (overlayEmail && !overlayEmail.value) overlayEmail.value = last;
+    }
+  } catch {}
+  updateLoginOverlay();
 }
 
 authRegisterBtn?.addEventListener("click", async () => {

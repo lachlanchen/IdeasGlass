@@ -19,6 +19,7 @@
     </header>
 
     <div id="liveView" class="view">
+    <div id="liveMainView">
     <section class="recorder-section">
       <div class="recorder-core">
         <div id="vadStatus" class="vad-status silence">🔇 SILENCE</div>
@@ -53,10 +54,7 @@
       <section id="logPanel">
         <h2>Incoming photos</h2>
         <ul id="messageList"></ul>
-        <div id="galleryGrid" class="gallery-grid"></div>
-        <div class="load-more-container">
-          <button id="loadMoreBtn" type="button" hidden>Show older photos</button>
-        </div>
+        <div id="galleryGridCompact" class="gallery-grid gallery-grid--compact"></div>
       </section>
 
       <section id="segmentsPanel">
@@ -80,11 +78,52 @@
     </main>
     </div>
 
+    <!-- Live photos page (push-style, not overlay) -->
+    <div id="livePhotosView" class="hidden">
+      <main>
+        <section>
+          <div style="display:flex;align-items:center;gap:0.5rem;justify-content:space-between;">
+            <button id="livePhotosBack" class="ghost-btn" type="button">← Back to Live</button>
+            <h2>Photos</h2>
+            <span></span>
+          </div>
+          <div id="galleryGrid" class="gallery-grid"></div>
+          <div class="load-more-container">
+            <button id="loadMoreBtn" type="button" hidden>Show older photos</button>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <!-- Login overlay (shown on Live when not signed in) -->
+    <div id="loginOverlay" class="login-overlay hidden">
+      <div class="login-overlay-backdrop"></div>
+      <div class="login-overlay-card" role="dialog" aria-label="Sign in to IdeasGlass">
+        <h3>Welcome to IdeasGlass</h3>
+        <p class="overlay-sub">Sign in to continue</p>
+        <form id="overlayAuthForm" class="overlay-auth-form" action="javascript:void(0)">
+          <input id="overlayEmail" type="email" placeholder="Email" />
+          <input id="overlayPassword" type="password" placeholder="Password" />
+          <div class="overlay-actions">
+            <button id="overlayLoginBtn" type="button">Login</button>
+            <button id="overlayRegisterBtn" type="button" class="ghost-btn">Register</button>
+            <button id="overlayToSettingsBtn" type="button" class="ghost-btn">Go to Settings</button>
+          </div>
+          <div id="overlayAuthStatus" class="status"></div>
+        </form>
+      </div>
+    </div>
+
+    </div>
+
     <div id="ideasView" class="view hidden">
       <main>
         <section>
-          <h2>Ideas</h2>
-          <p>Capture and browse your ideas here. (Coming soon)</p>
+          <div style="display:flex;align-items:center;gap:0.5rem;justify-content:space-between;">
+            <h2>Photos</h2>
+            <button type="button" class="ghost-btn" id="ideasBackBtn">← Back to Live</button>
+          </div>
+          <p>Use the Live tab’s More » to browse photos without leaving Live.</p>
         </section>
       </main>
     </div>
