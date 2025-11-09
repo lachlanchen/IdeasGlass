@@ -15,6 +15,13 @@ const loadMoreBtn = document.getElementById("loadMoreBtn");
 const transcriptList = document.getElementById("transcriptList");
 const transcriptMoreBtn = document.getElementById("transcriptMoreBtn");
 const segmentTranscriptClose = document.getElementById("segmentTranscriptClose");
+// Tabs
+const bottomNav = document.getElementById("bottomNav");
+const tabButtons = bottomNav ? Array.from(bottomNav.querySelectorAll('.tab-btn')) : [];
+const liveView = document.getElementById('liveView');
+const ideasView = document.getElementById('ideasView');
+const creationView = document.getElementById('creationView');
+const settingsView = document.getElementById('settingsView');
 // Auth + binding
 const authEmail = document.getElementById("authEmail");
 const authPassword = document.getElementById("authPassword");
@@ -24,6 +31,8 @@ const authLogoutBtn = document.getElementById("authLogoutBtn");
 const deviceIdInput = document.getElementById("deviceIdInput");
 const bindBtn = document.getElementById("bindBtn");
 const authStatus = document.getElementById("authStatus");
+const currentEmail = document.getElementById("currentEmail");
+const currentDevices = document.getElementById("currentDevices");
 
 segmentTranscriptClose?.addEventListener("click", () => {
   hideSegmentTranscript();
@@ -342,6 +351,17 @@ function initLoadMoreObserver() {
     { root: logPanelEl || null, rootMargin: "150px" }
   );
   loadMoreObserver.observe(loadMoreBtn);
+}
+
+function setActiveTab(tab) {
+  const views = { live: liveView, ideas: ideasView, creation: creationView, settings: settingsView };
+  Object.entries(views).forEach(([k, el]) => {
+    if (!el) return;
+    el.classList.toggle('hidden', k !== tab);
+  });
+  tabButtons.forEach((btn) => {
+    btn.classList.toggle('active', btn.dataset.tab === tab);
+  });
 }
 
 function decorateStatus(connected) {
@@ -884,6 +904,14 @@ if (logPanelEl) {
   window.addEventListener("scroll", handleGlobalScroll);
 }
 
+// Tabs wiring: default to live
+if (tabButtons.length) {
+  tabButtons.forEach((btn) => {
+    btn.addEventListener('click', () => setActiveTab(btn.dataset.tab || 'live'));
+  });
+  setActiveTab('live');
+}
+
 // VU variance animator: keep base level but add subtle bar-to-bar/time variance
 function renderVuVariance() {
   if (!state.vuMode || !state.waveBars.length) return;
@@ -935,11 +963,32 @@ function setAuthStatus(msg) {
   authStatus.textContent = msg || "";
 }
 
+async function refreshAccount() {
+  try {
+    const me = await apiGet("/api/v1/auth/me");
+    if (currentEmail) currentEmail.textContent = me?.email ? `Signed in as: ${me.email}` : "";
+    if (Array.isArray(me?.devices)) {
+      if (currentDevices) currentDevices.textContent = me.devices.length ? ` · Devices: ${me.devices.join(", ")}` : "";
+      if (deviceIdInput && !deviceIdInput.value && me.devices.length) deviceIdInput.value = me.devices[0];
+    }
+  } catch {
+    if (currentEmail) currentEmail.textContent = "";
+    if (currentDevices) currentDevices.textContent = "";
+  }
+}
+
 authRegisterBtn?.addEventListener("click", async () => {
   try {
-    await apiPost("/api/v1/auth/register", { email: authEmail.value, password: authPassword.value });
+    const email = (authEmail?.value || "").trim();
+    const pwd = authPassword?.value || "";
+    if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email) || pwd.length < 8) {
+      setAuthStatus("Enter valid email and 8+ char password");
+      return;
+    }
+    await apiPost("/api/v1/auth/register", { email, password: pwd });
     setAuthStatus("Registered ✔");
     connectWs();
+    refreshAccount();
   } catch (e) {
     setAuthStatus(`Register failed`);
   }
@@ -947,14 +996,22 @@ authRegisterBtn?.addEventListener("click", async () => {
 
 authLoginBtn?.addEventListener("click", async () => {
   try {
-    await apiPost("/api/v1/auth/login", { email: authEmail.value, password: authPassword.value });
+    const email = (authEmail?.value || "").trim();
+    const pwd = authPassword?.value || "";
+    if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email) || !pwd) {
+      setAuthStatus("Enter valid email and password");
+      return;
+    }
+    await apiPost("/api/v1/auth/login", { email, password: pwd });
     setAuthStatus("Logged in ✔");
     connectWs();
+    refreshAccount();
     // Try to list devices
     try {
       const data = await apiGet("/api/v1/devices");
       if (data && Array.isArray(data.devices) && data.devices.length && !deviceIdInput.value) {
         deviceIdInput.value = data.devices[0];
+        setAuthStatus(`Bound devices: ${data.devices.join(", ")}`);
       }
     } catch {}
   } catch (e) {
@@ -966,6 +1023,7 @@ authLogoutBtn?.addEventListener("click", async () => {
   try {
     await apiPost("/api/v1/auth/logout", {});
     setAuthStatus("Logged out");
+    refreshAccount();
   } catch {}
 });
 
@@ -978,7 +1036,11 @@ bindBtn?.addEventListener("click", async () => {
     // Reconnect WS to ensure server-side filter includes this device
     try { socket && socket.close(); } catch {}
     connectWs();
+    refreshAccount();
   } catch (e) {
     setAuthStatus("Bind failed");
   }
 });
+
+// Show current account on load
+refreshAccount();

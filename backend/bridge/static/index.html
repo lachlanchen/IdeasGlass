@@ -18,6 +18,7 @@
       <button id="installBtn" hidden>Add to Home Screen</button>
     </header>
 
+    <div id="liveView" class="view">
     <section class="recorder-section">
       <div class="recorder-core">
         <div id="vadStatus" class="vad-status silence">🔇 SILENCE</div>
@@ -38,23 +39,6 @@
     </section>
 
     <main>
-      <section id="accountPanel">
-        <h2>Account</h2>
-        <div class="account-forms">
-          <form id="authForm" class="auth-form" action="javascript:void(0)">
-            <input id="authEmail" type="email" placeholder="Email" required />
-            <input id="authPassword" type="password" placeholder="Password" required />
-            <button id="authRegisterBtn" type="button">Register</button>
-            <button id="authLoginBtn" type="button">Login</button>
-            <button id="authLogoutBtn" type="button">Logout</button>
-          </form>
-          <form id="bindForm" class="bind-form" action="javascript:void(0)">
-            <input id="deviceIdInput" placeholder="Device ID" />
-            <button id="bindBtn" type="button">Bind device</button>
-            <span id="authStatus" class="status"></span>
-          </form>
-        </div>
-      </section>
       <section id="statusPanel">
         <div>
           <span class="label">Backend:</span>
@@ -93,10 +77,62 @@
         </div>
       </section>
     </main>
+    </div>
+
+    <div id="ideasView" class="view hidden">
+      <main>
+        <section>
+          <h2>Ideas</h2>
+          <p>Capture and browse your ideas here. (Coming soon)</p>
+        </section>
+      </main>
+    </div>
+
+    <div id="creationView" class="view hidden">
+      <main>
+        <section>
+          <h2>Creation</h2>
+          <p>Create new content from your recordings. (Coming soon)</p>
+        </section>
+      </main>
+    </div>
+
+    <div id="settingsView" class="view hidden">
+      <main>
+        <section id="accountPanel">
+          <h2>Account</h2>
+          <div class="account-forms">
+            <div id="currentAccount" class="account-info">
+              <span id="currentEmail"></span>
+              <span id="currentDevices"></span>
+            </div>
+            <form id="authForm" class="auth-form" action="javascript:void(0)">
+              <input id="authEmail" type="email" placeholder="Email" required />
+              <input id="authPassword" type="password" placeholder="Password" required />
+              <button id="authRegisterBtn" type="button">Register</button>
+              <button id="authLoginBtn" type="button">Login</button>
+              <button id="authLogoutBtn" type="button">Logout</button>
+            </form>
+            <form id="bindForm" class="bind-form" action="javascript:void(0)">
+              <input id="deviceIdInput" placeholder="Device ID" />
+              <button id="bindBtn" type="button">Bind device</button>
+              <span id="authStatus" class="status"></span>
+            </form>
+          </div>
+        </section>
+      </main>
+    </div>
 
     <footer>
       <p>Install this page on Android/iOS for a native-like IdeasGlass dashboard.</p>
     </footer>
+
+    <nav id="bottomNav" class="bottom-nav">
+      <button class="tab-btn active" data-tab="live">Live</button>
+      <button class="tab-btn" data-tab="ideas">Ideas</button>
+      <button class="tab-btn" data-tab="creation">Creation</button>
+      <button class="tab-btn" data-tab="settings">Settings</button>
+    </nav>
 
     <script src="/static/app.js" type="module"></script>
   </body>

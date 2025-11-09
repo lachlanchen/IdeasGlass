@@ -11,6 +11,7 @@ body {
   display: flex;
   flex-direction: column;
   background: linear-gradient(160deg, #f7faff 0%, #eef2fb 45%, #fdf6ff 100%);
+  padding-bottom: 62px; /* space for bottom nav */
 }
 
 header {
@@ -635,4 +636,35 @@ footer {
     flex-direction: column;
     gap: 0.2rem;
   }
+}
+/* Generic hidden helper */
+.hidden { display: none !important; }
+
+/* Bottom navigation */
+.bottom-nav {
+  position: fixed;
+  left: 0; right: 0; bottom: 0;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  background: #ffffffcc;
+  backdrop-filter: blur(10px);
+  border-top: 1px solid rgba(15, 23, 42, 0.08);
+  z-index: 1000;
+}
+
+.bottom-nav .tab-btn {
+  flex: 1;
+  margin: 0 6px;
+  height: 38px;
+  border-radius: 999px;
+  background: #f1f5ff;
+  color: #4f46e5;
+  font-weight: 700;
+}
+
+.bottom-nav .tab-btn.active {
+  background: linear-gradient(135deg, #4f46e5, #8b5cf6);
+  color: #ffffff;
 }
