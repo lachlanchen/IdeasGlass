@@ -27,13 +27,18 @@ def test_model(model, device: str) -> None:
     # 1 second of silence at 16 kHz
     audio = np.zeros(16000, dtype=np.float32)
     audio = whisper.pad_or_trim(audio)
-    mel = whisper.log_mel_spectrogram(audio).to(device)
+    mel = whisper.log_mel_spectrogram(audio)
+    # Match model device/dtype and add batch dimension expected by encoder
+    try:
+        sample_param = next(model.parameters())
+        mel = mel.to(device=sample_param.device, dtype=sample_param.dtype).unsqueeze(0)
+    except Exception:
+        mel = mel.to(device).unsqueeze(0)
     with torch.no_grad():
-        # Newer openai/whisper exposes encoder as a submodule; some forks had encode().
         # Try encoder first; fall back to encode() or a tiny transcribe if needed.
         try:
             _ = model.encoder(mel)
-        except AttributeError:
+        except Exception:
             if hasattr(model, "encode"):
                 _ = model.encode(mel)  # type: ignore[attr-defined]
             else:
