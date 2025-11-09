@@ -15,7 +15,9 @@
         <h1>IdeasGlass</h1>
         <p class="subtitle">Live device feed</p>
       </div>
-      <button id="installBtn" hidden>Add to Home Screen</button>
+      <div class="header-actions">
+        <span id="batteryStatus" class="battery-pill" title="Battery">🔋 --%</span>
+      </div>
     </header>
 
     <div id="liveView" class="view">
@@ -200,6 +202,13 @@
             <span class="label">WebSocket:</span>
             <span id="wsStatus" class="status status-offline">Disconnected</span>
           </div>
+        </section>
+
+        <section id="installPanel" class="card">
+          <h2>Install</h2>
+          <p class="install-help">Install this PWA for a native-like IdeasGlass dashboard.</p>
+          <button id="installBtn" type="button" hidden>Add to Home Screen</button>
+          <small class="muted">On iOS, use “Share” → “Add to Home Screen”.</small>
         </section>
         </div>
       </main>

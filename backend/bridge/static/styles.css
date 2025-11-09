@@ -26,6 +26,23 @@ header {
   box-shadow: 0 20px 60px rgba(99, 102, 241, 0.18);
 }
 
+.header-actions { display:flex; align-items:center; gap: 0.6rem; }
+.battery-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.25rem 0.6rem;
+  border-radius: 999px;
+  background: rgba(16, 185, 129, 0.14);
+  color: #065f46;
+  border: 1px solid rgba(16, 185, 129, 0.25);
+  font-weight: 700;
+  font-size: 0.92rem;
+}
+
+.install-help { margin: 0 0 0.5rem; color: #4c5673; }
+.muted { color: #6b7280; }
+
 header h1 {
   margin: 0;
   font-size: clamp(1.6rem, 4vw, 2rem);
