@@ -812,6 +812,7 @@ function handleHistoryAudioTranscripts(entries) {
   }));
   state.transcriptRendered = 0;
   renderNextTranscriptBatch();
+  renderCompactTranscripts();
 }
 
 function handleAudioTranscript(entry) {
@@ -835,8 +836,60 @@ function handleAudioTranscript(entry) {
       }
       updateTranscriptMoreButton();
     }
+    renderCompactTranscripts();
   }
 }
+
+function buildTranscriptCompactItem(item) {
+  const li = document.createElement('li');
+  li.className = 'transcript-compact-item';
+  const left = document.createElement('div'); left.className = 'tci-left';
+  const text = document.createElement('div'); text.className = 'tci-text'; text.textContent = item.text || '';
+  const time = document.createElement('div'); time.className = 'tci-time'; time.textContent = new Date(item.ended_at || item.started_at || Date.now()).toLocaleTimeString();
+  left.append(text, time);
+  const actions = document.createElement('div'); actions.className = 'tci-actions';
+  const playBtn = document.createElement('button'); playBtn.type = 'button'; playBtn.className = 'tci-play'; playBtn.textContent = 'Play';
+  let audioEl = null;
+  playBtn.addEventListener('click', () => {
+    try {
+      const url = `/api/v1/audio/segments/${item.segment_id}`;
+      if (!audioEl) {
+        audioEl = new Audio(url);
+        audioEl.addEventListener('ended', () => { playBtn.textContent = 'Play'; });
+      }
+      if (audioEl.paused) { audioEl.play(); playBtn.textContent = 'Pause'; } else { audioEl.pause(); playBtn.textContent = 'Play'; }
+    } catch {}
+  });
+  actions.appendChild(playBtn);
+  li.append(left, actions);
+  return li;
+}
+
+function renderCompactTranscripts() {
+  if (!transcriptCompactList) return;
+  transcriptCompactList.innerHTML = '';
+  const items = state.transcriptFeed.slice(0, 5);
+  const frag = document.createDocumentFragment();
+  items.forEach((it) => frag.appendChild(buildTranscriptCompactItem(it)));
+  transcriptCompactList.appendChild(frag);
+}
+
+function openLiveTranscriptsPage() {
+  if (!liveMainView || !liveTranscriptsView) return;
+  liveTranscriptsView.classList.remove('hidden');
+  liveTranscriptsView.classList.add('slide-in');
+  liveMainView.classList.add('hidden');
+  setTimeout(() => liveTranscriptsView.classList.remove('slide-in'), 300);
+}
+function closeLiveTranscriptsPage() {
+  if (!liveMainView || !liveTranscriptsView) return;
+  liveMainView.classList.remove('hidden');
+  liveMainView.classList.add('slide-in');
+  setTimeout(() => liveMainView.classList.remove('slide-in'), 300);
+  liveTranscriptsView.classList.add('hidden');
+}
+liveTranscriptsBack?.addEventListener('click', closeLiveTranscriptsPage);
+transcriptsMoreCompactBtn?.addEventListener('click', openLiveTranscriptsPage);
 
 function buildTranscriptItem(item) {
   const li = document.createElement("li");
@@ -1286,3 +1339,8 @@ bindBtn?.addEventListener("click", async () => {
 
 // Show current account on load
 refreshAccount();
+// Live transcripts page elements
+const transcriptCompactList = document.getElementById('transcriptCompactList');
+const transcriptsMoreCompactBtn = document.getElementById('transcriptsMoreCompactBtn');
+const liveTranscriptsView = document.getElementById('liveTranscriptsView');
+const liveTranscriptsBack = document.getElementById('liveTranscriptsBack');
