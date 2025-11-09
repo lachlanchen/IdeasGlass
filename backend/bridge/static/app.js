@@ -1037,6 +1037,38 @@ function closeLivePhotosPage() {
 livePhotosBack?.addEventListener('click', closeLivePhotosPage);
 ideasBackBtn?.addEventListener('click', () => setActiveTab('live'));
 
+// Swipe-to-go-back on Live Photos page (iOS-like)
+(function enableLivePhotosSwipeBack() {
+  if (!livePhotosView) return;
+  let startX = 0, startY = 0, swiping = false;
+  const THRESHOLD_X = 60; // px to trigger
+  const MAX_Y = 40; // max vertical dev
+  livePhotosView.addEventListener('touchstart', (e) => {
+    if (!e.touches || e.touches.length !== 1) return;
+    const t = e.touches[0];
+    startX = t.clientX; startY = t.clientY; swiping = true;
+  }, { passive: true });
+  livePhotosView.addEventListener('touchmove', (e) => {
+    if (!swiping || !e.touches || e.touches.length !== 1) return;
+    const t = e.touches[0];
+    const dx = t.clientX - startX; const dy = Math.abs(t.clientY - startY);
+    // If vertical scroll dominates, cancel swipe detect
+    if (dy > MAX_Y) swiping = false;
+    // Don't prevent default; allow scroll
+  }, { passive: true });
+  livePhotosView.addEventListener('touchend', (e) => {
+    if (!swiping) return;
+    const changed = e.changedTouches && e.changedTouches[0];
+    if (changed) {
+      const dx = changed.clientX - startX; const dy = Math.abs(changed.clientY - startY);
+      if (dx > THRESHOLD_X && dy <= MAX_Y) {
+        closeLivePhotosPage();
+      }
+    }
+    swiping = false;
+  });
+})();
+
 // VU variance animator: keep base level but add subtle bar-to-bar/time variance
 function renderVuVariance() {
   if (!state.vuMode || !state.waveBars.length) return;
