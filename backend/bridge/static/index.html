@@ -22,10 +22,12 @@
     <div id="liveMainView">
     <section class="recorder-section">
       <div class="recorder-core">
-        <div id="vadStatus" class="vad-status silence">🔇 SILENCE</div>
         <div class="main-controls">
-          <div class="timer" id="timer">LIVE</div>
-          <div class="live-dot" aria-hidden="true"></div>
+          <div class="controls-left">
+            <div class="timer" id="timer">LIVE</div>
+            <div class="live-dot" aria-hidden="true"></div>
+          </div>
+          <div id="vadStatus" class="vad-status silence">🔇 SILENCE</div>
         </div>
         <div class="waveform" id="waveform">
           <div id="waveformBars" class="waveform-bars"></div>
@@ -40,39 +42,17 @@
     </section>
 
     <main>
-      <section id="statusPanel">
-        <div>
-          <span class="label">Backend:</span>
-          <span id="backendStatus" class="status status-offline">Offline</span>
-        </div>
-        <div>
-          <span class="label">WebSocket:</span>
-          <span id="wsStatus" class="status status-offline">Disconnected</span>
-        </div>
-      </section>
-
       <section id="logPanel">
         <h2>Incoming photos</h2>
         <ul id="messageList"></ul>
         <div id="galleryGridCompact" class="gallery-grid gallery-grid--compact"></div>
       </section>
 
-      <section id="segmentsPanel">
-        <h2>Recent recordings</h2>
-        <ul id="segmentList"></ul>
-        <div id="segmentTranscriptPanel" class="segment-transcript-panel hidden">
-          <div class="segment-transcript-header">
-            <span id="segmentTranscriptTitle">Transcript</span>
-            <button id="segmentTranscriptClose" type="button">Close</button>
-          </div>
-          <div id="segmentTranscriptBody" class="segment-transcript-body">
-            Select a recording to view its transcript.
-          </div>
-        </div>
-        <h2>Recent transcripts</h2>
-        <ul id="transcriptList"></ul>
+      <section id="transcriptsPanel">
+        <h2>Transcripts</h2>
+        <ul id="transcriptCompactList"></ul>
         <div class="load-more-container">
-          <button id="transcriptMoreBtn" type="button" hidden>Show older transcripts</button>
+          <button id="transcriptsMoreCompactBtn" type="button">More »</button>
         </div>
       </section>
     </main>
@@ -90,6 +70,40 @@
           <div id="galleryGrid" class="gallery-grid"></div>
           <div class="load-more-container">
             <button id="loadMoreBtn" type="button" hidden>Show older photos</button>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <!-- Live transcripts page (push-style) -->
+    <div id="liveTranscriptsView" class="hidden">
+      <main>
+        <section>
+          <div style="display:flex;align-items:center;gap:0.5rem;justify-content:space-between;">
+            <button id="liveTranscriptsBack" class="ghost-btn" type="button">← Back to Live</button>
+            <h2>Transcripts</h2>
+            <span></span>
+          </div>
+          <ul id="transcriptList"></ul>
+          <div class="load-more-container">
+            <button id="transcriptMoreBtn" type="button" hidden>Show older transcripts</button>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <!-- Live transcript detail page (push-style) -->
+    <div id="liveTranscriptDetailView" class="hidden">
+      <main>
+        <section>
+          <div style="display:flex;align-items:center;gap:0.5rem;justify-content:space-between;">
+            <button id="liveTranscriptDetailBack" class="ghost-btn" type="button">← Back</button>
+            <h2>Transcript</h2>
+            <span></span>
+          </div>
+          <audio id="transcriptDetailAudio" controls style="width:100%;margin:0.3rem 0 0.6rem;"></audio>
+          <div id="transcriptDetailBody" class="segment-transcript-body">
+            Loading transcript…
           </div>
         </section>
       </main>
@@ -159,6 +173,17 @@
               <span id="authStatus" class="status"></span>
             </form>
             <div id="currentDevices"></div>
+          </div>
+        </section>
+        <section id="statusPanel">
+          <h2>Status</h2>
+          <div>
+            <span class="label">Backend:</span>
+            <span id="backendStatus" class="status status-offline">Offline</span>
+          </div>
+          <div>
+            <span class="label">WebSocket:</span>
+            <span id="wsStatus" class="status status-offline">Disconnected</span>
           </div>
         </section>
       </main>
