@@ -11,7 +11,8 @@ body {
   display: flex;
   flex-direction: column;
   background: linear-gradient(160deg, #f7faff 0%, #eef2fb 45%, #fdf6ff 100%);
-  padding-bottom: 62px; /* space for bottom nav */
+  /* generous space for bottom nav + mobile safe area */
+  padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px));
 }
 
 header {
@@ -61,15 +62,77 @@ main {
 
 .account-forms {
   display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 0.6rem 0.8rem;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.8rem;
 }
 
 .account-info {
-  color: #4c5673;
-  font-weight: 600;
-  margin-right: auto;
+  color: #374151;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.4rem 0.2rem 0.6rem;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.06);
+}
+
+#currentEmail {
+  font-weight: 800;
+  color: #111827;
+}
+
+.account-info .ghost-btn {
+  margin-left: auto;
+}
+
+#currentDevices {
+  margin-top: 0.5rem;
+}
+
+.device-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.device-title {
+  font-size: 0.8rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #6b7280;
+}
+
+.device-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.device-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #f8faff, #ffffff);
+  border: 1px solid rgba(79, 70, 229, 0.12);
+  box-shadow: 0 8px 18px rgba(79, 70, 229, 0.06);
+  color: #111827;
+  font-weight: 700;
+}
+
+.device-item::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 30% 30%, #8b5cf6, #4f46e5);
+  box-shadow: 0 0 8px rgba(79, 70, 229, 0.45);
 }
 
 .auth-form,
@@ -79,6 +142,47 @@ main {
   flex-wrap: wrap;
   gap: 0.5rem;
   margin: 0;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+  background: #eef2ff;
+  color: #4338ca;
+  font-weight: 700;
+  border: 1px solid rgba(79, 70, 229, 0.15);
+}
+
+.account-label {
+  display: inline-block;
+  color: #6b7280;
+  font-weight: 800;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-right: 0.25rem;
+}
+
+.avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  color: #ffffff;
+  background: linear-gradient(135deg, #4f46e5, #8b5cf6);
+  box-shadow: 0 6px 14px rgba(79, 70, 229, 0.3);
+}
+
+.ghost-btn {
+  background: #ffffff;
+  color: #4c5673;
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  box-shadow: none;
 }
 
 .auth-form input,
@@ -644,12 +748,13 @@ footer {
 .bottom-nav {
   position: fixed;
   left: 0; right: 0; bottom: 0;
-  height: 56px;
+  height: 64px;
+  padding: 6px 8px calc(6px + env(safe-area-inset-bottom, 0px));
   display: flex;
   align-items: center;
   justify-content: space-around;
-  background: #ffffffcc;
-  backdrop-filter: blur(10px);
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(12px);
   border-top: 1px solid rgba(15, 23, 42, 0.08);
   z-index: 1000;
 }
@@ -657,14 +762,32 @@ footer {
 .bottom-nav .tab-btn {
   flex: 1;
   margin: 0 6px;
-  height: 38px;
-  border-radius: 999px;
-  background: #f1f5ff;
+  height: 52px;
+  border-radius: 14px;
+  background: transparent;
   color: #4f46e5;
   font-weight: 700;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  font-size: 0.82rem;
+  padding: 4px 8px;
 }
 
 .bottom-nav .tab-btn.active {
   background: linear-gradient(135deg, #4f46e5, #8b5cf6);
   color: #ffffff;
+  box-shadow: 0 8px 18px rgba(79, 70, 229, 0.25);
+}
+
+.bottom-nav .tab-btn svg {
+  width: 24px;
+  height: 24px;
+  display: block;
+}
+
+.bottom-nav .tab-btn span {
+  line-height: 1;
 }
