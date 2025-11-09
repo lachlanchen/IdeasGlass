@@ -858,8 +858,7 @@ function buildTranscriptCompactItem(item) {
   li.className = 'transcript-compact-item';
   const left = document.createElement('div'); left.className = 'tci-left';
   const text = document.createElement('div'); text.className = 'tci-text'; text.textContent = item.text || '';
-  const time = document.createElement('div'); time.className = 'tci-time'; time.textContent = new Date(item.ended_at || item.started_at || Date.now()).toLocaleTimeString();
-  left.append(text, time);
+  left.append(text);
   left.addEventListener('click', () => openLiveTranscriptDetailPage(item.segment_id));
   const actions = document.createElement('div'); actions.className = 'tci-actions';
   const playBtn = document.createElement('button'); playBtn.type = 'button'; playBtn.className = 'tci-play'; playBtn.textContent = 'Play';
@@ -875,7 +874,11 @@ function buildTranscriptCompactItem(item) {
       if (audioEl.paused) { audioEl.play(); playBtn.textContent = 'Pause'; } else { audioEl.pause(); playBtn.textContent = 'Play'; }
     } catch {}
   });
+  const time = document.createElement('div');
+  time.className = 'tci-time';
+  time.textContent = new Date(item.ended_at || item.started_at || Date.now()).toLocaleTimeString();
   actions.appendChild(playBtn);
+  actions.appendChild(time);
   li.append(left, actions);
   return li;
 }
@@ -1083,6 +1086,14 @@ photoModal?.addEventListener('click', (e) => { if (e.target === photoModal) clos
 // Transcript detail page
 function openLiveTranscriptDetailPage(segmentId) {
   if (!liveTranscriptDetailView) return;
+  // Determine previous visible view
+  try {
+    const wasTranscripts = liveTranscriptsView && !liveTranscriptsView.classList.contains('hidden');
+    state.prevLiveView = wasTranscripts ? 'transcripts' : 'main';
+  } catch { state.prevLiveView = 'main'; }
+  // Hide other Live views
+  if (liveMainView) liveMainView.classList.add('hidden');
+  if (liveTranscriptsView) liveTranscriptsView.classList.add('hidden');
   // ensure audio source
   if (transcriptDetailAudio) {
     transcriptDetailAudio.src = `/api/v1/audio/segments/${segmentId}`;
@@ -1093,10 +1104,6 @@ function openLiveTranscriptDetailPage(segmentId) {
     const data = await res.json();
     renderTranscriptDetail(data);
   }).catch(() => { if (transcriptDetailBody) transcriptDetailBody.textContent = 'Transcript unavailable'; });
-  // If coming from Live main, ensure transcripts page is hidden
-  if (liveTranscriptsView && !liveTranscriptsView.classList.contains('hidden')) {
-    liveTranscriptsView.classList.add('hidden');
-  }
   liveTranscriptDetailView.classList.remove('hidden');
   liveTranscriptDetailView.classList.add('slide-in');
   setTimeout(() => liveTranscriptDetailView.classList.remove('slide-in'), 300);
@@ -1106,6 +1113,17 @@ function closeLiveTranscriptDetailPage() {
   if (!liveTranscriptDetailView) return;
   pauseAllAudio();
   liveTranscriptDetailView.classList.add('hidden');
+  // Restore previous view
+  const prev = state.prevLiveView || 'main';
+  if (prev === 'transcripts' && liveTranscriptsView) {
+    liveTranscriptsView.classList.remove('hidden');
+    liveTranscriptsView.classList.add('slide-in');
+    setTimeout(() => liveTranscriptsView.classList.remove('slide-in'), 300);
+  } else if (liveMainView) {
+    liveMainView.classList.remove('hidden');
+    liveMainView.classList.add('slide-in');
+    setTimeout(() => liveMainView.classList.remove('slide-in'), 300);
+  }
 }
 document.getElementById('liveTranscriptDetailBack')?.addEventListener('click', closeLiveTranscriptDetailPage);
 
