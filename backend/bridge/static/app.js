@@ -51,6 +51,10 @@ const overlayAuthStatus = document.getElementById('overlayAuthStatus');
 const loginOverlay = document.getElementById('loginOverlay');
 const liveGalleryOverlay = document.getElementById('liveGalleryOverlay');
 const liveGalleryBack = document.getElementById('liveGalleryBack');
+const liveTranscriptsView = document.getElementById('liveTranscriptsView');
+const liveTranscriptsBack = document.getElementById('liveTranscriptsBack');
+const transcriptCompactList = document.getElementById('transcriptCompactList');
+const transcriptsMoreCompactBtn = document.getElementById('transcriptsMoreCompactBtn');
 const ideasBackBtn = document.getElementById('ideasBackBtn');
 const currentEmail = document.getElementById("currentEmail");
 const currentDevices = document.getElementById("currentDevices");
@@ -1340,7 +1344,3 @@ bindBtn?.addEventListener("click", async () => {
 // Show current account on load
 refreshAccount();
 // Live transcripts page elements
-const transcriptCompactList = document.getElementById('transcriptCompactList');
-const transcriptsMoreCompactBtn = document.getElementById('transcriptsMoreCompactBtn');
-const liveTranscriptsView = document.getElementById('liveTranscriptsView');
-const liveTranscriptsBack = document.getElementById('liveTranscriptsBack');
