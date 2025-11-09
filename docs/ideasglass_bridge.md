@@ -138,4 +138,97 @@ For debugging, the PWA logs `[IdeasGlass][wave] …` entries to the browser cons
 - **Arduino cannot connect:** ensure  is running, host is reachable, and the Wi-Fi credentials are correct. Serial logs will show HTTP responses; status code `200` confirms success.
 - **PWA offline:** check `https://localhost:8765/healthz`; if offline, restart uvicorn/.
 
-The logs shown earlier confirm the full pipeline works: Arduino sends `"Hello from IdeasGlass @ {n}s"` every ~20s, backend persists/broadcasts it, and the PWA shows the live feed. Keep both uvicorn and  terminals open for continuous testing.
+The logs shown earlier confirm the full pipeline works: Arduino sends `"Hello from IdeasGlass @ {n}s"` every ~20s, backend persists/broadcasts it, and the PWA shows the live feed. Keep both uvicorn and ngrok terminals open for continuous testing.
+
+---
+
+## 6. ESP32 connectivity + TLS checklist (what we fixed)
+
+This subsection documents the issues we saw in the field and the exact firmware/back‑end settings that resolved them.
+
+### Symptoms
+
+- ESP32 serial showed repeated `[WS] Connect failed … /ws/photo-ingest` and `[Audio] Send queue full, dropping chunk`.
+- Occasional lwIP assert after NTP attempts: `assert failed: udp_new_ip_type … Required to lock TCPIP core functionality!` (reboot loop).
+- ngrok console reported intermittent `422 Unprocessable Entity` on `POST /api/v1/messages`.
+
+### Root causes
+
+- TLS time not set yet on cold boot: cert validation fails until NTP sets the RTC.
+- SNTP initialized from the wrong thread context: calling into lwIP from the app thread can trip UDP pcb asserts on ESP‑IDF.
+- Photo payload `meta` typed as numbers: backend schema expects `Dict[str, str]`.
+- Access point friction for 2.4 GHz joins: re‑begin while associating and random BSSID choice cause flakiness on some routers.
+
+### Firmware fixes (already applied)
+
+- NTP on the TCP/IP core: SNTP init is posted via `tcpip_callback`, with Cloudflare/Google/pool servers; falls back to the LAN gateway IP if available. Logs show `[Time] SNTP synced: …` when ready.
+- Robust Wi‑Fi association: fully reset the radio between attempts, scan and prefer the strongest BSSID/channel for the target SSID, then re‑enable Wi‑Fi sleep once connected.
+- WS pings gated while offline: avoid noisy reconnect spam when STA is down.
+- Photo meta as strings: `battery_v` and `battery_pct` are sent as strings to satisfy Pydantic’s `Dict[str, str]`.
+- Autostart on upload/charge: `REQUIRE_LONG_PRESS_ON_BOOT=false` so flashing or charging boots normally; long‑press to deep sleep still works in run mode.
+
+Relevant files:
+
+- `IdeaGlass/firmware/ideasglass_arduino/IdeasGlassClient/IdeasGlassClient.ino`
+- `IdeaGlass/firmware/ideasglass_arduino/config.h`
+
+### Router/AP settings (dd‑wrt)
+
+- 2.4 GHz SSID must be enabled (ESP32 is 2.4 GHz only).
+- Security: WPA2‑Personal (AES). Disable WPA3‑SAE and set PMF to Disabled/Optional.
+- Channel: fixed 1/6/11 at 20 MHz; avoid channels 12/13 unless the regulatory domain requires them.
+- SSID broadcast enabled; MAC filter off (or allow the device MAC).
+- For public domain access from LAN: enable NAT loopback (a.k.a. hairpin NAT).
+- Allow outbound UDP/123 (NTP) to the Internet or provide an NTP service on the gateway.
+
+### ngrok/edge observations
+
+- ngrok showed `GET /ws/audio-ingest 101 Switching Protocols` ⇒ WSS reachable end‑to‑end.
+- `422 Unprocessable Entity` on `/api/v1/messages` was caused by meta typing; fixed as above.
+- If WSS from ESP32 becomes unstable on the WAN path, photos continue via HTTP fallback. Audio currently prefers WS only; you can optionally enable HTTP fallback to `/api/v1/audio` to eliminate rare stalls.
+
+### Verify end‑to‑end
+
+1) Backend
+
+- `uvicorn backend.bridge.app:app --host 0.0.0.0 --port 8765 --proxy-headers --forwarded-allow-ips="*"`
+- `curl http://localhost:8765/healthz` returns 200.
+- Logs show `/ws/stream` and, when device connects, `/ws/audio-ingest`.
+
+2) Firmware build/upload (Arduino CLI)
+
+```bash
+FQBN=esp32:esp32:XIAO_ESP32S3
+bin/arduino-cli compile --fqbn $FQBN --board-options PSRAM=opi IdeaGlass/firmware/ideasglass_arduino/IdeasGlassClient
+bin/arduino-cli upload  -p /dev/ttyACM0 --fqbn $FQBN --board-options PSRAM=opi IdeaGlass/firmware/ideasglass_arduino/IdeasGlassClient
+```
+
+3) Serial monitor (pyserial)
+
+```bash
+python3 - <<'PY'
+import serial, sys
+s=serial.Serial('/dev/ttyACM0',115200,timeout=0.5)
+try:
+  while True:
+    line=s.readline()
+    if line: sys.stdout.buffer.write(line); sys.stdout.flush()
+except KeyboardInterrupt:
+  pass
+finally:
+  s.close()
+PY
+```
+
+Expect to see (in order):
+
+- `[WiFi] Connected (dd-wrt, RSSI -XX)` and `IP: …`
+- `[Time] SNTP synced: …`
+- `[PhotoUpload] send result: OK (… chars)`
+- For audio: backend shows `/ws/audio-ingest 101`; the PWA waveform and “Recent transcripts” update in near‑real‑time.
+
+### Known limitations / options
+
+- If corporate or campus networks block UDP/123, NTP sync will timeout; use the gateway fallback or open NTP.
+- If WSS still hiccups on the WAN path, enable audio HTTP fallback in firmware to POST chunks to `/api/v1/audio` when WS send fails.
+- The device remembers the last email for the PWA login overlay; session auth uses HTTP‑only cookies.
