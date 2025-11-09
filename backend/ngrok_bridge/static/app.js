@@ -132,11 +132,12 @@ function initWaveformBars() {
 
 function computeLevel(chunk) {
   const rms = Math.max(0, Number(chunk?.rms || 0));
-  // Gentle VU mapping: ignore tiny noise, compress speech range heavily.
-  // Typical RMS ~0.02–0.06 -> level ~0.05–0.25 (small change on UI).
-  const adjusted = Math.max(0, rms - 0.01);
-  const level = Math.min(1, adjusted * 5);
-  return level;
+  // Amplified VU mapping: small noise floor, strong gain so cough/speech spike visibly.
+  // Example: 0.02 -> ~0.11, 0.06 -> ~0.67, 0.10 -> ~1.12 (clamped to 1).
+  const noiseFloor = 0.012;
+  const gain = 14.0;
+  const level = Math.max(0, (rms - noiseFloor) * gain);
+  return Math.min(1, level);
 }
 
 function updateWaveformBars() {
