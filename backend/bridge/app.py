@@ -31,7 +31,7 @@ from fastapi import (
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import BaseModel, Field, ValidationError, EmailStr
 import webrtcvad
 def _inject_cudnn_library_path() -> None:
     if os.name != "posix":
@@ -231,8 +231,8 @@ class AudioTranscriptOut(BaseModel):
 
 
 class RegisterIn(BaseModel):
-    email: str
-    password: str
+    email: EmailStr
+    password: str = Field(min_length=8, max_length=128)
 
 
 class AuthOut(BaseModel):
@@ -241,12 +241,18 @@ class AuthOut(BaseModel):
 
 
 class LoginIn(BaseModel):
-    email: str
+    email: EmailStr
     password: str
 
 
 class DeviceBindIn(BaseModel):
     device_id: str
+
+
+class MeOut(BaseModel):
+    user_id: str
+    email: str
+    devices: List[str]
 
 
 @dataclass
@@ -596,6 +602,21 @@ async def login(payload: LoginIn, response: Response):
 async def logout(response: Response):
     response.delete_cookie(SESSION_COOKIE, path="/")
     return {"ok": True}
+
+
+@app.get("/api/v1/auth/me", response_model=MeOut)
+async def auth_me(request: Request):
+    uid = await _current_user_id(request)
+    if not uid:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    if not db_pool:
+        raise HTTPException(status_code=503, detail="Requires DATABASE_URL")
+    async with db_pool.acquire() as conn:
+        row = await conn.fetchrow("SELECT id, email FROM ig_users WHERE id=$1", uid)
+    if not row:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    devices = await _bound_devices(uid)
+    return MeOut(user_id=row["id"], email=row["email"], devices=devices)
 
 
 @app.get("/api/v1/devices")

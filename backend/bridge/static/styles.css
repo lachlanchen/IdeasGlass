@@ -12,7 +12,8 @@ body {
   flex-direction: column;
   background: linear-gradient(160deg, #f7faff 0%, #eef2fb 45%, #fdf6ff 100%);
   /* generous space for bottom nav + mobile safe area */
-  padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px));
+  /* Keep content just above the bottom nav; minimal gap */
+  padding-bottom: calc(70px + env(safe-area-inset-bottom, 0px));
 }
 
 header {
@@ -298,7 +299,7 @@ main {
 
 .waveform {
   position: relative;
-  height: clamp(140px, 28vh, 220px);
+  height: clamp(70px, 14vh, 110px);
   border-radius: 20px;
   background: radial-gradient(circle at 20% 20%, rgba(147, 197, 253, 0.4), transparent 55%),
     radial-gradient(circle at 80% 0%, rgba(167, 139, 250, 0.35), transparent 60%),
@@ -748,8 +749,8 @@ footer {
 .bottom-nav {
   position: fixed;
   left: 0; right: 0; bottom: 0;
-  height: 64px;
-  padding: 6px 8px calc(6px + env(safe-area-inset-bottom, 0px));
+  height: 60px;
+  padding: 4px 6px calc(4px + env(safe-area-inset-bottom, 0px));
   display: flex;
   align-items: center;
   justify-content: space-around;
@@ -757,13 +758,14 @@ footer {
   backdrop-filter: blur(12px);
   border-top: 1px solid rgba(15, 23, 42, 0.08);
   z-index: 1000;
+  overflow: visible;
 }
 
 .bottom-nav .tab-btn {
   flex: 1;
-  margin: 0 6px;
-  height: 52px;
-  border-radius: 14px;
+  margin: 0 2px; /* tight horizontal margin */
+  min-height: 48px;
+  border-radius: 12px;
   background: transparent;
   color: #4f46e5;
   font-weight: 700;
@@ -771,9 +773,11 @@ footer {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 3px;
-  font-size: 0.82rem;
-  padding: 4px 8px;
+  gap: 1px; /* minimal gap between icon and label */
+  font-size: 0.78rem; /* compact label */
+  padding: 2px 4px; /* minimal inner padding */
+  box-sizing: border-box;
+  overflow: visible;
 }
 
 .bottom-nav .tab-btn.active {
@@ -783,9 +787,16 @@ footer {
 }
 
 .bottom-nav .tab-btn svg {
-  width: 24px;
-  height: 24px;
+  width: 26px;
+  height: 26px;
   display: block;
+  margin-top: 0;
+  transform: translateY(2px);
+}
+
+/* Extra nudge for Ideas icon which has more top mass */
+.bottom-nav .tab-btn[data-tab="ideas"] svg {
+  transform: translateY(3px);
 }
 
 .bottom-nav .tab-btn span {

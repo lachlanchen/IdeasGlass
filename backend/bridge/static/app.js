@@ -33,6 +33,7 @@ const bindBtn = document.getElementById("bindBtn");
 const authStatus = document.getElementById("authStatus");
 const currentEmail = document.getElementById("currentEmail");
 const currentDevices = document.getElementById("currentDevices");
+const accountAvatar = document.getElementById("accountAvatar");
 
 segmentTranscriptClose?.addEventListener("click", () => {
   hideSegmentTranscript();
@@ -362,6 +363,9 @@ function setActiveTab(tab) {
   tabButtons.forEach((btn) => {
     btn.classList.toggle('active', btn.dataset.tab === tab);
   });
+  try {
+    localStorage.setItem('ig.selectedTab', tab);
+  } catch {}
 }
 
 function decorateStatus(connected) {
@@ -909,7 +913,11 @@ if (tabButtons.length) {
   tabButtons.forEach((btn) => {
     btn.addEventListener('click', () => setActiveTab(btn.dataset.tab || 'live'));
   });
-  setActiveTab('live');
+  // Restore previously selected tab (default to live)
+  let saved = null;
+  try { saved = localStorage.getItem('ig.selectedTab'); } catch {}
+  const valid = new Set(['live','ideas','creation','settings']);
+  setActiveTab(valid.has(saved) ? saved : 'live');
 }
 
 // VU variance animator: keep base level but add subtle bar-to-bar/time variance
@@ -964,16 +972,54 @@ function setAuthStatus(msg) {
 }
 
 async function refreshAccount() {
+  let me = null;
   try {
-    const me = await apiGet("/api/v1/auth/me");
-    if (currentEmail) currentEmail.textContent = me?.email ? `Signed in as: ${me.email}` : "";
-    if (Array.isArray(me?.devices)) {
-      if (currentDevices) currentDevices.textContent = me.devices.length ? ` · Devices: ${me.devices.join(", ")}` : "";
-      if (deviceIdInput && !deviceIdInput.value && me.devices.length) deviceIdInput.value = me.devices[0];
+    me = await apiGet("/api/v1/auth/me");
+  } catch {}
+  const authed = Boolean(me && me.email);
+  if (currentEmail) currentEmail.textContent = authed ? (me.email || '') : '';
+  if (accountAvatar) {
+    if (authed && me.email) {
+      const letter = (me.email[0] || 'U').toUpperCase();
+      accountAvatar.textContent = letter;
+      accountAvatar.classList.remove('hidden');
+    } else {
+      accountAvatar.classList.add('hidden');
     }
-  } catch {
-    if (currentEmail) currentEmail.textContent = "";
-    if (currentDevices) currentDevices.textContent = "";
+  }
+  if (currentDevices) {
+    currentDevices.innerHTML = "";
+    if (authed && Array.isArray(me.devices)) {
+      const section = document.createElement('div');
+      section.className = 'device-section';
+      const title = document.createElement('div');
+      title.className = 'device-title';
+      title.textContent = 'Devices';
+      const ul = document.createElement('ul');
+      ul.className = 'device-list';
+      if (me.devices.length === 0) {
+        const empty = document.createElement('div');
+        empty.className = 'account-label';
+        empty.textContent = 'No devices bound';
+        section.append(title, empty);
+      } else {
+        me.devices.forEach((d) => {
+          const li = document.createElement('li');
+          li.className = 'device-item';
+          li.textContent = d;
+          ul.appendChild(li);
+        });
+        section.append(title, ul);
+      }
+      currentDevices.appendChild(section);
+    }
+  }
+  if (authForm) authForm.classList.toggle('hidden', authed);
+  const bindForm = bindBtn ? bindBtn.closest('form') : null;
+  if (bindForm) bindForm.classList.toggle('hidden', !authed);
+  if (authLogoutBtn) authLogoutBtn.classList.toggle('hidden', !authed);
+  if (authed && deviceIdInput && Array.isArray(me.devices) && me.devices.length && !deviceIdInput.value) {
+    deviceIdInput.value = me.devices[0];
   }
 }
 
