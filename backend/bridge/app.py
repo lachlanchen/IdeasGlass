@@ -228,6 +228,7 @@ class AudioTranscriptOut(BaseModel):
     ended_at: str
     chunks: List[TranscriptChunk]
     is_final: bool = False
+    language: Optional[str] = None
 
 
 class RegisterIn(BaseModel):
@@ -1348,6 +1349,7 @@ async def fetch_transcript_by_segment(segment_id: str) -> AudioTranscriptOut | N
         ended_at=row["ended_at"].isoformat(),
         chunks=payload.get("chunks", []),
         is_final=payload.get("is_final", True),
+        language=payload.get("language"),
     )
 
 
@@ -1397,9 +1399,9 @@ class WhisperStreamManager:
         audio = np.frombuffer(pcm_bytes, dtype=np.int16).astype(np.float32) / 32768.0
         return audio
 
-    def _transcribe_sync(self, audio: np.ndarray) -> List[TranscriptChunk]:
+    def _transcribe_sync(self, audio: np.ndarray) -> tuple[List[TranscriptChunk], Optional[str]]:
         if audio.size == 0:
-            return []
+            return ([], None)
         self._ensure_model()
         audio = whisper.pad_or_trim(audio)
         result = self.model.transcribe(
@@ -1422,7 +1424,14 @@ class WhisperStreamManager:
                     end=float(seg.get("end") or 0.0),
                 )
             )
-        return chunks
+        lang = result.get("language") if isinstance(result, dict) else None
+        # Normalize to lowercase 2-3 letter code if present
+        try:
+            if isinstance(lang, str):
+                lang = lang.strip().lower()[:8]
+        except Exception:
+            pass
+        return (chunks, lang)
 
     async def handle_chunk(
         self,
@@ -1529,7 +1538,7 @@ class WhisperStreamManager:
         pcm_payload: bytes,
         is_final: bool,
     ) -> None:
-        chunks = await asyncio.to_thread(
+        chunks, lang = await asyncio.to_thread(
             self._transcribe_sync,
             self._pcm_bytes_to_audio(pcm_payload),
         )
@@ -1542,6 +1551,7 @@ class WhisperStreamManager:
             ended_at=ended_at.isoformat(),
             chunks=chunks,
             is_final=is_final,
+            language=lang,
         )
         if is_final:
             self.history_store.appendleft(transcript)

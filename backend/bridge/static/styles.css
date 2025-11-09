@@ -613,6 +613,19 @@ main {
   font-size: 0.75rem;
 }
 
+.transcript-lang-badge {
+  display: inline-block;
+  align-self: flex-start;
+  margin: 0.15rem 0.25rem 0.25rem 0;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  background: rgba(34, 197, 94, 0.16);
+  color: #166534;
+  font-weight: 700;
+  font-size: 0.78rem;
+  letter-spacing: 0.06em;
+}
+
 #statusPanel {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));

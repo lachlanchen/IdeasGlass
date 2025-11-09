@@ -107,6 +107,7 @@ const state = {
   waveJitterSeeds: [],
   authed: false,
   lastCompactIds: [],
+  transcriptLanguage: null,
 };
 
 // Track any programmatic Audio() players to pause on nav
@@ -665,6 +666,13 @@ function renderTranscript() {
     clearTranscriptDisplay();
     return;
   }
+  // Language badge if available
+  if (state.transcriptLanguage) {
+    const lang = document.createElement('div');
+    lang.className = 'transcript-lang-badge';
+    lang.textContent = String(state.transcriptLanguage).toUpperCase();
+    transcriptPanel.appendChild(lang);
+  }
   if (!state.transcriptFinal) {
     const badge = document.createElement("div");
     badge.className = "transcript-placeholder";
@@ -700,6 +708,7 @@ function renderTranscript() {
 function applyTranscript(entry) {
   if (!entry) return;
   state.activeTranscriptSegmentId = entry.segment_id;
+  state.transcriptLanguage = entry.language || null;
   state.transcriptSegments = (entry.chunks || []).map((chunk) => ({
     speaker: chunk.speaker || "Speaker",
     text: chunk.text || "",
@@ -1372,6 +1381,41 @@ async function apiGet(url) {
   const res = await fetch(url, { credentials: "include" });
   if (!res.ok) throw new Error(`${res.status}`);
   return await res.json();
+}
+
+// Render transcript detail view body (with language)
+function renderTranscriptDetail(data) {
+  if (!transcriptDetailBody) return;
+  const frag = document.createDocumentFragment();
+  // Language badge
+  if (data && data.language) {
+    const lang = document.createElement('div');
+    lang.className = 'transcript-lang-badge';
+    lang.textContent = String(data.language).toUpperCase();
+    frag.appendChild(lang);
+  }
+  // Chunks
+  const chunks = Array.isArray(data?.chunks) ? data.chunks : [];
+  if (!chunks.length) {
+    const p = document.createElement('p');
+    p.textContent = '(no transcript)';
+    frag.appendChild(p);
+  } else {
+    chunks.forEach((c) => {
+      const row = document.createElement('div');
+      row.className = 'segment-transcript-entry';
+      const p = document.createElement('p');
+      p.textContent = c.text || '';
+      const small = document.createElement('small');
+      const start = Number(c.start || 0).toFixed(1);
+      const end = Number(c.end || 0).toFixed(1);
+      small.textContent = `${start}s → ${end}s`;
+      row.append(p, small);
+      frag.appendChild(row);
+    });
+  }
+  transcriptDetailBody.innerHTML = '';
+  transcriptDetailBody.appendChild(frag);
 }
 
 function setAuthStatus(msg) {
