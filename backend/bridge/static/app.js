@@ -3,6 +3,7 @@ const backendStatus = document.getElementById("backendStatus");
 const list = document.getElementById("messageList");
 const logPanelEl = document.getElementById("logPanel");
 const installBtn = document.getElementById("installBtn");
+const batteryStatusEl = document.getElementById("batteryStatus");
 const waveformBars = document.getElementById("waveformBars");
 const waveformEl = document.getElementById("waveform");
 const vadStatusEl = document.getElementById("vadStatus");
@@ -122,6 +123,58 @@ function logWave(event, details = {}) {
   if (AUDIO_LOG_SUPPRESS) return;
   // eslint-disable-next-line no-console
   console.log(`[IdeasGlass][wave] ${event}`, details);
+}
+
+function updateBatteryStatus(pct, volt) {
+  if (!batteryStatusEl) return;
+  let text = '--%';
+  let title = 'Battery';
+  if (typeof pct === 'number' && Number.isFinite(pct)) {
+    text = `${Math.max(0, Math.min(100, Math.round(pct)))}%`;
+  }
+  if (typeof volt === 'number' && Number.isFinite(volt)) {
+    title = `${volt.toFixed(2)} V`;
+  }
+  batteryStatusEl.textContent = `🔋 ${text}`;
+  batteryStatusEl.title = title;
+}
+
+function tryUpdateBatteryFromMeta(meta) {
+  if (!meta) return;
+  let pct = null;
+  let volt = null;
+  try {
+    if (typeof meta === 'string') {
+      // not structured
+      return;
+    }
+    if (typeof meta === 'object') {
+      // Percent can be number or numeric string
+      if (typeof meta.battery_pct === 'number') pct = meta.battery_pct;
+      else if (typeof meta.battery_pct === 'string') {
+        const n = parseInt(meta.battery_pct, 10);
+        if (Number.isFinite(n)) pct = n;
+      }
+      if (typeof meta.battery_percent === 'number') pct = meta.battery_percent;
+      else if (typeof meta.battery_percent === 'string') {
+        const n = parseInt(meta.battery_percent, 10);
+        if (Number.isFinite(n)) pct = n;
+      }
+
+      // Voltage can be number or numeric string
+      if (typeof meta.battery_v === 'number') volt = meta.battery_v;
+      else if (typeof meta.battery_v === 'string') {
+        const v = parseFloat(meta.battery_v);
+        if (Number.isFinite(v)) volt = v;
+      }
+      if (typeof meta.battery_voltage === 'number') volt = meta.battery_voltage;
+      else if (typeof meta.battery_voltage === 'string') {
+        const v = parseFloat(meta.battery_voltage);
+        if (Number.isFinite(v)) volt = v;
+      }
+    }
+  } catch {}
+  if (pct !== null || volt !== null) updateBatteryStatus(pct, volt);
 }
 
 if ("serviceWorker" in navigator) {
@@ -358,6 +411,8 @@ function handleRealtimeMessage(entry) {
   if (!entry) return;
   state.messageBuffer.unshift(entry);
   renderEntry(entry, "top");
+  // Update battery UI if present in meta
+  tryUpdateBatteryFromMeta(entry.meta);
   // Keep the compact gallery in sync with the latest items (microrefresh)
   try { renderCompactGallery && renderCompactGallery(); } catch {}
   if (state.hasManualMessageLoad) {
@@ -790,6 +845,14 @@ function handleHistoryMessages(entries) {
     state.messageOldestTs = null;
   }
   updateLoadMoreButton();
+  // Try to seed battery status from latest entries with battery meta
+  for (let i = 0; i < state.messageBuffer.length && i < 10; i += 1) {
+    const m = state.messageBuffer[i];
+    if (m && m.meta) {
+      tryUpdateBatteryFromMeta(m.meta);
+      break;
+    }
+  }
 }
 
 function handleHistoryAudio(entries) {
