@@ -29,7 +29,21 @@ def test_model(model, device: str) -> None:
     audio = whisper.pad_or_trim(audio)
     mel = whisper.log_mel_spectrogram(audio).to(device)
     with torch.no_grad():
-        _ = model.encode(mel)
+        # Newer openai/whisper exposes encoder as a submodule; some forks had encode().
+        # Try encoder first; fall back to encode() or a tiny transcribe if needed.
+        try:
+            _ = model.encoder(mel)
+        except AttributeError:
+            if hasattr(model, "encode"):
+                _ = model.encode(mel)  # type: ignore[attr-defined]
+            else:
+                _ = model.transcribe(
+                    audio,
+                    verbose=False,
+                    fp16=(device == "cuda"),
+                    temperature=0.0,
+                    condition_on_previous_text=False,
+                )
 
 
 def main() -> int:
@@ -65,4 +79,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

@@ -47,6 +47,7 @@ const state = {
   transcriptOldestEndedAt: null,
   lastAudioAt: 0,
   micActive: false,
+  lastLevel: 0,
 };
 
 let loadMoreObserver = null;
@@ -131,10 +132,11 @@ function initWaveformBars() {
 
 function computeLevel(chunk) {
   const rms = Math.max(0, Number(chunk?.rms || 0));
-  // Map typical RMS 0.02–0.06 into ~0.1–0.6 range without saturating
-  const scaled = Math.sqrt(rms * 4); // 0.04 -> ~0.4
-  const speechBoost = chunk?.speech_detected ? 0.08 : 0;
-  return Math.min(1, Math.max(0.02, scaled + speechBoost));
+  // Map typical RMS 0.02–0.06 into a visible range without saturating.
+  // Slightly stronger scaling + floor for low-level input.
+  const scaled = Math.sqrt(rms * 6); // 0.04 -> ~0.49
+  const speechBoost = chunk?.speech_detected ? 0.1 : 0;
+  return Math.min(1, Math.max(0.03, scaled + speechBoost));
 }
 
 function updateWaveformBars() {
@@ -376,7 +378,14 @@ function addAudioSample(chunk) {
   if (state.waveformLevels.length >= state.waveformLimit) {
     state.waveformLevels.shift();
   }
-  state.waveformLevels.push(computeLevel(chunk));
+  // Smooth the level a bit so the bars have visible motion
+  const instant = computeLevel(chunk);
+  const prev = state.waveformLevels[state.waveformLevels.length - 1] ?? state.lastLevel ?? 0;
+  // Favor responsiveness over accuracy; faster rise, mild smoothing
+  const alpha = chunk?.speech_detected ? 0.85 : 0.7; // higher alpha -> more responsive
+  const smoothed = Math.min(1, Math.max(0.03, prev * (1 - alpha) + instant * alpha));
+  state.lastLevel = smoothed;
+  state.waveformLevels.push(smoothed);
   updateWaveformBars();
   updateVadStatus(chunk);
   updateRecordingTimer(chunk);
@@ -844,3 +853,19 @@ if (logPanelEl) {
 } else {
   window.addEventListener("scroll", handleGlobalScroll);
 }
+
+// Gentle decay so bars don’t freeze between chunks; no audio -> slow falloff
+setInterval(() => {
+  const now = Date.now();
+  if (now - (state.lastAudioAt || 0) < 250) return; // recent chunk, skip
+  if (!state.waveBars.length) return;
+  const prev = state.waveformLevels[state.waveformLevels.length - 1] ?? state.lastLevel ?? 0;
+  // Faster decay to feel snappier when speech stops
+  const decayed = Math.max(0.03, prev * 0.92);
+  if (state.waveformLevels.length >= state.waveformLimit) {
+    state.waveformLevels.shift();
+  }
+  state.waveformLevels.push(decayed);
+  state.lastLevel = decayed;
+  updateWaveformBars();
+}, 100);
