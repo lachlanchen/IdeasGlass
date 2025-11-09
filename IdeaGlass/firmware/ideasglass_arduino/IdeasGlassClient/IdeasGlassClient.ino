@@ -7,6 +7,9 @@
 #include <math.h>
 #include <ESP_I2S.h>
 #include "esp_system.h"
+#include <time.h>
+#include "lwip/apps/sntp.h"
+#include "lwip/tcpip.h"
 #include <freertos/FreeRTOS.h>
 #include <freertos/queue.h>
 #include <freertos/task.h>
@@ -123,6 +126,9 @@ static I2SClass pdmI2S;
 bool audioInitialized = false;
 static QueueHandle_t g_audioQueue = nullptr;
 static TaskHandle_t g_audioSenderHandle = nullptr;
+static bool g_timeSynced = false;
+static bool g_ntpStarted = false;
+static char g_ntpGwAddr[32] = {0};
 
 void initAudioStreamer();
 void audioSenderTask(void *param);
@@ -144,8 +150,159 @@ bool enqueuePhotoUploadJob(const String &message, const String &rssi, const Stri
 #endif
 
 // ---------------------------------------------------------------------------
+// Power/UX (button + status LED)
+// ---------------------------------------------------------------------------
+
+static bool btnPressed = false;
+static unsigned long btnDownAt = 0;
+static bool offInitiated = false;
+
+inline void ledOn()  { digitalWrite(PIN_STATUS_LED, LOW); }
+inline void ledOff() { digitalWrite(PIN_STATUS_LED, HIGH); }
+
+static void blinkStatus(unsigned count, unsigned onMs = 120, unsigned offMs = 120)
+{
+    for (unsigned i = 0; i < count; ++i) {
+        ledOn();  delay(onMs);
+        ledOff(); delay(offMs);
+    }
+}
+
+static void goDeepSleep()
+{
+    // Visual confirmation
+    blinkStatus(3, 80, 120);
+    WiFi.disconnect(true);
+    WiFi.mode(WIFI_OFF);
+    // Wake on button low (PIN must be RTC IO on the S3; XIAO ESP32S3 BUTTON is RTC-capable)
+    esp_sleep_enable_ext0_wakeup(PIN_BUTTON, 0);
+    Serial.println("[Power] Entering deep sleep. Hold button ~0.8s to start.");
+    delay(50);
+    esp_deep_sleep_start();
+}
+
+// ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
+
+static void sntpInitCb(void *arg)
+{
+    // (Re)start SNTP on the TCP/IP core thread to satisfy lwIP locking
+    sntp_stop();
+    sntp_setoperatingmode(SNTP_OPMODE_POLL);
+    sntp_setservername(0, (char *)"time.cloudflare.com");
+    sntp_setservername(1, (char *)"time.google.com");
+    sntp_setservername(2, (char *)"pool.ntp.org");
+    sntp_init();
+}
+
+static void sntpInitWithGatewayCb(void *arg)
+{
+    const char *gw = (g_ntpGwAddr[0] ? g_ntpGwAddr : (const char *)arg);
+    sntp_stop();
+    sntp_setoperatingmode(SNTP_OPMODE_POLL);
+    sntp_setservername(0, (char *)gw);
+    sntp_init();
+}
+
+static bool ensureTimeSynced(unsigned long totalTimeoutMs = 12000)
+{
+    if (g_timeSynced) return true;
+    // Optional: force TZ to UTC to avoid surprises
+    setenv("TZ", "UTC0", 1);
+    tzset();
+
+    if (!g_ntpStarted) {
+        // Start SNTP from the TCP/IP core thread to avoid lwIP UDP asserts
+        tcpip_callback(&sntpInitCb, nullptr);
+        g_ntpStarted = true;
+    }
+
+    unsigned long start = millis();
+    struct tm tinfo;
+    while (millis() - start < totalTimeoutMs) {
+        if (getLocalTime(&tinfo, 1000)) {
+            g_timeSynced = true;
+            Serial.printf("[Time] SNTP synced: %04d-%02d-%02d %02d:%02d:%02d\n",
+                          tinfo.tm_year + 1900, tinfo.tm_mon + 1, tinfo.tm_mday,
+                          tinfo.tm_hour, tinfo.tm_min, tinfo.tm_sec);
+            break;
+        }
+        Serial.println("[Time] Waiting for NTP...");
+    }
+    if (!g_timeSynced) {
+        // Fallback: try router/gateway as NTP server if it provides service
+        IPAddress gw = WiFi.gatewayIP();
+        if (gw) {
+            snprintf(g_ntpGwAddr, sizeof(g_ntpGwAddr), "%u.%u.%u.%u", gw[0], gw[1], gw[2], gw[3]);
+            Serial.printf("[Time] Trying gateway as NTP server: %s\n", g_ntpGwAddr);
+            tcpip_callback(&sntpInitWithGatewayCb, nullptr);
+            // wait a shorter grace period
+            unsigned long s2 = millis();
+            while (millis() - s2 < 6000) {
+                if (getLocalTime(&tinfo, 1000)) {
+                    g_timeSynced = true;
+                    Serial.printf("[Time] SNTP via gateway synced: %04d-%02d-%02d %02d:%02d:%02d\n",
+                                  tinfo.tm_year + 1900, tinfo.tm_mon + 1, tinfo.tm_mday,
+                                  tinfo.tm_hour, tinfo.tm_min, tinfo.tm_sec);
+                    break;
+                }
+                Serial.println("[Time] Waiting for NTP (gw)...");
+            }
+        }
+        if (!g_timeSynced) {
+            Serial.println("[Time] NTP sync timed out; TLS may fail until time is set");
+        }
+    }
+    return g_timeSynced;
+}
+
+static bool connectToApWithScan(const char *ssid, const char *password)
+{
+    // Hard reset the Wi-Fi state machine between attempts
+    WiFi.disconnect(true, true);
+    delay(150);
+    WiFi.mode(WIFI_OFF);
+    delay(150);
+    WiFi.mode(WIFI_STA);
+    WiFi.setSleep(false); // keep radio active during association
+
+    // Scan and prefer the strongest BSSID for the requested SSID
+    int n = WiFi.scanNetworks(/*async*/ false, /*show_hidden*/ true);
+    uint8_t bestBssid[6] = {0};
+    int bestChannel = 0;
+    int bestRssi = -999;
+    for (int i = 0; i < n; ++i) {
+        String s = WiFi.SSID(i);
+        if (s == ssid) {
+            int rssi = WiFi.RSSI(i);
+            int ch = WiFi.channel(i);
+            uint8_t *b = WiFi.BSSID(i);
+            if (rssi > bestRssi) {
+                bestRssi = rssi;
+                bestChannel = ch;
+                memcpy(bestBssid, b, 6);
+            }
+        }
+    }
+
+    if (bestRssi > -999) {
+        Serial.printf("[WiFi] Using BSSID %02X:%02X:%02X:%02X:%02X:%02X ch %d for %s (RSSI %d)\n",
+                      bestBssid[0], bestBssid[1], bestBssid[2], bestBssid[3], bestBssid[4], bestBssid[5],
+                      bestChannel, ssid, bestRssi);
+        WiFi.begin(ssid, password, bestChannel, bestBssid, true);
+    } else {
+        Serial.println("[WiFi] SSID not found in scan; attempting generic connect");
+        WiFi.begin(ssid, password);
+    }
+
+    unsigned long start = millis();
+    while (WiFi.status() != WL_CONNECTED && millis() - start < 20000) {
+        delay(250);
+    }
+    WiFi.setSleep(true); // re-enable power save once associated
+    return WiFi.status() == WL_CONNECTED;
+}
 
 bool initCamera()
 {
@@ -226,6 +383,31 @@ bool encodeBase64(const uint8_t *data, size_t length, String &outString)
     outString = String((char *)encoded);
     free(encoded);
     return true;
+}
+
+// ---------------------------------------------------------------------------
+// Battery reading (simple ADC based on divider ratio)
+// ---------------------------------------------------------------------------
+
+static float readBatteryVoltage()
+{
+    // ESP32-S3 ADC is not perfectly linear; this is a simple estimate
+    uint16_t raw = analogRead(PIN_BATTERY_ADC);
+    // Default ADC ref ~3.3V at 12-bit; with 11dB attenuation the range extends,
+    // but for a quick estimate we keep proportional scaling.
+    float vAdc = (raw / 4095.0f) * 3.3f;
+    float vBat = vAdc * kVoltageDividerRatio;
+    return vBat;
+}
+
+static int batteryPercentFromVoltage(float v)
+{
+    float cl = v;
+    if (cl < kBatteryMinVoltage) cl = kBatteryMinVoltage;
+    if (cl > kBatteryMaxVoltage) cl = kBatteryMaxVoltage;
+    float pct = (cl - kBatteryMinVoltage) / (kBatteryMaxVoltage - kBatteryMinVoltage) * 100.0f;
+    if (pct < 0) pct = 0; if (pct > 100) pct = 100;
+    return static_cast<int>(pct + 0.5f);
 }
 
 class SimpleWebSocketClient
@@ -509,8 +691,10 @@ void photoUploadTask(void *param)
             // No job; send a ping if interval elapsed to keep WS alive
             TickType_t now = xTaskGetTickCount();
             if (now - lastPing >= pingInterval) {
-                if (!g_photoWsClient.sendPing()) {
-                    // Silent; next job will trigger reconnect logic
+                if (WiFi.isConnected()) {
+                    if (!g_photoWsClient.sendPing()) {
+                        // Silent; next job will trigger reconnect logic
+                    }
                 }
                 lastPing = now;
             }
@@ -696,15 +880,12 @@ void connectToWiFi()
     for (size_t i = 0; i < WIFI_NETWORK_COUNT; ++i) {
         const auto &cred = WIFI_NETWORKS[i];
         Serial.printf(" -> SSID %s\n", cred.ssid);
-        WiFi.begin(cred.ssid, cred.password);
-        unsigned long start = millis();
-        while (WiFi.status() != WL_CONNECTED && millis() - start < 15000) {
-            Serial.print(".");
-            delay(400);
-        }
-        if (WiFi.status() == WL_CONNECTED) {
+        bool ok = connectToApWithScan(cred.ssid, cred.password);
+        if (ok) {
             Serial.printf("\n[WiFi] Connected (%s, RSSI %d)\n", WiFi.SSID().c_str(), WiFi.RSSI());
             Serial.printf("IP: %s\n", WiFi.localIP().toString().c_str());
+            // Ensure we have valid time before any TLS activity
+            ensureTimeSynced();
 #if ENABLE_PHOTO_CAPTURE
             // Re-begin photo socket after reconnect so ensureConnected has fresh TLS context
             g_photoWsClient.begin(kServerHost, kServerPort, kPhotoWsPath, ideas_cert, "ideasglass-photo");
@@ -717,9 +898,12 @@ void connectToWiFi()
 
 String buildMessageBody(const String &message, const String &metaValue, const String *photoBase64)
 {
+    float vb = readBatteryVoltage();
+    int bp = batteryPercentFromVoltage(vb);
     String body = String("{\"device_id\":\"") + kDeviceId + "\","
                    "\"message\":\"" + message + "\","
-                   "\"meta\":{\"rssi\":\"" + metaValue + "\"}";
+                   // meta values as strings to satisfy backend schema Dict[str, str]
+                   "\"meta\":{\"rssi\":\"" + metaValue + "\",\"battery_v\":\"" + String(vb, 2) + "\",\"battery_pct\":\"" + String(bp) + "\"}";
     if (photoBase64 && photoBase64->length() > 0) {
         body += ",\"photo_base64\":\"" + *photoBase64 + "\",\"photo_mime\":\"image/jpeg\"";
     }
@@ -793,7 +977,44 @@ void setup()
     Serial.printf("Device ID: %s\n", kDeviceId);
     Serial.printf("Chip MAC: %s\n", WiFi.macAddress().c_str());
 
+    // Init LED/button
+    pinMode(PIN_STATUS_LED, OUTPUT);
+    ledOff();
+    pinMode(PIN_BUTTON, INPUT_PULLUP);
+
+    // Hold-to-start gating is optional; for charging/dev, skip gate and auto-boot
+    if (REQUIRE_LONG_PRESS_ON_BOOT) {
+        // Require long press only on cold power-on resets; skip after uploads (SW reset)
+        esp_reset_reason_t rr = esp_reset_reason();
+        bool coldBoot = (rr == ESP_RST_POWERON);
+        if (coldBoot) {
+            if (digitalRead(PIN_BUTTON) == LOW) {
+                unsigned long t0 = millis();
+                while (digitalRead(PIN_BUTTON) == LOW) {
+                    // Fast blink to indicate hold-to-start window
+                    ledOn();  delay(60);
+                    ledOff(); delay(60);
+                    if (millis() - t0 >= LONG_PRESS_BOOT_MS) break;
+                }
+                if (millis() - t0 < LONG_PRESS_BOOT_MS) {
+                    goDeepSleep();
+                }
+            } else {
+                // Not holding at power-up → sleep until held
+                goDeepSleep();
+            }
+        } else {
+            // After upload/reset via RTS/DTR, boot normally like Arduino
+            ledOff();
+        }
+    } else {
+        // No boot hold; always continue
+        ledOff();
+    }
+
     WiFi.mode(WIFI_MODE_STA);
+    WiFi.persistent(false);
+    WiFi.setAutoReconnect(true);
     WiFi.setSleep(true);
     connectToWiFi();
 
@@ -822,6 +1043,21 @@ void loop()
         connectToWiFi();
         delay(2000);
         return;
+    }
+
+    // Long press to power off during run
+    int b = digitalRead(PIN_BUTTON);
+    unsigned long now = millis();
+    if (b == LOW && !btnPressed) {
+        btnPressed = true;
+        btnDownAt = now;
+    } else if (b == LOW && btnPressed) {
+        if (!offInitiated && (now - btnDownAt) >= LONG_PRESS_OFF_MS) {
+            offInitiated = true;
+            goDeepSleep();
+        }
+    } else if (b == HIGH && btnPressed) {
+        btnPressed = false;
     }
 
     handleAudioStreaming();

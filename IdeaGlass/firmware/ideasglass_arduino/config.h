@@ -38,6 +38,9 @@ constexpr gpio_num_t PIN_HAPTIC_INT = GPIO_NUM_6;
 constexpr uint32_t LONG_PRESS_BOOT_MS = 800;   // hold on boot to continue startup
 constexpr uint32_t LONG_PRESS_OFF_MS  = 2500;  // hold during run to enter deep sleep
 
+// Require hold-to-start on boot? Set to true for wearable UX, false for dev/charging.
+constexpr bool REQUIRE_LONG_PRESS_ON_BOOT = false;
+
 // ---------------------------------------------------------------------------
 // Battery sensing
 // ---------------------------------------------------------------------------
