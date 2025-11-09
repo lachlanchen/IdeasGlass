@@ -96,6 +96,45 @@ Notes
 - If upload fails with “port busy”, free it: `fuser -k /dev/ttyACM0` and retry.
 - If you prefer the full firmware instead of the HTTPS client demo, open or point the CLI to `IdeasGlassFirmware.ino` and use the same board options.
 
+## Controls & Indicators
+
+On the Seeed XIAO ESP32S3 Sense we use the single on‑board button and status LED:
+
+- Button (GPIO1, `PIN_BUTTON`):
+  - Hold ~0.8s at power‑on to boot the device.
+  - Hold ~2.5s while running to enter deep sleep.
+  - Short press while running triggers an immediate photo capture in the full firmware.
+  - Electrical: internal pull‑up; active‑low; RTC‑capable so it can wake from deep sleep via EXT0.
+- Status LED (GPIO21, `PIN_STATUS_LED`):
+  - Active‑low (LOW = on, HIGH = off).
+  - Fast blink during the boot‑hold window; triple‑blink on stop/sleep.
+
+Haptics (optional)
+- DRV2605 on I²C signals; `PIN_HAPTIC_INT = GPIO6` for the device interrupt (optional), configured in code.
+
+## Pin Map (quick reference)
+
+These are the key interfaces used by the firmware (see `config.h` for the authoritative mapping):
+
+- Camera (OV2640 on Sense):
+  - XCLK GPIO10, PCLK GPIO13, VSYNC GPIO38, HREF GPIO47
+  - D0..D7 ⇒ GPIO15,17,18,16,14,12,11,48 (see `IdeasGlass*` sketches)
+  - SCCB (I²C to camera): SDA GPIO40, SCL GPIO39
+- Microphone (PDM on Sense): CLK GPIO42, DATA GPIO41
+- I²C bus (shared): SDA GPIO41, SCL GPIO40 (camera SCCB and DRV2605 can coexist)
+- Battery ADC: GPIO2 via voltage divider (see `kVoltageDividerRatio`)
+- Button: GPIO1 (active‑low, RTC wake)
+- Status LED: GPIO21 (active‑low)
+- Haptic INT (optional): GPIO6
+
+Spare IO considerations
+- Many pins are occupied by camera and PDM mic on the Sense board. If you add external buttons/LEDs, prefer unused pads on an expansion base (e.g., XIAO ESP32S3 Plus Base) and avoid camera/mic pins.
+- For wake‑from‑sleep via button, ensure the button uses an RTC‑capable GPIO and EXT0/EXT1 is configured appropriately.
+
+See also
+- Seeed Studio XIAO ESP32S3 (Sense) docs and schematics under `seeed_studio_xiao_esp32s3_dev/`
+- BasedHardware OmiGlass firmware wiring (reference): `OmiGlassReference/omiGlass/firmware/ideasglass_arduino/`
+
 ### Wi-Fi test sketch
 
 `WifiTest/WifiTest.ino` is a standalone sketch that only verifies Wi-Fi credentials:
