@@ -26,6 +26,12 @@
   <img src="figs/ideas.lazying.art_main.png" alt="IdeasGlass main dashboard" width="50%" />
 </p>
 
+<p align="center">
+  <img src="figs/ideasglass_app_and_hardware.png" alt="IdeasGlass app (left) and hardware (right)" width="85%" />
+  <br/>
+  <sub>App UI (left) · Hardware (right)</sub>
+</p>
+
 Explore community experiments at <a href="https://onlyideas.art">onlyideas.art</a>.
 
 ## Why IdeasGlass
