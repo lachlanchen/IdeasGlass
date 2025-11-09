@@ -48,6 +48,9 @@ constexpr unsigned long kBatterySampleIntervalMs = 30'000;
 constexpr unsigned long kTelemetryIntervalMs = 2'000;
 constexpr unsigned long kPhotoIntervalMs = 15'000;
 
+// Suppress verbose audio logs on firmware (per-chunk prints)
+constexpr bool kAudioLogSuppress = true;
+
 // ---------------------------------------------------------------------------
 // Wi-Fi / Backend
 // ---------------------------------------------------------------------------

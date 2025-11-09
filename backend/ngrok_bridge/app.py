@@ -1297,7 +1297,7 @@ async def _flush_segment_state(state: AudioSegmentBuffer) -> None:
     relative_path = _relativize_path(disk_path)
     record.file_path = relative_path
     await persist_audio_segment(record, wav_payload, relative_path)
-    print(
+    audio_log(
         f"[Audio] Saved segment {record.id} for {record.device_id} "
         f"({record.duration_ms} ms, avg RMS {record.rms:.3f})"
     )
@@ -1489,7 +1489,7 @@ async def process_audio_payload(payload: AudioChunkIn) -> AudioChunkOut:
         persist_audio_chunk(chunk, raw_audio),
         "persist_audio_chunk",
     )
-    print(
+    audio_log(
         "[Audio] Forward chunk "
         f"{chunk.device_id}#{chunk.id} rms={chunk.rms:.4f} speech={speech_detected} "
         f"segment={chunk.active_segment_id or 'n/a'} progress={chunk.segment_duration_ms or 0}ms"
@@ -1769,3 +1769,14 @@ async def append_chunk_to_file(state: AudioSegmentBuffer, raw_audio: bytes) -> N
         await asyncio.to_thread(_append, state.temp_path, raw_audio)
     except Exception as exc:
         print(f"[Audio] Failed to append segment {state.segment_id}: {exc}")
+def _env_flag(name: str, default: bool = True) -> bool:
+    val = os.getenv(name)
+    if val is None:
+        return default
+    return str(val).strip().lower() not in {"0", "false", "no", "off"}
+
+AUDIO_LOG_SUPPRESS = _env_flag("IDEASGLASS_AUDIO_LOG_SUPPRESS", True)
+
+def audio_log(msg: str) -> None:
+    if not AUDIO_LOG_SUPPRESS:
+        print(msg)

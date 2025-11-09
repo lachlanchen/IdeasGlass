@@ -44,7 +44,9 @@ let loadMoreObserver = null;
 
 state.waveformLevels = Array(state.waveformLimit).fill(0);
 
+const AUDIO_LOG_SUPPRESS = true;
 function logWave(event, details = {}) {
+  if (AUDIO_LOG_SUPPRESS) return;
   // eslint-disable-next-line no-console
   console.log(`[IdeasGlass][wave] ${event}`, details);
 }

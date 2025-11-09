@@ -550,7 +550,9 @@ void audioSenderTask(void *param)
     while (true) {
         if (g_audioQueue && xQueueReceive(g_audioQueue, &packet, portMAX_DELAY) == pdTRUE) {
             bool ok = sendAudioChunkPacket(packet);
-            Serial.printf("[Audio] chunk #%u %s (rms=%.3f)\n", packet.sequence, ok ? "sent" : "FAILED", packet.rms);
+            if (!kAudioLogSuppress) {
+                Serial.printf("[Audio] chunk #%u %s (rms=%.3f)\n", packet.sequence, ok ? "sent" : "FAILED", packet.rms);
+            }
             if (packet.samples) {
                 free(packet.samples);
                 packet.samples = nullptr;
@@ -608,7 +610,7 @@ void handleAudioStreaming()
                 peak = absVal;
             }
         }
-        if (chunkIndex < 4 || peak == 0 || (chunkIndex % 25 == 0)) {
+        if (!kAudioLogSuppress && (chunkIndex < 4 || peak == 0 || (chunkIndex % 25 == 0))) {
             Serial.printf("[Audio] chunk #%u stats: peak=%d rms=%.4f first=%d samples=%u\n",
                           chunkIndex,
                           peak,
@@ -660,6 +662,10 @@ void connectToWiFi()
         if (WiFi.status() == WL_CONNECTED) {
             Serial.printf("\n[WiFi] Connected (%s, RSSI %d)\n", WiFi.SSID().c_str(), WiFi.RSSI());
             Serial.printf("IP: %s\n", WiFi.localIP().toString().c_str());
+#if ENABLE_PHOTO_CAPTURE
+            // Re-begin photo socket after reconnect so ensureConnected has fresh TLS context
+            g_photoWsClient.begin(kServerHost, kServerPort, kPhotoWsPath, ideas_cert, "ideasglass-photo");
+#endif
             return;
         }
         Serial.println("\n[WiFi] Failed, trying next credential...");
@@ -682,6 +688,15 @@ bool sendPhotoOverWebSocket(const String &message, const String &metaValue, cons
 {
     if (WiFi.status() != WL_CONNECTED) {
         return false;
+    }
+    // Ensure the photo WS is connected; on failure, re-begin and retry connect once
+    if (!g_photoWsClient.ensureConnected()) {
+        g_photoWsClient.close();
+        g_photoWsClient.begin(kServerHost, kServerPort, kPhotoWsPath, ideas_cert, "ideasglass-photo");
+        if (!g_photoWsClient.ensureConnected()) {
+            Serial.println("[PhotoUpload] WS reconnect failed");
+            return false;
+        }
     }
     String body = buildMessageBody(message, metaValue, photoBase64);
     if (!g_photoWsClient.sendText(body)) {
