@@ -1,0 +1,38 @@
+server:
+  http_listen_port: 9080
+  grpc_listen_port: 0
+
+positions:
+  filename: /var/lib/promtail/positions.yaml
+
+clients:
+  - url: http://loki:3100/loki/api/v1/push
+
+scrape_configs:
+  - job_name: ideasglass-serial
+    static_configs:
+      - targets: [localhost]
+        labels:
+          job: serial
+          app: ideasglass
+          source: serial
+          __path__: /var/log/ideasglass-serial/*.log
+
+  - job_name: ideasglass-backend
+    static_configs:
+      - targets: [localhost]
+        labels:
+          job: backend
+          app: ideasglass
+          source: backend
+          __path__: /var/log/ideasglass-backend/*.log
+
+  - job_name: ideasglass-frontend
+    static_configs:
+      - targets: [localhost]
+        labels:
+          job: frontend
+          app: ideasglass
+          source: frontend
+          __path__: /var/log/ideasglass-frontend/*.log
+
