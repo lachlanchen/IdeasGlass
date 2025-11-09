@@ -14,6 +14,10 @@
 
 </div>
 
+![IdeasGlass main dashboard](figs/ideas.lazying.art_main.png)
+
+Explore community experiments at <a href="https://onlyideas.art">onlyideas.art</a>.
+
 ## Why IdeasGlass
 
 IdeasGlass is an AI-first wearable built for people who live in streams of ideas. It captures, translates, organizes, and executes on creativity the moment inspiration strikes, whether you are narrating a concept in motion or hosting a live session.
