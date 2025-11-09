@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+from concurrent.futures import ThreadPoolExecutor
 import base64
 import json
 import os
@@ -397,6 +398,16 @@ async def startup_event():
     AUDIO_SEGMENTS_DIR.mkdir(parents=True, exist_ok=True)
     AUDIO_SEGMENTS_WORK_DIR.mkdir(parents=True, exist_ok=True)
     PHOTO_STORAGE_DIR.mkdir(parents=True, exist_ok=True)
+    # Be generous in threading for blocking work offloaded via asyncio.to_thread
+    try:
+        cpu = os.cpu_count() or 4
+        default_workers = max(32, cpu * 8)
+        max_workers = int(os.getenv("IDEASGLASS_THREADPOOL_WORKERS", str(default_workers)))
+        loop = asyncio.get_running_loop()
+        loop.set_default_executor(ThreadPoolExecutor(max_workers=max_workers))
+        print(f"[ThreadPool] Default executor workers set to {max_workers}")
+    except Exception as exc:
+        print(f"[ThreadPool] Failed to set default executor: {exc}")
     if not DATABASE_URL:
         print("[DB] DATABASE_URL not set; running in in-memory mode.")
     else:
@@ -1279,7 +1290,8 @@ async def _flush_segment_state(state: AudioSegmentBuffer) -> None:
     filename = f"{record.id}.wav"
     disk_path = AUDIO_SEGMENTS_DIR / filename
     try:
-        disk_path.write_bytes(wav_payload)
+        # Offload final WAV write to thread
+        await asyncio.to_thread(disk_path.write_bytes, wav_payload)
     except Exception as exc:
         print(f"[Audio] Failed to write segment {record.id} to disk: {exc}")
     relative_path = _relativize_path(disk_path)
@@ -1329,7 +1341,7 @@ async def append_audio_to_segment_buffers(
             bucket.append(state)
 
         state.buffer.extend(raw_audio)
-        append_chunk_to_file(state, raw_audio)
+        await append_chunk_to_file(state, raw_audio)
         state.duration_ms += chunk.duration_ms
         state.rms_accumulator += chunk.rms
         state.rms_count += 1
@@ -1359,7 +1371,7 @@ async def append_audio_to_segment_buffers(
             )
             if overlap_payload:
                 new_state.buffer.extend(overlap_payload)
-                append_chunk_to_file(new_state, overlap_payload)
+                await append_chunk_to_file(new_state, overlap_payload)
                 overlap_ms = _bytes_to_ms(
                     len(overlap_payload),
                     new_state.sample_rate,
@@ -1742,11 +1754,15 @@ def segment_record_to_out(record: AudioSegmentRecord) -> AudioSegmentOut:
     )
 
 
-def append_chunk_to_file(state: AudioSegmentBuffer, raw_audio: bytes) -> None:
+async def append_chunk_to_file(state: AudioSegmentBuffer, raw_audio: bytes) -> None:
     if not state.temp_path:
         return
     try:
-        with state.temp_path.open("ab") as temp_file:
-            temp_file.write(raw_audio)
+        # Offload disk I/O to thread to avoid blocking the event loop
+        def _append(path: Path, data: bytes) -> None:
+            with path.open("ab") as temp_file:
+                temp_file.write(data)
+
+        await asyncio.to_thread(_append, state.temp_path, raw_audio)
     except Exception as exc:
         print(f"[Audio] Failed to append segment {state.segment_id}: {exc}")
