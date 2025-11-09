@@ -153,3 +153,11 @@ Quick device binding
 - Generate ID (in conda "glass"): `python backend/bridge/tools/generate_device_id.py`
 - Set it in firmware: `IdeaGlass/firmware/ideasglass_arduino/IdeasGlassClient/IdeasGlassClient.ino` (`kDeviceId`)
 - Run backend and open `http://localhost:8765`, register/login, then bind the device ID in the Account panel
+
+## Acknowledgements
+
+We stand on the shoulders of great open projects — thank you to:
+- OmiGlass by BasedHardware: https://github.com/BasedHardware/omi/tree/main/omiGlass
+- OpenAI Whisper: https://github.com/openai/whisper
+- WhisperX: https://github.com/m-bain/whisperX
+- Ollama: https://github.com/ollama/ollama
