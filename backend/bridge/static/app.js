@@ -15,6 +15,15 @@ const loadMoreBtn = document.getElementById("loadMoreBtn");
 const transcriptList = document.getElementById("transcriptList");
 const transcriptMoreBtn = document.getElementById("transcriptMoreBtn");
 const segmentTranscriptClose = document.getElementById("segmentTranscriptClose");
+// Auth + binding
+const authEmail = document.getElementById("authEmail");
+const authPassword = document.getElementById("authPassword");
+const authRegisterBtn = document.getElementById("authRegisterBtn");
+const authLoginBtn = document.getElementById("authLoginBtn");
+const authLogoutBtn = document.getElementById("authLogoutBtn");
+const deviceIdInput = document.getElementById("deviceIdInput");
+const bindBtn = document.getElementById("bindBtn");
+const authStatus = document.getElementById("authStatus");
 
 segmentTranscriptClose?.addEventListener("click", () => {
   hideSegmentTranscript();
@@ -901,3 +910,75 @@ function renderVuVariance() {
 
 // Run animator at ~60–80 FPS budget friendly
 setInterval(renderVuVariance, 80);
+async function apiPost(url, body) {
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body || {}),
+    credentials: "include",
+  });
+  if (!res.ok) {
+    const txt = await res.text();
+    throw new Error(`${res.status} ${txt}`);
+  }
+  try { return await res.json(); } catch { return {}; }
+}
+
+async function apiGet(url) {
+  const res = await fetch(url, { credentials: "include" });
+  if (!res.ok) throw new Error(`${res.status}`);
+  return await res.json();
+}
+
+function setAuthStatus(msg) {
+  if (!authStatus) return;
+  authStatus.textContent = msg || "";
+}
+
+authRegisterBtn?.addEventListener("click", async () => {
+  try {
+    await apiPost("/api/v1/auth/register", { email: authEmail.value, password: authPassword.value });
+    setAuthStatus("Registered ✔");
+    connectWs();
+  } catch (e) {
+    setAuthStatus(`Register failed`);
+  }
+});
+
+authLoginBtn?.addEventListener("click", async () => {
+  try {
+    await apiPost("/api/v1/auth/login", { email: authEmail.value, password: authPassword.value });
+    setAuthStatus("Logged in ✔");
+    connectWs();
+    // Try to list devices
+    try {
+      const data = await apiGet("/api/v1/devices");
+      if (data && Array.isArray(data.devices) && data.devices.length && !deviceIdInput.value) {
+        deviceIdInput.value = data.devices[0];
+      }
+    } catch {}
+  } catch (e) {
+    setAuthStatus(`Login failed`);
+  }
+});
+
+authLogoutBtn?.addEventListener("click", async () => {
+  try {
+    await apiPost("/api/v1/auth/logout", {});
+    setAuthStatus("Logged out");
+  } catch {}
+});
+
+bindBtn?.addEventListener("click", async () => {
+  const devId = (deviceIdInput?.value || "").trim();
+  if (!devId) return;
+  try {
+    await apiPost("/api/v1/devices/bind", { device_id: devId });
+    setAuthStatus(`Bound ${devId} ✔`);
+    // Reconnect WS to ensure server-side filter includes this device
+    try { socket && socket.close(); } catch {}
+    connectWs();
+  } catch (e) {
+    setAuthStatus("Bind failed");
+  }
+});

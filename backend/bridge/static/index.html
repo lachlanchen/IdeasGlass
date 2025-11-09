@@ -38,6 +38,23 @@
     </section>
 
     <main>
+      <section id="accountPanel">
+        <h2>Account</h2>
+        <div class="account-forms">
+          <form id="authForm" class="auth-form" action="javascript:void(0)">
+            <input id="authEmail" type="email" placeholder="Email" required />
+            <input id="authPassword" type="password" placeholder="Password" required />
+            <button id="authRegisterBtn" type="button">Register</button>
+            <button id="authLoginBtn" type="button">Login</button>
+            <button id="authLogoutBtn" type="button">Logout</button>
+          </form>
+          <form id="bindForm" class="bind-form" action="javascript:void(0)">
+            <input id="deviceIdInput" placeholder="Device ID" />
+            <button id="bindBtn" type="button">Bind device</button>
+            <span id="authStatus" class="status"></span>
+          </form>
+        </div>
+      </section>
       <section id="statusPanel">
         <div>
           <span class="label">Backend:</span>

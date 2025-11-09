@@ -15,7 +15,7 @@ from io import BytesIO
 from pathlib import Path
 import site
 import ctypes
-from typing import Any, Coroutine, Dict, List, Optional
+from typing import Any, Coroutine, Dict, List, Optional, Tuple
 import wave
 import math
 import numpy as np
@@ -26,6 +26,7 @@ from fastapi import (
     HTTPException,
     WebSocket,
     WebSocketDisconnect,
+    Request,
 )
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, Response
@@ -229,6 +230,25 @@ class AudioTranscriptOut(BaseModel):
     is_final: bool = False
 
 
+class RegisterIn(BaseModel):
+    email: str
+    password: str
+
+
+class AuthOut(BaseModel):
+    user_id: str
+    email: str
+
+
+class LoginIn(BaseModel):
+    email: str
+    password: str
+
+
+class DeviceBindIn(BaseModel):
+    device_id: str
+
+
 @dataclass
 class AudioSegmentBuffer:
     device_id: str
@@ -267,22 +287,38 @@ class SegmentAppendResult:
 class ConnectionManager:
     def __init__(self) -> None:
         self._connections: List[WebSocket] = []
+        self._allowed: Dict[WebSocket, Optional[set[str]]] = {}
         self._lock = asyncio.Lock()
 
-    async def connect(self, websocket: WebSocket) -> None:
+    async def connect(self, websocket: WebSocket, allowed_devices: Optional[set[str]] = None) -> None:
         await websocket.accept()
         async with self._lock:
             self._connections.append(websocket)
+            self._allowed[websocket] = allowed_devices
 
     async def disconnect(self, websocket: WebSocket) -> None:
         async with self._lock:
             if websocket in self._connections:
                 self._connections.remove(websocket)
+            self._allowed.pop(websocket, None)
 
     async def broadcast(self, data: dict) -> None:
         async with self._lock:
             targets = list(self._connections)
         for ws in targets:
+            try:
+                await ws.send_json(data)
+            except Exception:
+                await self.disconnect(ws)
+
+    async def broadcast_device(self, data: dict, device_id: Optional[str]) -> None:
+        async with self._lock:
+            targets = list(self._connections)
+            allowed = {ws: self._allowed.get(ws) for ws in targets}
+        for ws in targets:
+            allow = allowed.get(ws)
+            if allow is not None and device_id is not None and device_id not in allow:
+                continue
             try:
                 await ws.send_json(data)
             except Exception:
@@ -312,6 +348,78 @@ segment_cleanup_task: asyncio.Task | None = None
 SUPPORTED_VAD_RATES = {8000, 16000, 32000, 48000}
 SEGMENT_OVERLAP_MS = int(os.getenv("IDEASGLASS_SEGMENT_OVERLAP_MS", "2000"))
 SEGMENT_LOOKBACK_MS = max(0, min(SEGMENT_OVERLAP_MS, SEGMENT_TARGET_MS // 2))
+
+# Simple HMAC session + PBKDF2 password helpers
+import hmac
+import hashlib
+
+SESSION_COOKIE = "ig_session"
+SESSION_TTL_SECONDS = int(os.getenv("IDEASGLASS_SESSION_TTL", "604800"))  # 7 days
+SECRET = os.getenv("IDEASGLASS_SECRET", "dev-secret-change-me").encode()
+
+
+def _b64u(data: bytes) -> str:
+    import base64 as _b64
+    return _b64.urlsafe_b64encode(data).rstrip(b"=").decode()
+
+
+def _b64u_decode(s: str) -> bytes:
+    import base64 as _b64
+    pad = "=" * (-len(s) % 4)
+    return _b64.urlsafe_b64decode((s + pad).encode())
+
+
+def _hash_password(password: str, salt: bytes) -> str:
+    dk = hashlib.pbkdf2_hmac("sha256", password.encode(), salt, 120_000)
+    return _b64u(dk)
+
+
+def _new_salt() -> bytes:
+    return os.urandom(16)
+
+
+def _issue_session(user_id: str) -> str:
+    payload = {
+        "uid": user_id,
+        "exp": int(datetime.now(tz=timezone.utc).timestamp()) + SESSION_TTL_SECONDS,
+    }
+    raw = json.dumps(payload, separators=(",", ":")).encode()
+    sig = hmac.new(SECRET, raw, hashlib.sha256).digest()
+    return f"{_b64u(raw)}.{_b64u(sig)}"
+
+
+def _verify_session(token: str) -> Optional[str]:
+    try:
+        raw_b64, sig_b64 = token.split(".", 1)
+        raw = _b64u_decode(raw_b64)
+        sig = _b64u_decode(sig_b64)
+        exp_sig = hmac.new(SECRET, raw, hashlib.sha256).digest()
+        if not hmac.compare_digest(sig, exp_sig):
+            return None
+        payload = json.loads(raw.decode())
+        if int(payload.get("exp", 0)) < int(datetime.now(tz=timezone.utc).timestamp()):
+            return None
+        return str(payload.get("uid"))
+    except Exception:
+        return None
+
+
+async def _current_user_id(request: Request) -> Optional[str]:
+    token = request.cookies.get(SESSION_COOKIE)
+    if not token:
+        return None
+    return _verify_session(token)
+
+
+async def _bound_devices(user_id: str) -> List[str]:
+    if not db_pool:
+        return []
+    async with db_pool.acquire() as conn:
+        rows = await conn.fetch(
+            "SELECT device_id FROM ig_device_bindings WHERE user_id=$1",
+            user_id,
+        )
+    return [r["device_id"] for r in rows]
 
 
 async def init_db() -> None:
@@ -390,6 +498,28 @@ async def init_db() -> None:
             );
             """
         )
+        # Users and device bindings
+        await conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS ig_users (
+                id TEXT PRIMARY KEY,
+                email TEXT UNIQUE NOT NULL,
+                password_salt TEXT NOT NULL,
+                password_hash TEXT NOT NULL,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            );
+            """
+        )
+        await conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS ig_device_bindings (
+                user_id TEXT NOT NULL REFERENCES ig_users(id) ON DELETE CASCADE,
+                device_id TEXT NOT NULL,
+                bound_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                PRIMARY KEY (user_id, device_id)
+            );
+            """
+        )
 
 
 @app.on_event("startup")
@@ -418,6 +548,111 @@ async def startup_event():
         except Exception as exc:
             print(f"[DB] Failed to initialize Postgres: {exc}")
             db_pool = None
+
+
+@app.post("/api/v1/auth/register", response_model=AuthOut)
+async def register(payload: RegisterIn, response: Response):
+    if not db_pool:
+        raise HTTPException(status_code=503, detail="Auth requires DATABASE_URL")
+    user_id = str(uuid.uuid4())
+    salt = _new_salt()
+    pwd_hash = _hash_password(payload.password, salt)
+    try:
+        async with db_pool.acquire() as conn:
+            await conn.execute(
+                "INSERT INTO ig_users (id, email, password_salt, password_hash) VALUES ($1,$2,$3,$4)",
+                user_id,
+                payload.email.lower().strip(),
+                _b64u(salt),
+                pwd_hash,
+            )
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail="Email already registered") from exc
+    token = _issue_session(user_id)
+    response.set_cookie(SESSION_COOKIE, token, httponly=True, samesite="lax", max_age=SESSION_TTL_SECONDS, path="/")
+    return AuthOut(user_id=user_id, email=payload.email)
+
+
+@app.post("/api/v1/auth/login", response_model=AuthOut)
+async def login(payload: LoginIn, response: Response):
+    if not db_pool:
+        raise HTTPException(status_code=503, detail="Auth requires DATABASE_URL")
+    async with db_pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT id, password_salt, password_hash, email FROM ig_users WHERE email=$1",
+            payload.email.lower().strip(),
+        )
+    if not row:
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+    salt = _b64u_decode(row["password_salt"]) if isinstance(row["password_salt"], str) else row["password_salt"]
+    if _hash_password(payload.password, salt) != row["password_hash"]:
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+    token = _issue_session(row["id"])
+    response.set_cookie(SESSION_COOKIE, token, httponly=True, samesite="lax", max_age=SESSION_TTL_SECONDS, path="/")
+    return AuthOut(user_id=row["id"], email=row["email"])
+
+
+@app.post("/api/v1/auth/logout")
+async def logout(response: Response):
+    response.delete_cookie(SESSION_COOKIE, path="/")
+    return {"ok": True}
+
+
+@app.get("/api/v1/devices")
+async def list_devices(request: Request):
+    uid = await _current_user_id(request)
+    if not uid:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    devices = await _bound_devices(uid)
+    return {"devices": devices}
+
+
+@app.post("/api/v1/devices/bind")
+async def bind_device(payload: DeviceBindIn, request: Request):
+    uid = await _current_user_id(request)
+    if not uid:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    if not db_pool:
+        raise HTTPException(status_code=503, detail="Device binding requires DATABASE_URL")
+    async with db_pool.acquire() as conn:
+        await conn.execute(
+            "INSERT INTO ig_device_bindings (user_id, device_id) VALUES ($1,$2) ON CONFLICT DO NOTHING",
+            uid,
+            payload.device_id,
+        )
+    return {"ok": True}
+
+
+class DeviceRenameIn(BaseModel):
+    from_id: str
+    to_id: str
+
+
+@app.post("/api/v1/devices/rename")
+async def rename_device(payload: DeviceRenameIn, request: Request):
+    uid = await _current_user_id(request)
+    if not uid:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    if not db_pool:
+        raise HTTPException(status_code=503, detail="Requires DATABASE_URL")
+    # Only allow if 'to_id' is bound to the user
+    devices = await _bound_devices(uid)
+    if payload.to_id not in devices:
+        raise HTTPException(status_code=403, detail="Forbidden")
+    async with db_pool.acquire() as conn:
+        async with conn.transaction():
+            for table, col in (
+                ("ig_messages", "device_id"),
+                ("ig_audio_chunks", "device_id"),
+                ("ig_audio_segments", "device_id"),
+                ("ig_audio_transcripts", "device_id"),
+            ):
+                await conn.execute(
+                    f"UPDATE {table} SET {col}=$1 WHERE {col}=$2",
+                    payload.to_id,
+                    payload.from_id,
+                )
+    return {"ok": True}
     if not segment_cleanup_task:
         segment_cleanup_task = asyncio.create_task(segment_housekeeper())
 
@@ -486,36 +721,60 @@ async def persist_entry(
             )
 
 
-async def fetch_messages(limit: int = 100, before: Optional[datetime] = None) -> List[MessageOut]:
+async def fetch_messages(limit: int = 100, before: Optional[datetime] = None, device_ids: Optional[List[str]] = None) -> List[MessageOut]:
     if not db_pool:
         data = list(message_store)
         if before:
             data = [
                 m for m in data if datetime.fromisoformat(m.received_at) < before
             ]
+        if device_ids:
+            allowed = set(device_ids)
+            data = [m for m in data if m.device_id in allowed]
         data.sort(
             key=lambda m: datetime.fromisoformat(m.received_at),
             reverse=True,
         )
         return data[:limit]
     async with db_pool.acquire() as conn:
-        rows = await conn.fetch(
-            """
-            SELECT m.id,
-                   m.device_id,
-                   m.message,
-                   m.meta,
-                   m.received_at,
-                   p.id as photo_id
-            FROM ig_messages m
-            LEFT JOIN ig_photos p ON p.message_id = m.id
-            WHERE ($2::timestamptz IS NULL OR m.received_at < $2)
-            ORDER BY m.received_at DESC
-            LIMIT $1;
-            """,
-            limit,
-            before,
-        )
+        if device_ids:
+            rows = await conn.fetch(
+                """
+                SELECT m.id,
+                       m.device_id,
+                       m.message,
+                       m.meta,
+                       m.received_at,
+                       p.id as photo_id
+                FROM ig_messages m
+                LEFT JOIN ig_photos p ON p.message_id = m.id
+                WHERE ($2::timestamptz IS NULL OR m.received_at < $2)
+                  AND m.device_id = ANY($3::text[])
+                ORDER BY m.received_at DESC
+                LIMIT $1;
+                """,
+                limit,
+                before,
+                device_ids,
+            )
+        else:
+            rows = await conn.fetch(
+                """
+                SELECT m.id,
+                       m.device_id,
+                       m.message,
+                       m.meta,
+                       m.received_at,
+                       p.id as photo_id
+                FROM ig_messages m
+                LEFT JOIN ig_photos p ON p.message_id = m.id
+                WHERE ($2::timestamptz IS NULL OR m.received_at < $2)
+                ORDER BY m.received_at DESC
+                LIMIT $1;
+                """,
+                limit,
+                before,
+            )
     entries: List[MessageOut] = []
     for row in rows:
         meta_payload = row["meta"]
@@ -565,33 +824,58 @@ async def persist_audio_chunk(
         )
 
 
-async def fetch_audio_chunks(limit: int = 60, before: Optional[datetime] = None) -> List[AudioChunkOut]:
+async def fetch_audio_chunks(limit: int = 60, before: Optional[datetime] = None, device_ids: Optional[List[str]] = None) -> List[AudioChunkOut]:
     if not db_pool:
         data = list(audio_store)
         if before:
             data = [
                 c for c in data if datetime.fromisoformat(c.created_at) < before
             ]
+        if device_ids:
+            allowed = set(device_ids)
+            data = [c for c in data if c.device_id in allowed]
         return data[:limit]
     async with db_pool.acquire() as conn:
-        rows = await conn.fetch(
-            """
-            SELECT id,
-                   device_id,
-                   sample_rate,
-                   bits_per_sample,
-                   duration_ms,
-                   rms,
-                   created_at,
-                   speech
-            FROM ig_audio_chunks
-            WHERE ($2::timestamptz IS NULL OR created_at < $2)
-            ORDER BY created_at DESC
-            LIMIT $1;
-            """,
-            limit,
-            before,
-        )
+        if device_ids:
+            rows = await conn.fetch(
+                """
+                SELECT id,
+                       device_id,
+                       sample_rate,
+                       bits_per_sample,
+                       duration_ms,
+                       rms,
+                       created_at,
+                       speech
+                FROM ig_audio_chunks
+                WHERE ($2::timestamptz IS NULL OR created_at < $2)
+                  AND device_id = ANY($3::text[])
+                ORDER BY created_at DESC
+                LIMIT $1;
+                """,
+                limit,
+                before,
+                device_ids,
+            )
+        else:
+            rows = await conn.fetch(
+                """
+                SELECT id,
+                       device_id,
+                       sample_rate,
+                       bits_per_sample,
+                       duration_ms,
+                       rms,
+                       created_at,
+                       speech
+                FROM ig_audio_chunks
+                WHERE ($2::timestamptz IS NULL OR created_at < $2)
+                ORDER BY created_at DESC
+                LIMIT $1;
+                """,
+                limit,
+                before,
+            )
     chunks: List[AudioChunkOut] = []
     for row in rows:
         chunks.append(
@@ -610,38 +894,64 @@ async def fetch_audio_chunks(limit: int = 60, before: Optional[datetime] = None)
     return chunks
 
 
-async def fetch_audio_segments(limit: int = 20, before: Optional[datetime] = None) -> List[AudioSegmentOut]:
+async def fetch_audio_segments(limit: int = 20, before: Optional[datetime] = None, device_ids: Optional[List[str]] = None) -> List[AudioSegmentOut]:
     if not db_pool:
         data = list(audio_segment_store)
         if before:
             data = [
                 seg for seg in data if datetime.fromisoformat(seg.ended_at) < before
             ]
+        if device_ids:
+            allowed = set(device_ids)
+            data = [seg for seg in data if seg.device_id in allowed]
         return data[:limit]
     async with db_pool.acquire() as conn:
-        rows = await conn.fetch(
-            """
-            SELECT id,
-                   device_id,
-                   sample_rate,
-                   bits_per_sample,
-                   duration_ms,
-                   rms,
-                   started_at,
-                   ended_at,
-                   file_path
-            FROM ig_audio_segments
-            WHERE ($2::timestamptz IS NULL OR ended_at < $2)
-            ORDER BY ended_at DESC
-            LIMIT $1;
-            """,
-            limit,
-            before,
-        )
+        if device_ids:
+            rows = await conn.fetch(
+                """
+                SELECT id,
+                       device_id,
+                       sample_rate,
+                       bits_per_sample,
+                       duration_ms,
+                       rms,
+                       started_at,
+                       ended_at,
+                       file_path
+                FROM ig_audio_segments
+                WHERE ($2::timestamptz IS NULL OR ended_at < $2)
+                  AND device_id = ANY($3::text[])
+                ORDER BY ended_at DESC
+                LIMIT $1;
+                """,
+                limit,
+                before,
+                device_ids,
+            )
+        else:
+            rows = await conn.fetch(
+                """
+                SELECT id,
+                       device_id,
+                       sample_rate,
+                       bits_per_sample,
+                       duration_ms,
+                       rms,
+                       started_at,
+                       ended_at,
+                       file_path
+                FROM ig_audio_segments
+                WHERE ($2::timestamptz IS NULL OR ended_at < $2)
+                ORDER BY ended_at DESC
+                LIMIT $1;
+                """,
+                limit,
+                before,
+            )
     return [row_to_segment_out(row) for row in rows]
 
 
-async def fetch_audio_transcripts(limit: int = 20, before: Optional[datetime] = None) -> List[AudioTranscriptOut]:
+async def fetch_audio_transcripts(limit: int = 20, before: Optional[datetime] = None, device_ids: Optional[List[str]] = None) -> List[AudioTranscriptOut]:
     if not db_pool:
         data = list(audio_transcript_store)
         if before:
@@ -650,23 +960,41 @@ async def fetch_audio_transcripts(limit: int = 20, before: Optional[datetime] = 
                 for seg in data
                 if datetime.fromisoformat(seg.ended_at) < before
             ]
+        if device_ids:
+            allowed = set(device_ids)
+            data = [seg for seg in data if seg.device_id in allowed]
         data.sort(
             key=lambda seg: datetime.fromisoformat(seg.ended_at),
             reverse=True,
         )
         return data[:limit]
     async with db_pool.acquire() as conn:
-        rows = await conn.fetch(
-            """
-            SELECT segment_id, device_id, transcript, started_at, ended_at
-            FROM ig_audio_transcripts
-            WHERE ($2::timestamptz IS NULL OR ended_at < $2)
-            ORDER BY ended_at DESC
-            LIMIT $1;
-            """,
-            limit,
-            before,
-        )
+        if device_ids:
+            rows = await conn.fetch(
+                """
+                SELECT segment_id, device_id, transcript, started_at, ended_at
+                FROM ig_audio_transcripts
+                WHERE ($2::timestamptz IS NULL OR ended_at < $2)
+                  AND device_id = ANY($3::text[])
+                ORDER BY ended_at DESC
+                LIMIT $1;
+                """,
+                limit,
+                before,
+                device_ids,
+            )
+        else:
+            rows = await conn.fetch(
+                """
+                SELECT segment_id, device_id, transcript, started_at, ended_at
+                FROM ig_audio_transcripts
+                WHERE ($2::timestamptz IS NULL OR ended_at < $2)
+                ORDER BY ended_at DESC
+                LIMIT $1;
+                """,
+                limit,
+                before,
+            )
     results: List[AudioTranscriptOut] = []
     for row in rows:
         payload = row["transcript"]
@@ -1122,7 +1450,7 @@ class WhisperStreamManager:
         if is_final:
             self.history_store.appendleft(transcript)
             await persist_transcript_record(transcript)
-        await self.ws_manager.broadcast({"type": "audio_transcript", "payload": transcript.model_dump()})
+        await self.ws_manager.broadcast_device({"type": "audio_transcript", "payload": transcript.model_dump()}, transcript.device_id)
 
     async def _emit_silence_progress(
         self,
@@ -1144,7 +1472,7 @@ class WhisperStreamManager:
             ],
             is_final=False,
         )
-        await self.ws_manager.broadcast({"type": "audio_transcript", "payload": transcript.model_dump()})
+        await self.ws_manager.broadcast_device({"type": "audio_transcript", "payload": transcript.model_dump()}, transcript.device_id)
 
     async def _emit_silence(self, record: AudioSegmentRecord) -> None:
         transcript = AudioTranscriptOut(
@@ -1164,7 +1492,7 @@ class WhisperStreamManager:
         )
         self.history_store.appendleft(transcript)
         await persist_transcript_record(transcript)
-        await self.ws_manager.broadcast({"type": "audio_transcript", "payload": transcript.model_dump()})
+        await self.ws_manager.broadcast_device({"type": "audio_transcript", "payload": transcript.model_dump()}, transcript.device_id)
 
 
 whisper_stream_manager: WhisperStreamManager | None = (
@@ -1303,7 +1631,7 @@ async def _flush_segment_state(state: AudioSegmentBuffer) -> None:
     )
     segment_out = segment_record_to_out(record)
     audio_segment_store.append(segment_out)
-    await manager.broadcast({"type": "audio_segment", "payload": segment_out.model_dump()})
+    await manager.broadcast_device({"type": "audio_segment", "payload": segment_out.model_dump()}, record.device_id)
     if whisper_stream_manager:
         schedule_background(
             whisper_stream_manager.finalize_segment(record, enhanced_pcm),
@@ -1494,7 +1822,7 @@ async def process_audio_payload(payload: AudioChunkIn) -> AudioChunkOut:
         f"{chunk.device_id}#{chunk.id} rms={chunk.rms:.4f} speech={speech_detected} "
         f"segment={chunk.active_segment_id or 'n/a'} progress={chunk.segment_duration_ms or 0}ms"
     )
-    await manager.broadcast({"type": "audio_chunk", "payload": chunk.model_dump()})
+    await manager.broadcast_device({"type": "audio_chunk", "payload": chunk.model_dump()}, chunk.device_id)
     return chunk
 
 
@@ -1526,7 +1854,7 @@ async def process_message_payload(payload: MessageIn) -> MessageOut:
         persist_entry(entry, photo_bytes, payload.photo_mime, photo_id),
         "persist_entry",
     )
-    await manager.broadcast({"type": "message", "payload": entry.model_dump()})
+    await manager.broadcast_device({"type": "message", "payload": entry.model_dump()}, entry.device_id)
     return entry
 
 
@@ -1561,7 +1889,7 @@ async def photo_ingest_socket(websocket: WebSocket):
 
 
 @app.get("/api/v1/messages", response_model=List[MessageOut])
-async def list_messages(limit: int = 50, before: Optional[str] = None):
+async def list_messages(request: Request, limit: int = 50, before: Optional[str] = None):
     capped = max(1, min(limit, 200))
     before_dt: Optional[datetime] = None
     if before:
@@ -1569,7 +1897,11 @@ async def list_messages(limit: int = 50, before: Optional[str] = None):
             before_dt = datetime.fromisoformat(before)
         except ValueError:
             raise HTTPException(status_code=400, detail="Invalid 'before' timestamp")
-    return await fetch_messages(limit=capped, before=before_dt)
+    uid = await _current_user_id(request)
+    if not uid:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    devices = await _bound_devices(uid)
+    return await fetch_messages(limit=capped, before=before_dt, device_ids=devices)
 
 
 @app.post("/api/v1/audio", response_model=AudioChunkOut)
@@ -1582,7 +1914,7 @@ async def ingest_audio_chunk(payload: AudioChunkIn):
 
 
 @app.get("/api/v1/audio", response_model=List[AudioChunkOut])
-async def list_audio(limit: int = 60, before: Optional[str] = None):
+async def list_audio(request: Request, limit: int = 60, before: Optional[str] = None):
     capped = max(1, min(limit, 200))
     before_dt: Optional[datetime] = None
     if before:
@@ -1590,11 +1922,15 @@ async def list_audio(limit: int = 60, before: Optional[str] = None):
             before_dt = datetime.fromisoformat(before)
         except ValueError:
             raise HTTPException(status_code=400, detail="Invalid 'before' timestamp")
-    return await fetch_audio_chunks(limit=capped, before=before_dt)
+    uid = await _current_user_id(request)
+    if not uid:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    devices = await _bound_devices(uid)
+    return await fetch_audio_chunks(limit=capped, before=before_dt, device_ids=devices)
 
 
 @app.get("/api/v1/audio/segments", response_model=List[AudioSegmentOut])
-async def list_audio_segments(limit: int = 20, before: Optional[str] = None):
+async def list_audio_segments(request: Request, limit: int = 20, before: Optional[str] = None):
     capped = max(1, min(limit, 100))
     before_dt: Optional[datetime] = None
     if before:
@@ -1602,20 +1938,34 @@ async def list_audio_segments(limit: int = 20, before: Optional[str] = None):
             before_dt = datetime.fromisoformat(before)
         except ValueError:
             raise HTTPException(status_code=400, detail="Invalid 'before' timestamp")
-    return await fetch_audio_segments(limit=capped, before=before_dt)
+    uid = await _current_user_id(request)
+    if not uid:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    devices = await _bound_devices(uid)
+    return await fetch_audio_segments(limit=capped, before=before_dt, device_ids=devices)
 
 
 @app.websocket("/ws/stream")
 async def websocket_endpoint(websocket: WebSocket):
-    await manager.connect(websocket)
+    # Parse session cookie from websocket headers
+    cookies = dict(
+        [tuple(h.strip() for h in kv.split("=", 1)) for kv in (websocket.headers.get("cookie") or "").split(";") if "=" in kv]
+    )
+    uid = _verify_session(cookies.get(SESSION_COOKIE, "")) if cookies else None
+    devices: List[str] = []
+    if uid and db_pool:
+        devices = await _bound_devices(uid)
+    # If unauthenticated, allow nothing
+    allowed: Optional[set[str]] = set(devices) if uid else set()
+    await manager.connect(websocket, allowed_devices=allowed)
     try:
-        history = await fetch_messages(limit=50)
+        history = await fetch_messages(limit=50, device_ids=devices or None)
         await websocket.send_json({"type": "history_messages", "data": [m.model_dump() for m in history]})
-        audio_history = await fetch_audio_chunks(limit=60)
+        audio_history = await fetch_audio_chunks(limit=60, device_ids=devices or None)
         await websocket.send_json({"type": "history_audio", "data": [c.model_dump() for c in audio_history]})
-        segment_history = await fetch_audio_segments(limit=20)
+        segment_history = await fetch_audio_segments(limit=20, device_ids=devices or None)
         await websocket.send_json({"type": "history_audio_segments", "data": [s.model_dump() for s in segment_history]})
-        transcripts_history = await fetch_audio_transcripts(limit=20)
+        transcripts_history = await fetch_audio_transcripts(limit=20, device_ids=devices or None)
         await websocket.send_json(
             {"type": "history_audio_transcripts", "data": [t.model_dump() for t in transcripts_history]}
         )
