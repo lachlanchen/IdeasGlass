@@ -1,6 +1,7 @@
 const wsStatus = document.getElementById("wsStatus");
 const backendStatus = document.getElementById("backendStatus");
 const list = document.getElementById("messageList");
+const logPanelEl = document.getElementById("logPanel");
 const installBtn = document.getElementById("installBtn");
 const waveformBars = document.getElementById("waveformBars");
 const waveformEl = document.getElementById("waveform");
@@ -263,6 +264,13 @@ function handleRealtimeMessage(entry) {
 
 function maybeLoadMoreViaFallback() {
   if (!loadMoreBtn || state.loadingOlder) return;
+  if (logPanelEl) {
+    const nearBottom =
+      logPanelEl.scrollTop + logPanelEl.clientHeight >=
+      logPanelEl.scrollHeight - 150;
+    if (nearBottom) triggerMessageLoad(true);
+    return;
+  }
   const rect = loadMoreBtn.getBoundingClientRect();
   if (rect.top <= window.innerHeight + 100) {
     triggerMessageLoad(true);
@@ -290,7 +298,7 @@ function initLoadMoreObserver() {
         }
       });
     },
-    { rootMargin: "150px" }
+    { root: logPanelEl || null, rootMargin: "150px" }
   );
   loadMoreObserver.observe(loadMoreBtn);
 }
@@ -700,4 +708,8 @@ checkBackend();
 setInterval(checkBackend, 10000);
 connectWs();
 initLoadMoreObserver();
-window.addEventListener("scroll", handleGlobalScroll);
+if (logPanelEl) {
+  logPanelEl.addEventListener("scroll", handleGlobalScroll);
+} else {
+  window.addEventListener("scroll", handleGlobalScroll);
+}
