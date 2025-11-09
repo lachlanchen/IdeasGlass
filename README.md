@@ -14,7 +14,9 @@
 
 </div>
 
-![IdeasGlass main dashboard](figs/ideas.lazying.art_main.png)
+<p align="center">
+  <img src="figs/ideas.lazying.art_main.png" alt="IdeasGlass main dashboard" width="50%" />
+</p>
 
 Explore community experiments at <a href="https://onlyideas.art">onlyideas.art</a>.
 
