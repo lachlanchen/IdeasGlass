@@ -529,10 +529,56 @@ main {
 }
 
 #preferencesPanel .label { color: #6c7da5; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.75rem; }
-.pref-form { display:flex; flex-direction: column; gap: 0.5rem; }
-.recordlen-row { display:flex; align-items:center; gap: 0.5rem; }
-#recordLenInput { width: 5.5rem; }
-.suffix { color:#6b7280; }
+.pref-form { display:flex; flex-direction: column; gap: 0.8rem; }
+.recordlen-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  padding: 0.6rem 0.7rem;
+  border-radius: 14px;
+  background: #f8fafc;
+  border: 1px solid rgba(15, 23, 42, 0.06);
+}
+#recordLenInput {
+  width: 6.5rem;
+  height: 44px;
+  padding: 0 14px;
+  font-size: 1.05rem;
+  border-radius: 12px;
+  border: 1.5px solid #d1d5db;
+  background: #ffffff;
+  color: #111827;
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+#recordLenInput:focus {
+  border-color: #6366f1;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.20);
+}
+/* nicer number input */
+#recordLenInput::-webkit-outer-spin-button,
+#recordLenInput::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+#recordLenInput { -moz-appearance: textfield; }
+
+#recordLenSaveBtn {
+  height: 44px;
+  padding: 0 18px;
+  font-size: 1rem;
+  font-weight: 700;
+  border-radius: 12px;
+  border: none;
+  color: #ffffff;
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  box-shadow: 0 10px 24px rgba(99, 102, 241, 0.28);
+  cursor: pointer;
+  transition: transform 0.06s ease, box-shadow 0.15s ease, filter 0.15s ease;
+}
+#recordLenSaveBtn:hover { filter: brightness(1.06); box-shadow: 0 12px 28px rgba(99, 102, 241, 0.34); }
+#recordLenSaveBtn:active { transform: translateY(1px); }
+
+.suffix { color:#6b7280; font-weight: 600; }
+#recordLenStatus { margin-top: 0.2rem; }
 
 /* Status header shows title + backend pill */
 #statusPanel .status-header {
