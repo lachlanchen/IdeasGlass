@@ -509,6 +509,44 @@ main {
   letter-spacing: 0.06em;
 }
 
+/* Settings layout */
+.settings-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.8rem;
+}
+@media (min-width: 900px) {
+  .settings-grid { grid-template-columns: 1.15fr 0.85fr; }
+  #accountPanel { grid-column: 1 / -1; }
+}
+
+.card {
+  background: #ffffff;
+  border-radius: 18px;
+  padding: 0.75rem clamp(0.6rem, 2vw, 1.2rem);
+  box-shadow: 0 18px 45px rgba(113, 118, 255, 0.10);
+  border: 1px solid rgba(113, 118, 255, 0.10);
+}
+
+#preferencesPanel .label { color: #6c7da5; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.75rem; }
+.pref-form { display:flex; flex-direction: column; gap: 0.5rem; }
+.recordlen-row { display:flex; align-items:center; gap: 0.5rem; }
+#recordLenInput { width: 5.5rem; }
+.suffix { color:#6b7280; }
+
+/* Status rows as neat chips */
+#statusPanel > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  background: #f8fafc;
+  border: 1px solid rgba(15, 23, 42, 0.06);
+  border-radius: 12px;
+  padding: 0.5rem 0.75rem;
+}
+#statusPanel h2 { margin-bottom: 0.6rem; }
+
 #segmentList {
   list-style: none;
   padding: 0;

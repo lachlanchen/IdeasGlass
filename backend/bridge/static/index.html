@@ -153,7 +153,8 @@
 
     <div id="settingsView" class="view hidden">
       <main>
-        <section id="accountPanel">
+        <div class="settings-grid">
+        <section id="accountPanel" class="card">
           <h2>Account</h2>
           <div class="account-forms">
             <div id="currentAccount" class="account-info">
@@ -175,7 +176,7 @@
             <div id="currentDevices"></div>
           </div>
         </section>
-        <section id="preferencesPanel">
+        <section id="preferencesPanel" class="card">
           <h2>Preferences</h2>
           <form id="recordLenForm" class="pref-form" action="javascript:void(0)">
             <label for="recordLenInput" class="label">Recording length</label>
@@ -187,7 +188,7 @@
             <div id="recordLenStatus" class="status"></div>
           </form>
         </section>
-        <section id="statusPanel">
+        <section id="statusPanel" class="card">
           <h2>Status</h2>
           <div>
             <span class="label">Backend:</span>
@@ -198,6 +199,7 @@
             <span id="wsStatus" class="status status-offline">Disconnected</span>
           </div>
         </section>
+        </div>
       </main>
     </div>
 
