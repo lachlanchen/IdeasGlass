@@ -274,3 +274,13 @@ Verification cues in logs:
   - If lag happens: a burst of `[Audio] Send queue full, dropping chunk` lines, then recovery
 
 Note: We already fixed intermittent `422` on `/api/v1/messages` by sending `meta` values as strings from the firmware; ngrok should no longer show those.
+
+---
+
+## 8. Firmware hardening plan
+
+We maintain a separate, non‑breaking firmware hardening plan focused on robustness and power without changing any external behavior. See:
+
+- `docs/firmware_hardening_plan.md`
+
+This plan covers safer reconnects, HTTP keep‑alive pooling, buffer preallocation, camera power gating (flag‑gated), and validation metrics. Rollout is staged and fully reversible.
