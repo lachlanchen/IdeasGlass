@@ -59,6 +59,19 @@ main {
   to { transform: translateX(0); opacity: 1; }
 }
 
+.segment-transcript-body {
+  background: #ffffff;
+  border: 1px solid rgba(15,23,42,0.06);
+  border-radius: 14px;
+  padding: 0.6rem 0.75rem;
+}
+
+.segment-transcript-body .segment-transcript-entry {
+  padding: 0.35rem 0;
+  border-bottom: 1px solid rgba(15,23,42,0.06);
+}
+.segment-transcript-body .segment-transcript-entry:last-child { border-bottom: none; }
+
 /* Account panel: compact, row-oriented and responsive */
 #accountPanel {
   background: #ffffff;
@@ -321,38 +334,28 @@ main {
   position: relative;
   height: clamp(70px, 14vh, 110px);
   border-radius: 20px;
-  background: radial-gradient(circle at 20% 20%, rgba(147, 197, 253, 0.4), transparent 55%),
-    radial-gradient(circle at 80% 0%, rgba(167, 139, 250, 0.35), transparent 60%),
-    linear-gradient(135deg, #080d1f, #111a34 55%, #1d1034);
-  border: 1px solid rgba(99, 102, 241, 0.18);
-  padding: 1rem;
+  background: radial-gradient(circle at 20% 20%, rgba(59, 130, 246, 0.10), transparent 55%),
+    radial-gradient(circle at 80% 0%, rgba(14, 165, 233, 0.10), transparent 60%),
+    linear-gradient(135deg, #e6f4ff, #f0fbff 55%, #e9faff);
+  border: 1px solid rgba(59, 130, 246, 0.25);
+  padding: 0.8rem;
   overflow: hidden;
-  box-shadow: inset 0 0 20px rgba(8, 13, 31, 0.9), 0 25px 60px rgba(15, 23, 42, 0.4);
+  box-shadow: inset 0 0 14px rgba(59, 130, 246, 0.18), 0 16px 36px rgba(59, 130, 246, 0.15);
 }
 
 .waveform.speaking {
-  box-shadow: inset 0 0 22px rgba(8, 13, 31, 0.9), 0 25px 60px rgba(34, 197, 94, 0.35);
-  border-color: rgba(34, 197, 94, 0.35);
+  /* Keep orange bars; use green aura for speaking */
+  box-shadow: inset 0 0 18px rgba(34, 197, 94, 0.20), 0 20px 44px rgba(34, 197, 94, 0.28);
+  border-color: rgba(34, 197, 94, 0.45);
 }
 
 .waveform::after {
   content: "";
   position: absolute;
   inset: 0;
-  background: linear-gradient(
-      120deg,
-      transparent,
-      rgba(255, 255, 255, 0.08),
-      transparent 70%
-    ),
-    repeating-linear-gradient(
-      90deg,
-      rgba(255, 255, 255, 0.02) 0,
-      rgba(255, 255, 255, 0.02) 1px,
-      transparent 1px,
-      transparent 12px
-    );
-  opacity: 0.35;
+  background: linear-gradient(120deg, transparent, rgba(255, 255, 255, 0.5), transparent 70%),
+    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.12) 0, rgba(255, 255, 255, 0.12) 1px, transparent 1px, transparent 12px);
+  opacity: 0.25;
   pointer-events: none;
 }
 
@@ -373,19 +376,18 @@ main {
   flex: 1;
   max-width: clamp(3px, 0.8vw, 7px);
   border-radius: 999px;
-  background: linear-gradient(180deg, #38bdf8, #6366f1 45%, #a855f7);
+  background: linear-gradient(180deg, #ffb02e, #ff7a00 50%, #ff5e00);
   transform-origin: bottom center;
   /* Use computed level directly (0..1). Bars anchor at bottom. */
   transform: scaleY(var(--level));
   opacity: calc(0.2 + var(--level));
   transition: transform 0.06s ease-out;
-  filter: drop-shadow(0 6px 12px rgba(99, 102, 241, 0.25));
+  filter: drop-shadow(0 6px 12px rgba(255, 122, 0, 0.25));
   will-change: transform, opacity;
 }
 
 .wave-bar.active {
-  box-shadow: 0 0 12px rgba(59, 130, 246, 0.55),
-    0 8px 22px rgba(99, 102, 241, 0.4);
+  box-shadow: 0 0 12px rgba(255, 176, 46, 0.55), 0 8px 22px rgba(255, 122, 0, 0.4);
 }
 
 .wave-placeholder {
@@ -404,15 +406,15 @@ main {
   margin-top: 0.4rem;
   padding: 0.5rem 0.75rem;
   border-radius: 18px;
-  background: rgba(8, 13, 31, 0.9);
-  border: 1px solid rgba(99, 102, 241, 0.35);
-  box-shadow: inset 0 0 18px rgba(8, 13, 31, 0.8);
+  background: linear-gradient(135deg, #e6f4ff, #f0fbff 55%, #e9faff);
+  border: 1px solid rgba(59, 130, 246, 0.25);
+  box-shadow: inset 0 0 12px rgba(59, 130, 246, 0.15);
   min-height: 96px;
 }
 
 .transcript-placeholder {
-  color: rgba(226, 232, 240, 0.75);
-  font-weight: 500;
+  color: #4c5673;
+  font-weight: 600;
   letter-spacing: 0.01em;
 }
 
@@ -420,8 +422,8 @@ main {
   display: flex;
   gap: 0.75rem;
   align-items: flex-start;
-  padding: 0.25rem 0;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 0.35rem 0;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.08);
 }
 
 .transcript-entry:last-child {
@@ -430,21 +432,21 @@ main {
 
 .transcript-speaker {
   font-size: 0.85rem;
-  font-weight: 700;
+  font-weight: 800;
   text-transform: uppercase;
-  color: #a5b4fc;
+  color: #4f46e5;
   min-width: 90px;
 }
 
 .transcript-text {
-  color: #e2e8f0;
+  color: #1f2937;
   line-height: 1.4;
   flex: 1;
 }
 
 .transcript-text small {
   display: block;
-  color: rgba(226, 232, 240, 0.6);
+  color: #4b5563;
   font-size: 0.75rem;
   margin-top: 0.15rem;
 }
@@ -455,6 +457,33 @@ main {
   padding: 0.75rem clamp(0.6rem, 2vw, 1.2rem);
   box-shadow: 0 25px 60px rgba(15, 23, 42, 0.08);
   border: 1px solid rgba(15, 23, 42, 0.05);
+}
+
+#transcriptsPanel {
+  background: #ffffff;
+  border-radius: 22px;
+  padding: 0.75rem clamp(0.6rem, 2vw, 1.2rem);
+  box-shadow: 0 25px 60px rgba(15, 23, 42, 0.08);
+  border: 1px solid rgba(15, 23, 42, 0.05);
+}
+
+#transcriptCompactList {
+  list-style: none; margin: 0; padding: 0;
+}
+.transcript-compact-item {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 0.6rem; padding: 0.35rem 0; border-bottom: 1px solid rgba(15,23,42,0.06);
+}
+.transcript-compact-item:last-child { border-bottom: none; }
+.tci-left { display: flex; align-items: center; gap: 0.6rem; flex: 1; min-width: 0; }
+.tci-text { color: #1f2937; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tci-time { color: #4b5563; font-size: 0.85rem; }
+.tci-actions { display: flex; align-items: center; gap: 0.5rem; }
+.tci-play { height: 32px; padding: 0 12px; }
+.transcript-compact-item.flash { animation: compactFlash 240ms ease-out; border-radius: 10px; }
+@keyframes compactFlash {
+  0% { background-color: rgba(255, 159, 64, 0.18); }
+  100% { background-color: transparent; }
 }
 
 #transcriptList {

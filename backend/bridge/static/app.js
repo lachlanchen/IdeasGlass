@@ -102,6 +102,7 @@ const state = {
   vuEmaLevel: 0.08,
   waveJitterSeeds: [],
   authed: false,
+  lastCompactIds: [],
 };
 
 // Track any programmatic Audio() players to pause on nav
@@ -881,11 +882,24 @@ function buildTranscriptCompactItem(item) {
 
 function renderCompactTranscripts() {
   if (!transcriptCompactList) return;
-  transcriptCompactList.innerHTML = '';
   const items = state.transcriptFeed.slice(0, 5);
+  const ids = items.map((it) => it.segment_id);
+  // If unchanged, do nothing (microrefresh behavior)
+  if (ids.length === state.lastCompactIds.length && ids.every((v, i) => v === state.lastCompactIds[i])) {
+    return;
+  }
+  // Rebuild compact list
+  transcriptCompactList.innerHTML = '';
   const frag = document.createDocumentFragment();
   items.forEach((it) => frag.appendChild(buildTranscriptCompactItem(it)));
   transcriptCompactList.appendChild(frag);
+  state.lastCompactIds = ids;
+  // Subtle flash on the newest item
+  const first = transcriptCompactList.firstElementChild;
+  if (first) {
+    first.classList.add('flash');
+    setTimeout(() => first.classList.remove('flash'), 280);
+  }
 }
 
 function openLiveTranscriptsPage() {
