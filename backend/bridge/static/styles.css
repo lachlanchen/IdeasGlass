@@ -487,30 +487,12 @@ main {
   100% { background-color: transparent; }
 }
 
-#transcriptList {
-  list-style: none;
-  padding: 0;
-  margin: 0 0 1rem;
-}
-
-.transcript-item {
-  padding: 0.6rem 0;
-  border-bottom: 1px solid rgba(15, 23, 42, 0.06);
-}
-
-.transcript-item:last-child {
-  border-bottom: none;
-}
-
-.transcript-text-inline {
-  margin: 0.2rem 0 0.1rem;
-  color: #1a1f36;
-}
-
-.transcript-meta-inline {
-  color: #4c5673;
-  font-size: 0.9rem;
-}
+#transcriptList { list-style: none; padding: 0; margin: 0 0 1rem; }
+.transcript-item { display: flex; align-items: center; justify-content: space-between; gap: 0.6rem; padding: 0.5rem 0; border-bottom: 1px solid rgba(15,23,42,0.06); }
+.transcript-item:last-child { border-bottom: none; }
+.transcript-item-left { flex: 1; min-width: 0; }
+.transcript-text-inline { margin: 0.2rem 0 0.1rem; color: #1a1f36; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.transcript-item-right { display: flex; align-items: center; gap: 0.5rem; }
 
 #segmentList {
   list-style: none;

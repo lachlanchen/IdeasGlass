@@ -926,17 +926,41 @@ document.getElementById('liveTranscriptsBack')?.addEventListener('click', closeL
 transcriptsMoreCompactBtn?.addEventListener('click', openLiveTranscriptsPage);
 
 function buildTranscriptItem(item) {
-  const li = document.createElement("li");
-  li.className = "transcript-item";
-  const text = document.createElement("p");
-  text.className = "transcript-text-inline";
-  text.textContent = item.text || "";
-  const meta = document.createElement("div");
-  meta.className = "transcript-meta-inline";
-  const dt = new Date(item.ended_at || item.started_at || Date.now());
-  meta.textContent = `${item.device_id || "device"} · ${dt.toLocaleTimeString()}`;
-  li.append(text, meta);
-  li.addEventListener('click', () => openLiveTranscriptDetailPage(item.segment_id));
+  const li = document.createElement('li');
+  li.className = 'transcript-item';
+  // Left side: text
+  const left = document.createElement('div');
+  left.className = 'transcript-item-left';
+  const text = document.createElement('p');
+  text.className = 'transcript-text-inline';
+  text.textContent = item.text || '';
+  left.appendChild(text);
+  left.addEventListener('click', () => openLiveTranscriptDetailPage(item.segment_id));
+  // Right side: time + Play
+  const right = document.createElement('div');
+  right.className = 'transcript-item-right tci-actions';
+  const time = document.createElement('div');
+  time.className = 'tci-time';
+  time.textContent = new Date(item.ended_at || item.started_at || Date.now()).toLocaleTimeString();
+  const playBtn = document.createElement('button');
+  playBtn.type = 'button';
+  playBtn.className = 'tci-play';
+  playBtn.textContent = 'Play';
+  let audioEl = null;
+  playBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    try {
+      const url = `/api/v1/audio/segments/${item.segment_id}`;
+      if (!audioEl) {
+        audioEl = new Audio(url);
+        try { playingAudios.add(audioEl); } catch {}
+        audioEl.addEventListener('ended', () => { playBtn.textContent = 'Play'; });
+      }
+      if (audioEl.paused) { audioEl.play(); playBtn.textContent = 'Pause'; } else { audioEl.pause(); playBtn.textContent = 'Play'; }
+    } catch {}
+  });
+  right.append(time, playBtn);
+  li.append(left, right);
   return li;
 }
 
