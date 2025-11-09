@@ -48,6 +48,9 @@ const state = {
   lastAudioAt: 0,
   micActive: false,
   vuMode: true, // show uniform VU bars reflecting current volume only
+  vuBaseLevel: 0.08,
+  vuSpeech: false,
+  waveJitterSeeds: [],
 };
 
 let loadMoreObserver = null;
@@ -121,12 +124,16 @@ function initWaveformBars() {
   if (!waveformBars) return;
   waveformBars.innerHTML = "";
   state.waveBars = [];
+  state.waveJitterSeeds = [];
   for (let i = 0; i < state.waveformLimit; i += 1) {
     const bar = document.createElement("div");
     bar.className = "wave-bar";
     bar.style.setProperty("--level", "0");
     waveformBars.appendChild(bar);
     state.waveBars.push(bar);
+    // Fixed per-bar seed in [0.9, 1.1] for subtle variance across bars
+    const seed = 0.9 + Math.random() * 0.2;
+    state.waveJitterSeeds.push(seed);
   }
 }
 
@@ -383,8 +390,12 @@ function addAudioSample(chunk) {
   }
   const level = computeLevel(chunk);
   if (state.vuMode) {
-    // Uniform VU meter: set all bars to the same level
-    state.waveformLevels = Array(state.waveformLimit).fill(level);
+    // Update base VU level and speech flag; per-bar variance animator will render
+    state.vuBaseLevel = level;
+    state.vuSpeech = Boolean(chunk?.speech_detected);
+    state.waveformLevels = state.waveformLevels.length
+      ? state.waveformLevels
+      : Array(state.waveformLimit).fill(level);
     updateWaveformBars();
   } else {
     if (state.waveformLevels.length >= state.waveformLimit) {
@@ -860,4 +871,26 @@ if (logPanelEl) {
   window.addEventListener("scroll", handleGlobalScroll);
 }
 
-// VU mode: no history/arrival effects; bars reflect current loudness only.
+// VU variance animator: keep base level but add subtle bar-to-bar/time variance
+function renderVuVariance() {
+  if (!state.vuMode || !state.waveBars.length) return;
+  const t = performance.now() * 0.001; // seconds
+  const base = Math.min(1, Math.max(0.01, state.vuBaseLevel || 0.08));
+  const speak = state.vuSpeech;
+  const amp = speak ? 0.12 : 0.04; // variance amplitude
+  const speed = speak ? 2.2 : 1.4; // oscillation speed
+  const phaseStep = 0.35;
+  const levels = new Array(state.waveformLimit);
+  for (let i = 0; i < state.waveformLimit; i += 1) {
+    const seed = state.waveJitterSeeds[i] || 1.0;
+    const wobble = 1 + amp * Math.sin(t * speed + i * phaseStep);
+    const raw = base * seed * wobble;
+    const clamped = Math.min(1, Math.max(speak ? 0.45 : 0.04, raw));
+    levels[i] = clamped;
+  }
+  state.waveformLevels = levels;
+  updateWaveformBars();
+}
+
+// Run animator at ~60–80 FPS budget friendly
+setInterval(renderVuVariance, 80);
