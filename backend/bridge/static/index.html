@@ -175,6 +175,18 @@
             <div id="currentDevices"></div>
           </div>
         </section>
+        <section id="preferencesPanel">
+          <h2>Preferences</h2>
+          <form id="recordLenForm" class="pref-form" action="javascript:void(0)">
+            <label for="recordLenInput" class="label">Recording length</label>
+            <div class="recordlen-row">
+              <input id="recordLenInput" type="number" min="5" max="60" step="1" placeholder="15" />
+              <span class="suffix">seconds</span>
+              <button id="recordLenSaveBtn" type="button">Save</button>
+            </div>
+            <div id="recordLenStatus" class="status"></div>
+          </form>
+        </section>
         <section id="statusPanel">
           <h2>Status</h2>
           <div>

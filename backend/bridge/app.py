@@ -255,6 +255,14 @@ class MeOut(BaseModel):
     devices: List[str]
 
 
+class SettingsOut(BaseModel):
+    segment_target_ms: int
+
+
+class SettingsIn(BaseModel):
+    segment_target_ms: Optional[int] = Field(default=None, ge=MIN_SEGMENT_MS, le=SEGMENT_MAX_MS)
+
+
 @dataclass
 class AudioSegmentBuffer:
     device_id: str
@@ -354,6 +362,20 @@ segment_cleanup_task: asyncio.Task | None = None
 SUPPORTED_VAD_RATES = {8000, 16000, 32000, 48000}
 SEGMENT_OVERLAP_MS = int(os.getenv("IDEASGLASS_SEGMENT_OVERLAP_MS", "2000"))
 SEGMENT_LOOKBACK_MS = max(0, min(SEGMENT_OVERLAP_MS, SEGMENT_TARGET_MS // 2))
+
+# Runtime config update helper
+def _apply_segment_target_ms(ms: int) -> None:
+    global SEGMENT_TARGET_MS, SEGMENT_LOOKBACK_MS, WHISPER_THRESHOLD_VALUES
+    ms = int(max(MIN_SEGMENT_MS, min(ms, SEGMENT_MAX_MS)))
+    SEGMENT_TARGET_MS = ms
+    # Recompute lookback and transcript thresholds to align with new window
+    SEGMENT_LOOKBACK_MS = max(0, min(SEGMENT_OVERLAP_MS, SEGMENT_TARGET_MS // 2))
+    try:
+        WHISPER_THRESHOLD_VALUES = _parse_thresholds(WHISPER_STREAM_THRESHOLDS)
+        if whisper_stream_manager:
+            whisper_stream_manager.thresholds_ms = WHISPER_THRESHOLD_VALUES
+    except Exception:
+        pass
 
 # Simple HMAC session + PBKDF2 password helpers
 import hmac
@@ -526,6 +548,16 @@ async def init_db() -> None:
             );
             """
         )
+        # App settings (single row key->JSON), stores e.g. {"segment_target_ms": 15000}
+        await conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS ig_settings (
+                key TEXT PRIMARY KEY,
+                value JSONB NOT NULL,
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            );
+            """
+        )
 
 
 @app.on_event("startup")
@@ -551,6 +583,18 @@ async def startup_event():
             db_pool = await asyncpg.create_pool(DATABASE_URL, min_size=1, max_size=5)
             await init_db()
             print("[DB] Connected to Postgres and ensured tables exist.")
+            # Load persisted app settings (e.g., segment_target_ms)
+            try:
+                async with db_pool.acquire() as conn:
+                    row = await conn.fetchrow("SELECT value FROM ig_settings WHERE key='app'")
+                if row and isinstance(row["value"], (dict,)):
+                    cfg = row["value"]
+                    seg = int(cfg.get("segment_target_ms") or 0)
+                    if seg:
+                        _apply_segment_target_ms(seg)
+                        print(f"[Settings] segment_target_ms loaded: {SEGMENT_TARGET_MS} ms")
+            except Exception as exc:
+                print(f"[Settings] Failed to load settings: {exc}")
         except Exception as exc:
             print(f"[DB] Failed to initialize Postgres: {exc}")
             db_pool = None
@@ -617,6 +661,37 @@ async def auth_me(request: Request):
         raise HTTPException(status_code=401, detail="Unauthorized")
     devices = await _bound_devices(uid)
     return MeOut(user_id=row["id"], email=row["email"], devices=devices)
+
+
+@app.get("/api/v1/settings", response_model=SettingsOut)
+async def get_settings():
+    # Return current runtime values (persisted if DB present)
+    return SettingsOut(segment_target_ms=SEGMENT_TARGET_MS)
+
+
+@app.post("/api/v1/settings", response_model=SettingsOut)
+async def update_settings(payload: SettingsIn, request: Request):
+    uid = await _current_user_id(request)
+    if not uid:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    # For now, any authenticated user can update app-level recording length
+    new_ms = int(payload.segment_target_ms) if payload.segment_target_ms is not None else SEGMENT_TARGET_MS
+    _apply_segment_target_ms(new_ms)
+    # Persist if DB is available
+    if db_pool:
+        try:
+            async with db_pool.acquire() as conn:
+                await conn.execute(
+                    """
+                    INSERT INTO ig_settings (key, value, updated_at)
+                    VALUES ('app', $1, NOW())
+                    ON CONFLICT (key) DO UPDATE SET value=$1, updated_at=NOW()
+                    """,
+                    json.dumps({"segment_target_ms": SEGMENT_TARGET_MS}),
+                )
+        except Exception as exc:
+            print(f"[Settings] Persist failed: {exc}")
+    return SettingsOut(segment_target_ms=SEGMENT_TARGET_MS)
 
 
 @app.get("/api/v1/devices")

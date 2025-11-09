@@ -64,6 +64,10 @@ const ideasBackBtn = document.getElementById('ideasBackBtn');
 const currentEmail = document.getElementById("currentEmail");
 const currentDevices = document.getElementById("currentDevices");
 const accountAvatar = document.getElementById("accountAvatar");
+// Preferences
+const recordLenInput = document.getElementById('recordLenInput');
+const recordLenSaveBtn = document.getElementById('recordLenSaveBtn');
+const recordLenStatus = document.getElementById('recordLenStatus');
 
 segmentTranscriptClose?.addEventListener("click", () => {
   hideSegmentTranscript();
@@ -1380,6 +1384,11 @@ function setOverlayStatus(msg) {
   overlayAuthStatus.textContent = msg || '';
 }
 
+function setRecordLenStatus(msg) {
+  if (!recordLenStatus) return;
+  recordLenStatus.textContent = msg || '';
+}
+
 async function refreshAccount() {
   let me = null;
   try {
@@ -1440,6 +1449,8 @@ async function refreshAccount() {
     }
   } catch {}
   updateLoginOverlay();
+  // Load preferences after auth state is known
+  try { await refreshSettings(); } catch {}
 }
 
 authRegisterBtn?.addEventListener("click", async () => {
@@ -1510,3 +1521,34 @@ bindBtn?.addEventListener("click", async () => {
 // Show current account on load
 refreshAccount();
 // Live transcripts page elements
+
+async function refreshSettings() {
+  try {
+    const data = await apiGet('/api/v1/settings');
+    if (data && typeof data.segment_target_ms === 'number') {
+      const secs = Math.round(data.segment_target_ms / 1000);
+      if (recordLenInput) recordLenInput.value = String(secs);
+      state.segmentTargetMs = data.segment_target_ms;
+    }
+  } catch {}
+}
+
+recordLenSaveBtn?.addEventListener('click', async () => {
+  const secs = parseInt((recordLenInput?.value || '').trim(), 10);
+  if (!Number.isFinite(secs) || secs < 5 || secs > 60) {
+    setRecordLenStatus('Enter 5–60 seconds');
+    return;
+  }
+  try {
+    const payload = { segment_target_ms: secs * 1000 };
+    const out = await apiPost('/api/v1/settings', payload);
+    if (out && typeof out.segment_target_ms === 'number') {
+      state.segmentTargetMs = out.segment_target_ms;
+      setRecordLenStatus('Saved ✔');
+    } else {
+      setRecordLenStatus('Saved');
+    }
+  } catch (e) {
+    setRecordLenStatus('Save failed');
+  }
+});

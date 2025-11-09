@@ -654,6 +654,18 @@ main {
   border-color: rgba(220, 38, 76, 0.2);
 }
 
+#preferencesPanel {
+  background: #ffffff;
+  border-radius: 22px;
+  padding: 0.75rem clamp(0.6rem, 2vw, 1.2rem);
+  box-shadow: 0 25px 60px rgba(15, 23, 42, 0.08);
+  border: 1px solid rgba(15, 23, 42, 0.05);
+}
+.pref-form { display:flex; flex-direction: column; gap: 0.5rem; }
+.recordlen-row { display:flex; align-items:center; gap: 0.5rem; }
+#recordLenInput { width: 6rem; }
+.suffix { color:#6b7280; }
+
 #logPanel {
   flex: 1;
   background: #ffffff;
