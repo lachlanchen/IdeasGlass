@@ -47,7 +47,7 @@ const state = {
   transcriptOldestEndedAt: null,
   lastAudioAt: 0,
   micActive: false,
-  lastLevel: 0,
+  vuMode: true, // show uniform VU bars reflecting current volume only
 };
 
 let loadMoreObserver = null;
@@ -133,10 +133,9 @@ function initWaveformBars() {
 function computeLevel(chunk) {
   const rms = Math.max(0, Number(chunk?.rms || 0));
   // Map typical RMS 0.02–0.06 into a visible range without saturating.
-  // Slightly stronger scaling + floor for low-level input.
-  const scaled = Math.sqrt(rms * 6); // 0.04 -> ~0.49
-  const speechBoost = chunk?.speech_detected ? 0.1 : 0;
-  return Math.min(1, Math.max(0.03, scaled + speechBoost));
+  // No speech boost; pure volume-driven VU.
+  const scaled = Math.sqrt(rms * 6); // 0.02 -> ~0.346, 0.06 -> ~0.6
+  return Math.min(1, Math.max(0, scaled));
 }
 
 function updateWaveformBars() {
@@ -375,18 +374,18 @@ function addAudioSample(chunk) {
   if (state.audioHistory.length > 200) {
     state.audioHistory.shift();
   }
-  if (state.waveformLevels.length >= state.waveformLimit) {
-    state.waveformLevels.shift();
+  const level = computeLevel(chunk);
+  if (state.vuMode) {
+    // Uniform VU meter: set all bars to the same level
+    state.waveformLevels = Array(state.waveformLimit).fill(level);
+    updateWaveformBars();
+  } else {
+    if (state.waveformLevels.length >= state.waveformLimit) {
+      state.waveformLevels.shift();
+    }
+    state.waveformLevels.push(level);
+    updateWaveformBars();
   }
-  // Smooth the level a bit so the bars have visible motion
-  const instant = computeLevel(chunk);
-  const prev = state.waveformLevels[state.waveformLevels.length - 1] ?? state.lastLevel ?? 0;
-  // Favor responsiveness over accuracy; faster rise, mild smoothing
-  const alpha = chunk?.speech_detected ? 0.85 : 0.7; // higher alpha -> more responsive
-  const smoothed = Math.min(1, Math.max(0.03, prev * (1 - alpha) + instant * alpha));
-  state.lastLevel = smoothed;
-  state.waveformLevels.push(smoothed);
-  updateWaveformBars();
   updateVadStatus(chunk);
   updateRecordingTimer(chunk);
   if (audioStatusEl) {
@@ -854,18 +853,4 @@ if (logPanelEl) {
   window.addEventListener("scroll", handleGlobalScroll);
 }
 
-// Gentle decay so bars don’t freeze between chunks; no audio -> slow falloff
-setInterval(() => {
-  const now = Date.now();
-  if (now - (state.lastAudioAt || 0) < 250) return; // recent chunk, skip
-  if (!state.waveBars.length) return;
-  const prev = state.waveformLevels[state.waveformLevels.length - 1] ?? state.lastLevel ?? 0;
-  // Faster decay to feel snappier when speech stops
-  const decayed = Math.max(0.03, prev * 0.92);
-  if (state.waveformLevels.length >= state.waveformLimit) {
-    state.waveformLevels.shift();
-  }
-  state.waveformLevels.push(decayed);
-  state.lastLevel = decayed;
-  updateWaveformBars();
-}, 100);
+// VU mode: no history/arrival effects; bars reflect current loudness only.
