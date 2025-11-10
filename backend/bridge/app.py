@@ -286,6 +286,14 @@ class IdeaSeedIn(BaseModel):
     overwrite: bool = False
 
 
+class IdeaUpdateIn(BaseModel):
+    title: Optional[str] = None
+    summary: Optional[str] = None
+    language: Optional[str] = None
+    tags: Optional[List[str]] = None
+    status: Optional[int] = Field(default=None, ge=0, le=2)  # 0 active, 1 archived, 2 deleted
+
+
 # ---- Goals models ----
 class GoalOut(BaseModel):
     id: str
@@ -1157,6 +1165,110 @@ async def seed_goals(payload: GoalSeedIn, request: Request):
                     now,
                 )
     return {"ok": True, "count": len(samples)}
+
+
+@app.get("/api/v1/ideas/{idea_id}", response_model=IdeaOut)
+async def get_idea(idea_id: str, request: Request):
+    uid = await _current_user_id(request)
+    if not uid:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    if not db_pool:
+        raise HTTPException(status_code=503, detail="Requires DATABASE_URL")
+    async with db_pool.acquire() as conn:
+        row = await conn.fetchrow(
+            """
+            SELECT id, title, summary, language, tags, occurrence_count, urgency, recency_score,
+                   importance_score, evidence_count, latest_occurrence_at, created_at, updated_at, status
+            FROM ig_ideas WHERE id=$1 AND user_id=$2
+            """,
+            idea_id,
+            uid,
+        )
+    if not row:
+        raise HTTPException(status_code=404, detail="Not Found")
+    tags = row["tags"] if isinstance(row["tags"], list) else None
+    latest = row["latest_occurrence_at"].isoformat() if row["latest_occurrence_at"] else None
+    return IdeaOut(
+        id=row["id"],
+        title=row["title"],
+        summary=row["summary"],
+        language=row["language"],
+        tags=tags,
+        occurrence_count=int(row["occurrence_count"] or 0),
+        urgency=float(row["urgency"] or 0),
+        recency_score=float(row["recency_score"] or 0),
+        importance_score=float(row["importance_score"] or 0),
+        evidence_count=int(row["evidence_count"] or 0),
+        latest_occurrence_at=latest,
+        created_at=row["created_at"].isoformat(),
+        updated_at=row["updated_at"].isoformat(),
+        status=int(row["status"] or 0),
+    )
+
+
+@app.patch("/api/v1/ideas/{idea_id}", response_model=IdeaOut)
+async def update_idea(idea_id: str, payload: IdeaUpdateIn, request: Request):
+    uid = await _current_user_id(request)
+    if not uid:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    if not db_pool:
+        raise HTTPException(status_code=503, detail="Requires DATABASE_URL")
+    fields = {}
+    if payload.title is not None:
+        fields["title"] = payload.title
+    if payload.summary is not None:
+        fields["summary"] = payload.summary
+    if payload.language is not None:
+        fields["language"] = payload.language
+    if payload.tags is not None:
+        fields["tags"] = payload.tags
+    if payload.status is not None:
+        fields["status"] = int(payload.status)
+    if not fields:
+        # Nothing to update; return current
+        return await get_idea(idea_id, request)
+    sets = []
+    values = []
+    idx = 1
+    for k, v in fields.items():
+        sets.append(f"{k}=${idx}")
+        if k == "tags":
+            values.append(json.dumps(v or []))
+        else:
+            values.append(v)
+        idx += 1
+    sets.append(f"updated_at=${idx}")
+    values.append(datetime.now(tz=timezone.utc))
+    idx += 1
+    # WHERE args
+    values.append(idea_id)
+    values.append(uid)
+    async with db_pool.acquire() as conn:
+        res = await conn.execute(
+            f"UPDATE ig_ideas SET {', '.join(sets)} WHERE id=${idx} AND user_id=${idx+1}",
+            *values,
+        )
+        if not res or not res.startswith("UPDATE"):
+            raise HTTPException(status_code=404, detail="Not Found")
+    return await get_idea(idea_id, request)
+
+
+@app.delete("/api/v1/ideas/{idea_id}")
+async def delete_idea(idea_id: str, request: Request):
+    uid = await _current_user_id(request)
+    if not uid:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    if not db_pool:
+        raise HTTPException(status_code=503, detail="Requires DATABASE_URL")
+    async with db_pool.acquire() as conn:
+        res = await conn.execute(
+            "UPDATE ig_ideas SET status=2, updated_at=NOW() WHERE id=$1 AND user_id=$2",
+            idea_id,
+            uid,
+        )
+    if not res or not res.startswith("UPDATE"):
+        raise HTTPException(status_code=404, detail="Not Found")
+    return {"ok": True}
 
 
 @app.get("/api/v1/creations", response_model=List[CreationOut])

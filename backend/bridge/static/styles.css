@@ -1068,6 +1068,15 @@ footer {
 .idea-time { color: #64748b; }
 .idea-lang { font-weight: 800; color: #166534; background: rgba(34,197,94,0.16); padding: 0.1rem 0.45rem; border-radius: 999px; border: 1px solid rgba(34,197,94,0.25); }
 
+/* Idea detail form */
+.idea-form { display:flex; flex-direction: column; gap: 0.5rem; }
+.if-label { color:#6c7da5; font-weight:700; }
+.if-input, .if-textarea { width:100%; border-radius:12px; border:1px solid rgba(15,23,42,0.12); background:#f8fafc; padding: 0.6rem 0.7rem; }
+.if-row { display:flex; gap: 0.6rem; flex-wrap: wrap; }
+.if-col { flex:1; min-width: 220px; }
+.if-meta { display:flex; align-items:center; gap: 0.5rem; }
+.if-actions { display:flex; gap: 0.5rem; }
+
 /* Goals panel */
 .goals-panel {
   background: #ffffff;

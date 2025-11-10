@@ -33,6 +33,20 @@ const livePhotosBack = document.getElementById('livePhotosBack');
 const ideasView = document.getElementById('ideasView');
 const ideasGrid = document.getElementById('ideasGrid');
 const seedIdeasBtn = document.getElementById('seedIdeasBtn');
+// Idea detail
+const ideaDetailView = document.getElementById('ideaDetailView');
+const ideaDetailBack = document.getElementById('ideaDetailBack');
+const ideaTitleInput = document.getElementById('ideaTitleInput');
+const ideaSummaryInput = document.getElementById('ideaSummaryInput');
+const ideaLanguageInput = document.getElementById('ideaLanguageInput');
+const ideaTagsInput = document.getElementById('ideaTagsInput');
+const ideaStatusBadge = document.getElementById('ideaStatusBadge');
+const ideaScoreBadge = document.getElementById('ideaScoreBadge');
+const ideaMetaText = document.getElementById('ideaMetaText');
+const ideaSaveBtn = document.getElementById('ideaSaveBtn');
+const ideaArchiveBtn = document.getElementById('ideaArchiveBtn');
+const ideaDeleteBtn = document.getElementById('ideaDeleteBtn');
+let currentIdeaId = null;
 const goalsGrid = document.getElementById('goalsGrid');
 const seedGoalsBtn = document.getElementById('seedGoalsBtn');
 const creationView = document.getElementById('creationView');
@@ -1583,6 +1597,23 @@ async function apiGet(url) {
   return await res.json();
 }
 
+async function apiPatch(url, body) {
+  const res = await fetch(url, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body || {}),
+    credentials: 'include',
+  });
+  if (!res.ok) throw new Error(`${res.status}`);
+  try { return await res.json(); } catch { return {}; }
+}
+
+async function apiDelete(url) {
+  const res = await fetch(url, { method: 'DELETE', credentials: 'include' });
+  if (!res.ok) throw new Error(`${res.status}`);
+  try { return await res.json(); } catch { return {}; }
+}
+
 // ---- Creation tab ----
 function typeLabel(t) {
   const map = {
@@ -1924,6 +1955,7 @@ function buildIdeaCard(idea) {
   meta.append(tags, right);
 
   card.append(top, meta);
+  card.addEventListener('click', () => openIdeaDetailPage(idea.id));
   return card;
 }
 
@@ -1961,6 +1993,85 @@ seedIdeasBtn?.addEventListener('click', async () => {
     seedIdeasBtn.disabled = false;
   }
   try { await refreshIdeas(); } catch {}
+});
+
+function showIdeasList() {
+  ideasView?.classList.remove('hidden');
+  ideasView?.classList.add('slide-in');
+  setTimeout(() => ideasView?.classList.remove('slide-in'), 300);
+  ideaDetailView?.classList.add('hidden');
+}
+
+function openIdeaDetailPage(id) {
+  currentIdeaId = id;
+  // Hide list view
+  ideasView?.classList.add('hidden');
+  // Load detail
+  if (ideaDetailView) {
+    ideaDetailView.classList.remove('hidden');
+    ideaDetailView.classList.add('slide-in');
+    setTimeout(() => ideaDetailView.classList.remove('slide-in'), 300);
+  }
+  loadIdeaDetail(id);
+}
+
+async function loadIdeaDetail(id) {
+  try {
+    const data = await apiGet(`/api/v1/ideas/${encodeURIComponent(id)}`);
+    if (ideaTitleInput) ideaTitleInput.value = data.title || '';
+    if (ideaSummaryInput) ideaSummaryInput.value = data.summary || '';
+    if (ideaLanguageInput) ideaLanguageInput.value = data.language || '';
+    if (ideaTagsInput) ideaTagsInput.value = Array.isArray(data.tags) ? data.tags.join(', ') : '';
+    if (ideaStatusBadge) ideaStatusBadge.textContent = (Number(data.status) === 1 ? 'ARCHIVED' : 'ACTIVE');
+    if (ideaScoreBadge) ideaScoreBadge.textContent = `${Math.round(Number(data.importance_score || 0) * 100)}%`;
+    if (ideaMetaText) ideaMetaText.textContent = `occurrences ${data.occurrence_count} · urgency ${Number(data.urgency||0).toFixed(2)} · recency ${Number(data.recency_score||0).toFixed(2)}`;
+    if (ideaArchiveBtn) {
+      const archived = Number(data.status) === 1;
+      ideaArchiveBtn.textContent = archived ? 'Unarchive' : 'Archive';
+    }
+  } catch (e) {
+    try { ideaMetaText.textContent = 'Failed to load idea'; } catch {}
+  }
+}
+
+ideaDetailBack?.addEventListener('click', () => {
+  showIdeasList();
+  try { refreshIdeas(); } catch {}
+});
+
+ideaSaveBtn?.addEventListener('click', async () => {
+  if (!currentIdeaId) return;
+  const payload = {
+    title: ideaTitleInput?.value || undefined,
+    summary: ideaSummaryInput?.value || undefined,
+    language: ideaLanguageInput?.value || undefined,
+    tags: (ideaTagsInput?.value || '').split(',').map(s => s.trim()).filter(Boolean),
+  };
+  try {
+    await apiPatch(`/api/v1/ideas/${encodeURIComponent(currentIdeaId)}`, payload);
+    await loadIdeaDetail(currentIdeaId);
+  } catch {}
+});
+
+ideaArchiveBtn?.addEventListener('click', async () => {
+  if (!currentIdeaId) return;
+  // Toggle archived status by reading current badge
+  const toArchived = (ideaArchiveBtn.textContent || '').toLowerCase().includes('archive') && !(ideaArchiveBtn.textContent || '').toLowerCase().includes('un');
+  const status = toArchived ? 1 : 0;
+  try {
+    await apiPatch(`/api/v1/ideas/${encodeURIComponent(currentIdeaId)}`, { status });
+    await loadIdeaDetail(currentIdeaId);
+  } catch {}
+});
+
+ideaDeleteBtn?.addEventListener('click', async () => {
+  if (!currentIdeaId) return;
+  try {
+    await apiDelete(`/api/v1/ideas/${encodeURIComponent(currentIdeaId)}`);
+    currentIdeaId = null;
+    showIdeasList();
+    await refreshIdeas();
+  } catch {}
 });
 
 recordLenSaveBtn?.addEventListener('click', async () => {

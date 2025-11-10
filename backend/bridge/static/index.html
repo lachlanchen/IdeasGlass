@@ -147,6 +147,46 @@
       </main>
     </div>
 
+    <!-- Idea detail sub-page (push-style) -->
+    <div id="ideaDetailView" class="hidden">
+      <main>
+        <section class="ideas-panel">
+          <div class="ideas-header">
+            <button id="ideaDetailBack" class="ghost-btn" type="button">← Back to Ideas</button>
+            <h2>Idea</h2>
+            <div class="ideas-actions">
+              <button id="ideaDeleteBtn" type="button" class="ghost-btn">Delete</button>
+            </div>
+          </div>
+          <div class="idea-form">
+            <label class="if-label">Title</label>
+            <input id="ideaTitleInput" class="if-input" placeholder="Title" />
+            <label class="if-label">Summary</label>
+            <textarea id="ideaSummaryInput" class="if-textarea" rows="4" placeholder="Summary"></textarea>
+            <div class="if-row">
+              <div class="if-col">
+                <label class="if-label">Language</label>
+                <input id="ideaLanguageInput" class="if-input" placeholder="en / zh" />
+              </div>
+              <div class="if-col">
+                <label class="if-label">Tags (comma separated)</label>
+                <input id="ideaTagsInput" class="if-input" placeholder="writing, video" />
+              </div>
+            </div>
+            <div class="if-meta">
+              <span id="ideaStatusBadge" class="idea-lang">ACTIVE</span>
+              <span id="ideaScoreBadge" class="idea-score">--%</span>
+              <small id="ideaMetaText" class="muted"></small>
+            </div>
+            <div class="if-actions">
+              <button id="ideaSaveBtn" type="button">Save</button>
+              <button id="ideaArchiveBtn" type="button" class="ghost-btn">Archive</button>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+
     <div id="goalView" class="view hidden">
       <main>
         <section class="goals-panel">
