@@ -31,6 +31,8 @@ const liveMainView = document.getElementById('liveMainView');
 const livePhotosView = document.getElementById('livePhotosView');
 const livePhotosBack = document.getElementById('livePhotosBack');
 const ideasView = document.getElementById('ideasView');
+const ideasGrid = document.getElementById('ideasGrid');
+const seedIdeasBtn = document.getElementById('seedIdeasBtn');
 const creationView = document.getElementById('creationView');
 const goalView = document.getElementById('goalView');
 const settingsView = document.getElementById('settingsView');
@@ -484,6 +486,9 @@ function setActiveTab(tab) {
     localStorage.setItem('ig.selectedTab', tab);
   } catch {}
   updateLoginOverlay();
+  if (tab === 'ideas') {
+    try { refreshIdeas(); } catch {}
+  }
 }
 
 function decorateStatus(connected) {
@@ -1660,6 +1665,93 @@ async function refreshSettings() {
     }
   } catch {}
 }
+
+// ---- Ideas tab rendering ----
+function buildIdeaCard(idea) {
+  const card = document.createElement('div');
+  card.className = 'idea-card';
+
+  const top = document.createElement('div');
+  top.className = 'idea-top';
+  const left = document.createElement('div');
+  const title = document.createElement('h3');
+  title.className = 'idea-title';
+  title.textContent = idea.title;
+  const summary = document.createElement('p');
+  summary.className = 'idea-summary';
+  summary.textContent = idea.summary || '';
+  left.append(title, summary);
+  const score = document.createElement('span');
+  score.className = 'idea-score';
+  const pct = Math.round(Math.max(0, Math.min(1, Number(idea.importance_score || 0))) * 100);
+  score.textContent = `${pct}%`;
+  top.append(left, score);
+
+  const meta = document.createElement('div');
+  meta.className = 'idea-meta';
+  const tags = document.createElement('div');
+  tags.className = 'idea-tags';
+  (Array.isArray(idea.tags) ? idea.tags : []).slice(0, 6).forEach((t) => {
+    const chip = document.createElement('span');
+    chip.className = 'idea-tag';
+    chip.textContent = t;
+    tags.appendChild(chip);
+  });
+  const right = document.createElement('div');
+  right.style.display = 'flex';
+  right.style.alignItems = 'center';
+  right.style.gap = '6px';
+  if (idea.language) {
+    const lang = document.createElement('span');
+    lang.className = 'idea-lang';
+    lang.textContent = String(idea.language).toUpperCase();
+    right.appendChild(lang);
+  }
+  const when = document.createElement('span');
+  when.className = 'idea-time';
+  when.textContent = idea.latest_occurrence_at ? new Date(idea.latest_occurrence_at).toLocaleString() : new Date(idea.created_at).toLocaleString();
+  right.appendChild(when);
+  meta.append(tags, right);
+
+  card.append(top, meta);
+  return card;
+}
+
+async function refreshIdeas() {
+  if (!ideasGrid) return;
+  try {
+    const res = await fetch('/api/v1/ideas?limit=50');
+    if (res.status === 401) {
+      ideasGrid.innerHTML = '<p>Please sign in to view your ideas.</p>';
+      return;
+    }
+    if (!res.ok) throw new Error('Failed to fetch ideas');
+    const items = await res.json();
+    ideasGrid.innerHTML = '';
+    if (!Array.isArray(items) || items.length === 0) {
+      const empty = document.createElement('p');
+      empty.textContent = 'No ideas yet. Generate samples or keep talking—IdeasGlass will surface ideas here.';
+      ideasGrid.appendChild(empty);
+      return;
+    }
+    const frag = document.createDocumentFragment();
+    items.forEach((it) => frag.appendChild(buildIdeaCard(it)));
+    ideasGrid.appendChild(frag);
+  } catch (e) {
+    ideasGrid.innerHTML = '<p>Failed to load ideas.</p>';
+  }
+}
+
+seedIdeasBtn?.addEventListener('click', async () => {
+  try {
+    seedIdeasBtn.disabled = true;
+    await apiPost('/api/v1/ideas/seed', { overwrite: false });
+  } catch {}
+  finally {
+    seedIdeasBtn.disabled = false;
+  }
+  try { await refreshIdeas(); } catch {}
+});
 
 recordLenSaveBtn?.addEventListener('click', async () => {
   const secs = parseInt((recordLenInput?.value || '').trim(), 10);

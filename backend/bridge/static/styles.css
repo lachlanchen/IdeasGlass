@@ -1004,6 +1004,70 @@ footer {
   border-top: 1px solid rgba(15, 23, 42, 0.06);
 }
 
+/* Ideas panel */
+.ideas-panel {
+  background: #ffffff;
+  border-radius: 22px;
+  padding: 0.9rem clamp(0.8rem, 2vw, 1.4rem);
+  box-shadow: 0 25px 60px rgba(15, 23, 42, 0.08);
+  border: 1px solid rgba(15, 23, 42, 0.05);
+}
+
+.ideas-header { display:flex; align-items:center; justify-content: space-between; gap: 0.5rem; }
+.ideas-header h2 { margin: 0; color: #111827; }
+.ideas-actions { display:flex; align-items:center; gap: 0.5rem; }
+.ideas-sub { margin: 0.25rem 0 0.8rem; color: #6b7280; }
+
+.ideas-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 10px;
+}
+
+.idea-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.85rem 0.9rem;
+  border-radius: 16px;
+  background: linear-gradient(135deg, #ffffff, #f8fbff);
+  border: 1px solid rgba(15, 23, 42, 0.06);
+  box-shadow: 0 14px 40px rgba(15, 23, 42, 0.08);
+}
+
+.idea-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.idea-title { margin: 0; font-size: 1.05rem; color: #0f172a; font-weight: 800; }
+.idea-summary { margin: 0; color: #4c5673; font-size: 0.95rem; }
+
+.idea-score {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 48px; height: 28px; padding: 0 0.5rem;
+  border-radius: 999px;
+  background: rgba(79, 70, 229, 0.12);
+  color: #4338ca; font-weight: 800;
+  border: 1px solid rgba(79, 70, 229, 0.25);
+}
+
+.idea-meta {
+  display:flex; align-items:center; justify-content: space-between; gap: 0.5rem;
+  color: #6b7280; font-size: 0.86rem;
+}
+
+.idea-tags { display:flex; flex-wrap: wrap; gap: 6px; }
+.idea-tag {
+  display:inline-flex; align-items:center; padding: 0.15rem 0.55rem; border-radius: 999px;
+  background: #eef2ff; color:#4338ca; font-weight: 700; border: 1px solid rgba(79,70,229,0.15);
+}
+
+.idea-time { color: #64748b; }
+.idea-lang { font-weight: 800; color: #166534; background: rgba(34,197,94,0.16); padding: 0.1rem 0.45rem; border-radius: 999px; border: 1px solid rgba(34,197,94,0.25); }
+
 @media (max-width: 600px) {
   header,
   main {

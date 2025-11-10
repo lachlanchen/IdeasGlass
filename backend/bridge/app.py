@@ -264,6 +264,28 @@ class SettingsIn(BaseModel):
     segment_target_ms: Optional[int] = Field(default=None, ge=MIN_SEGMENT_MS, le=SEGMENT_MAX_MS)
 
 
+# ---- Ideas models ----
+class IdeaOut(BaseModel):
+    id: str
+    title: str
+    summary: Optional[str] = None
+    language: Optional[str] = None
+    tags: Optional[List[str]] = None
+    occurrence_count: int = 0
+    urgency: float = 0.0
+    recency_score: float = 0.0
+    importance_score: float = 0.0
+    evidence_count: int = 0
+    latest_occurrence_at: Optional[str] = None
+    created_at: str
+    updated_at: str
+    status: int = 0
+
+
+class IdeaSeedIn(BaseModel):
+    overwrite: bool = False
+
+
 @dataclass
 class AudioSegmentBuffer:
     device_id: str
@@ -559,6 +581,34 @@ async def init_db() -> None:
             );
             """
         )
+        # Ideas (basic)
+        await conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS ig_ideas (
+                id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                title TEXT NOT NULL,
+                summary TEXT,
+                language TEXT,
+                tags JSONB,
+                occurrence_count INT NOT NULL DEFAULT 0,
+                urgency REAL NOT NULL DEFAULT 0,
+                recency_score REAL NOT NULL DEFAULT 0,
+                importance_score REAL NOT NULL DEFAULT 0,
+                evidence_count INT NOT NULL DEFAULT 0,
+                latest_occurrence_at TIMESTAMPTZ,
+                status INT NOT NULL DEFAULT 0,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            );
+            """
+        )
+        await conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_ig_ideas_user_status ON ig_ideas(user_id, status)"
+        )
+        await conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_ig_ideas_sort ON ig_ideas(user_id, status, importance_score DESC, latest_occurrence_at DESC)"
+        )
 
 
 @app.on_event("startup")
@@ -693,6 +743,165 @@ async def update_settings(payload: SettingsIn, request: Request):
         except Exception as exc:
             print(f"[Settings] Persist failed: {exc}")
     return SettingsOut(segment_target_ms=SEGMENT_TARGET_MS)
+
+
+@app.get("/api/v1/ideas", response_model=List[IdeaOut])
+async def list_ideas(limit: int = 50, request: Request = None):
+    uid = await _current_user_id(request)
+    if not uid:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    if not db_pool:
+        raise HTTPException(status_code=503, detail="Requires DATABASE_URL")
+    limit = max(1, min(200, int(limit)))
+    async with db_pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT id, title, summary, language, tags, occurrence_count, urgency,
+                   recency_score, importance_score, evidence_count, latest_occurrence_at,
+                   created_at, updated_at, status
+            FROM ig_ideas
+            WHERE user_id=$1 AND status=0
+            ORDER BY importance_score DESC NULLS LAST, latest_occurrence_at DESC NULLS LAST, created_at DESC
+            LIMIT $2
+            """,
+            uid,
+            limit,
+        )
+    ideas: List[IdeaOut] = []
+    for r in rows:
+        tags = r["tags"] if isinstance(r["tags"], list) else None
+        latest = r["latest_occurrence_at"].isoformat() if r["latest_occurrence_at"] else None
+        ideas.append(
+            IdeaOut(
+                id=r["id"],
+                title=r["title"],
+                summary=r["summary"],
+                language=r["language"],
+                tags=tags,
+                occurrence_count=int(r["occurrence_count"] or 0),
+                urgency=float(r["urgency"] or 0),
+                recency_score=float(r["recency_score"] or 0),
+                importance_score=float(r["importance_score"] or 0),
+                evidence_count=int(r["evidence_count"] or 0),
+                latest_occurrence_at=latest,
+                created_at=r["created_at"].isoformat(),
+                updated_at=r["updated_at"].isoformat(),
+                status=int(r["status"] or 0),
+            )
+        )
+    return ideas
+
+
+@app.post("/api/v1/ideas/seed")
+async def seed_ideas(payload: IdeaSeedIn, request: Request):
+    """Insert sample ideas for the current user. Safe to call multiple times.
+
+    When overwrite=true, existing ideas with same title under this user are replaced.
+    """
+    uid = await _current_user_id(request)
+    if not uid:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    if not db_pool:
+        raise HTTPException(status_code=503, detail="Requires DATABASE_URL")
+
+    # Sample topics grounded in recent Weixin group themes
+    now = datetime.now(tz=timezone.utc)
+    samples = [
+        {
+            "title": "写作 + 外语：每周 Medium 图文",
+            "summary": "将日常对话洞察整理为图文，发布在 Medium/博客。",
+            "language": "zh",
+            "tags": ["writing", "medium", "journal"],
+            "occurrence_count": 7,
+            "urgency": 0.6,
+            "recency_score": 0.5,
+        },
+        {
+            "title": "商业计划书：OnlyIdeas 创业路径",
+            "summary": "为 OnlyIdeas 制定商业计划，梳理收入模型与定价。",
+            "language": "zh",
+            "tags": ["business", "pricing", "saas"],
+            "occurrence_count": 5,
+            "urgency": 0.7,
+            "recency_score": 0.4,
+        },
+        {
+            "title": "视频自媒体剪辑：AI 日记周更短视频",
+            "summary": "从每周 AI 日记中生成 60s 竖屏短视频，发布到 TikTok/小红书。",
+            "language": "zh",
+            "tags": ["video", "shorts", "ai"],
+            "occurrence_count": 6,
+            "urgency": 0.5,
+            "recency_score": 0.6,
+        },
+        {
+            "title": "预言日记（Prophecy Diary）",
+            "summary": "把‘我将要做’的承诺写入日记，记录信心与兑现情况。",
+            "language": "zh",
+            "tags": ["prophecy", "diary", "commitment"],
+            "occurrence_count": 4,
+            "urgency": 0.4,
+            "recency_score": 0.7,
+        },
+        {
+            "title": "本地视频翻译 LazyEdit",
+            "summary": "把本地视频快速生成翻译字幕与剪辑草稿。",
+            "language": "zh",
+            "tags": ["video", "translate", "tooling"],
+            "occurrence_count": 3,
+            "urgency": 0.5,
+            "recency_score": 0.45,
+        },
+    ]
+
+    def _score(o: int, u: float, r: float) -> float:
+        try:
+            # smooth occurrence -> 0..1
+            import math
+            occ = 1 - math.exp(-max(0, o) / 4.0)
+            return min(1.0, 0.5 * occ + 0.3 * max(0.0, min(1.0, u)) + 0.2 * max(0.0, min(1.0, r)))
+        except Exception:
+            return 0.0
+
+    async with db_pool.acquire() as conn:
+        async with conn.transaction():
+            for s in samples:
+                imp = _score(s["occurrence_count"], s["urgency"], s["recency_score"])
+                idea_id = str(uuid.uuid4())
+                # optional overwrite by title
+                if payload.overwrite:
+                    await conn.execute(
+                        "DELETE FROM ig_ideas WHERE user_id=$1 AND title=$2",
+                        uid,
+                        s["title"],
+                    )
+                await conn.execute(
+                    """
+                    INSERT INTO ig_ideas (
+                        id, user_id, title, summary, language, tags,
+                        occurrence_count, urgency, recency_score, importance_score,
+                        evidence_count, latest_occurrence_at, status, created_at, updated_at
+                    ) VALUES (
+                        $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,0,$13,$14
+                    )
+                    ON CONFLICT (id) DO NOTHING
+                    """,
+                    idea_id,
+                    uid,
+                    s["title"],
+                    s["summary"],
+                    s["language"],
+                    json.dumps(s.get("tags") or []),
+                    s["occurrence_count"],
+                    s["urgency"],
+                    s["recency_score"],
+                    imp,
+                    int(max(1, s["occurrence_count"] // 2)),
+                    now,
+                    now,
+                    now,
+                )
+    return {"ok": True, "count": len(samples)}
 
 
 @app.get("/api/v1/devices")

@@ -134,9 +134,15 @@
 
     <div id="ideasView" class="view hidden">
       <main>
-        <section>
-          <h2>Ideas</h2>
-          <p>Capture and refine your ideas here. (Coming soon)</p>
+        <section class="ideas-panel">
+          <div class="ideas-header">
+            <h2>Ideas</h2>
+            <div class="ideas-actions">
+              <button id="seedIdeasBtn" type="button" class="ghost-btn">Generate Samples</button>
+            </div>
+          </div>
+          <p class="ideas-sub">Ranked by importance based on occurrence × urgency × recency.</p>
+          <div id="ideasGrid" class="ideas-grid"></div>
         </section>
       </main>
     </div>
