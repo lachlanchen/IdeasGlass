@@ -1026,8 +1026,9 @@ bool sendAudioChunkPacket(const AudioPacket &packet)
 void audioSenderTask(void *param)
 {
     AudioPacket packet;
+    unsigned long lastPing = millis();
     while (true) {
-        if (g_audioQueue && xQueueReceive(g_audioQueue, &packet, portMAX_DELAY) == pdTRUE) {
+        if (g_audioQueue && xQueueReceive(g_audioQueue, &packet, pdMS_TO_TICKS(50)) == pdTRUE) {
             bool ok = sendAudioChunkPacket(packet);
             if (!kAudioLogSuppress) {
                 Serial.printf("[Audio] chunk #%u %s (rms=%.3f)\n", packet.sequence, ok ? "sent" : "FAILED", packet.rms);
@@ -1043,6 +1044,12 @@ void audioSenderTask(void *param)
             }
             vTaskDelay(pdMS_TO_TICKS(5));
         } else {
+            // No packet dequeued; send a lightweight WS ping periodically to keep the socket warm
+            unsigned long now = millis();
+            if (now - lastPing >= 1000) {
+                g_audioWsClient.sendPing();
+                lastPing = now;
+            }
             vTaskDelay(pdMS_TO_TICKS(20));
         }
     }
@@ -1192,6 +1199,8 @@ void connectToWiFi()
         bool ok = connectToApWithScan(cred.ssid, cred.password);
         if (ok) {
             Serial.printf("\n[WiFi] Connected (%s, RSSI %d)\n", WiFi.SSID().c_str(), WiFi.RSSI());
+            // Favor low-latency streaming over modem sleep to keep WS responsive
+            WiFi.setSleep(false);
             Serial.printf("IP: %s\n", WiFi.localIP().toString().c_str());
             // Ensure we have valid time before any TLS activity
             ensureTimeSynced();
