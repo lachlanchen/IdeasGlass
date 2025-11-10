@@ -597,7 +597,7 @@ function setActiveTab(tab) {
     try { refreshGoals(); } catch {}
   }
   if (tab === 'creation') {
-    try { await populateIdeaSelect(); } catch {}
+    try { populateIdeaSelect(); } catch {}
     try { refreshCreations(); } catch {}
   }
 }
