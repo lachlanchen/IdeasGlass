@@ -284,3 +284,24 @@ We maintain a separate, non‑breaking firmware hardening plan focused on robust
 - `docs/firmware_hardening_plan.md`
 
 This plan covers safer reconnects, HTTP keep‑alive pooling, buffer preallocation, camera power gating (flag‑gated), and validation metrics. Rollout is staged and fully reversible.
+
+Current implemented flags (default off) you can enable in `IdeaGlass/firmware/ideasglass_arduino/config.h`:
+
+- Stage A: `IG_TUNE_HTTP_KEEPALIVE`, `IG_TUNE_BATTERY_FILTER`, `IG_TUNE_DEBUG_COUNTERS`
+- Stage B: `IG_TUNE_PREALLOC_AUDIO`, `IG_TUNE_QUEUE_DROP_OLDEST`
+- Stage C: `IG_TUNE_WS_BACKOFF`
+
+Recommended safe defaults to start with:
+
+```c++
+#define IG_TUNE_HTTP_KEEPALIVE 1
+#define IG_TUNE_BATTERY_FILTER 1
+```
+
+Then, if WAN jitter persists, consider:
+
+```c++
+#define IG_TUNE_WS_BACKOFF 1
+#define IG_TUNE_PREALLOC_AUDIO 1
+#define IG_TUNE_QUEUE_DROP_OLDEST 1
+```

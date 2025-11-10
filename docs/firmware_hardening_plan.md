@@ -102,3 +102,54 @@ description: Non‑breaking improvements to robustness, latency, and power witho
 - PR series with small, focused commits for each stage.
 - Updates to `docs/ideasglass_bridge.md` with measurements and toggles once each stage is validated.
 
+---
+
+## Implementation status and how to enable
+
+The following Stage A–C items are implemented behind flags in `IdeaGlass/firmware/ideasglass_arduino/config.h` and OFF by default. Enabling them does not change external behavior (protocols/payloads); they only improve robustness and efficiency.
+
+- Stage A
+  - `IG_TUNE_HTTP_KEEPALIVE` (0/1): reuse TLS connections for HTTP fallbacks (`/api/v1/audio`, `/api/v1/messages`).
+  - `IG_TUNE_BATTERY_FILTER` (0/1): average a few ADC samples, cache ≥30 s to reduce reads.
+  - `IG_TUNE_DEBUG_COUNTERS` (0/1): print periodic counters (every 30 s) for ws/http ok/fail and queue drops.
+
+- Stage B
+  - `IG_TUNE_PREALLOC_AUDIO` (0/1): preallocate a small pool of PCM buffers to avoid malloc/free churn.
+  - `IG_TUNE_QUEUE_DROP_OLDEST` (0/1): on queue full, drop oldest pending and enqueue the newest (reduces burstiness).
+
+- Stage C
+  - `IG_TUNE_WS_BACKOFF` (0/1): non‑blocking WS reconnect with exponential backoff + jitter; sender never stalls.
+
+### Recommended initial toggles
+
+Turn these on first in `config.h`, rebuild, and upload:
+
+```c++
+#define IG_TUNE_HTTP_KEEPALIVE 1
+#define IG_TUNE_BATTERY_FILTER 1
+//#define IG_TUNE_DEBUG_COUNTERS 1  // enable temporarily when testing
+```
+
+If network jitter causes bursts, add:
+
+```c++
+#define IG_TUNE_WS_BACKOFF 1
+#define IG_TUNE_PREALLOC_AUDIO 1
+#define IG_TUNE_QUEUE_DROP_OLDEST 1
+```
+
+### Build & upload (Arduino‑CLI)
+
+```bash
+FQBN=esp32:esp32:XIAO_ESP32S3
+bin/arduino-cli compile --fqbn $FQBN --board-options PSRAM=opi IdeaGlass/firmware/ideasglass_arduino/IdeasGlassClient
+bin/arduino-cli upload  -p /dev/ttyACM0 --fqbn $FQBN --board-options PSRAM=opi IdeaGlass/firmware/ideasglass_arduino/IdeasGlassClient
+```
+
+### Quick verification
+
+- Serial should still show identical functional logs, with fewer stalls under jitter.
+- If `IG_TUNE_DEBUG_COUNTERS=1`:
+  - `[Stats] ws_audio_ok=… ws_audio_fail=… http_audio_ok=… http_audio_fail=… photo_ok=… photo_fail=… audio_queue_drop=…`
+  - Expect `audio_queue_drop` to decline after enabling WS backoff + drop‑oldest.
+
