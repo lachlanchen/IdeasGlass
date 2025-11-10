@@ -153,3 +153,10 @@ bin/arduino-cli upload  -p /dev/ttyACM0 --fqbn $FQBN --board-options PSRAM=opi I
   - `[Stats] ws_audio_ok=… ws_audio_fail=… http_audio_ok=… http_audio_fail=… photo_ok=… photo_fail=… audio_queue_drop=…`
   - Expect `audio_queue_drop` to decline after enabling WS backoff + drop‑oldest.
 
+## Postmortem — November 2025 Audio WS Regression
+
+- **Change**: We briefly swapped the proven WebSocket sender for a hand-rolled implementation (directly framing bytes onto `WiFiClientSecure`) while trying to bundle multiple hardening ideas at once.
+- **Failure mode**: `WiFiClientSecure.write()` does not guarantee that the entire buffer is flushed per call. The new code treated any short write as fatal, logged a warning, and tore down the socket. Under ngrok latency the server saw hundreds of short-lived `/ws/audio-ingest` sessions and every chunk fell back to HTTP.
+- **Additional mismatch**: the manual stack didn’t echo the negotiated subprotocol and didn’t fully drain handshake responses. Some intermediaries closed the connection immediately after 101.
+- **Fix**: Revert to commit `cd4525e` (the last known-good firmware) and keep BLE pairing disabled. This restored the original WS behaviour and audio latency.
+- **Lesson**: Any future WS optimisation must stay behind an `IG_TUNE_*` flag, ship in a separate PR, and demonstrate parity on both LAN and ngrok paths before we flip it on. Never replace the default WS path without an automated regression test.
