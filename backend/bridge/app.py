@@ -1465,7 +1465,13 @@ async def seed_life_goal(payload: LifeGoalSeedIn, request: Request):
             lg_id,
             uid,
             title,
-            "Make everything in life feel light: a happy, sustainable life without unnecessary effort.",
+            (
+                "A life that feels light and kind — where effort is placed only where it matters,\n"
+                "and everything else flows. Each day begins rested, guided by small, joyful habits,\n"
+                "and supported by tools and systems that carry you forward while you breathe.\n\n"
+                "You publish from a calm place, and your creations keep helping others even when you rest.\n"
+                "Learning and play fit easily into your days. This is a sustainable rhythm you trust."
+            ),
             "Reduce burnout, maximize creativity and joy; focus on what matters.",
             "Automate and delegate; compound small, enjoyable habits; build assets (content, tools) that work while you rest; design systems that default to ease.",
             json.dumps(["life","career","wellbeing"]),

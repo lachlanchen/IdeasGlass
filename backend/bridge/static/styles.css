@@ -1144,7 +1144,7 @@ footer {
 }
 .goal-top { display:flex; align-items:flex-start; justify-content: space-between; gap: 0.5rem; }
 .goal-title { margin:0; font-size:1.05rem; color:#0f172a; font-weight: 800; }
-.goal-outcome { margin:0; color:#4c5673; font-size:0.95rem; }
+.goal-outcome { margin:0; color:#4c5673; font-size:0.95rem; white-space: pre-wrap; line-height: 1.6; }
 .goal-meta { display:flex; align-items:center; justify-content: space-between; gap: 0.5rem; color:#6b7280; font-size: 0.86rem; }
 .goal-deadline { color:#64748b; }
 .goal-priority { display:inline-flex; align-items:center; gap: 4px; font-weight:700; }
