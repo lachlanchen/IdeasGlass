@@ -1569,7 +1569,9 @@ function openLiveTranscriptsPage() {
   liveTranscriptsView.classList.remove('hidden');
   liveTranscriptsView.classList.add('slide-in');
   liveMainView.classList.add('hidden');
-  try { document.body.classList.add('hide-header'); } catch {}
+  // Keep header visible and fixed on the transcripts list subpage
+  try { updateHeaderOffset && updateHeaderOffset(); } catch {}
+  try { window.scrollTo({ top: 0, behavior: 'auto' }); } catch { try { window.scrollTo(0,0); } catch {} }
   setTimeout(() => liveTranscriptsView.classList.remove('slide-in'), 300);
 }
 function closeLiveTranscriptsPage() {
@@ -1873,7 +1875,9 @@ function openLivePhotosPage() {
   livePhotosView.classList.remove('hidden');
   livePhotosView.classList.add('slide-in');
   liveMainView.classList.add('hidden');
-  try { document.body.classList.add('hide-header'); } catch {}
+  // Keep header visible and fixed on the photos grid subpage
+  try { updateHeaderOffset && updateHeaderOffset(); } catch {}
+  try { window.scrollTo({ top: 0, behavior: 'auto' }); } catch { try { window.scrollTo(0,0); } catch {} }
   setTimeout(() => livePhotosView.classList.remove('slide-in'), 300);
 }
 function closeLivePhotosPage() {
