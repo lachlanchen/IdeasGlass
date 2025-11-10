@@ -149,9 +149,15 @@
 
     <div id="goalView" class="view hidden">
       <main>
-        <section>
-          <h2>Goal</h2>
-          <p>Define and track your IdeasGlass goals here. (Coming soon)</p>
+        <section class="goals-panel">
+          <div class="goals-header">
+            <h2>Goals</h2>
+            <div class="goals-actions">
+              <button id="seedGoalsBtn" type="button" class="ghost-btn">Generate Samples</button>
+            </div>
+          </div>
+          <p class="goals-sub">Life → Goal → Plan → Steps. Track progress elegantly.</p>
+          <div id="goalsGrid" class="goals-grid"></div>
         </section>
       </main>
     </div>

@@ -33,6 +33,8 @@ const livePhotosBack = document.getElementById('livePhotosBack');
 const ideasView = document.getElementById('ideasView');
 const ideasGrid = document.getElementById('ideasGrid');
 const seedIdeasBtn = document.getElementById('seedIdeasBtn');
+const goalsGrid = document.getElementById('goalsGrid');
+const seedGoalsBtn = document.getElementById('seedGoalsBtn');
 const creationView = document.getElementById('creationView');
 const goalView = document.getElementById('goalView');
 const settingsView = document.getElementById('settingsView');
@@ -75,6 +77,103 @@ const recordLenStatus = document.getElementById('recordLenStatus');
 
 segmentTranscriptClose?.addEventListener("click", () => {
   hideSegmentTranscript();
+});
+
+// ---- Goals tab rendering ----
+function statusLabel(s) {
+  switch (Number(s)) {
+    case 0: return 'Not started';
+    case 1: return 'In progress';
+    case 2: return 'Blocked';
+    case 3: return 'Done';
+    case 4: return 'Canceled';
+    default: return '—';
+  }
+}
+
+function buildGoalCard(goal) {
+  const card = document.createElement('div');
+  card.className = `goal-card prio-${Number(goal.priority || 0)}`;
+
+  const top = document.createElement('div');
+  top.className = 'goal-top';
+  const left = document.createElement('div');
+  const title = document.createElement('h3');
+  title.className = 'goal-title';
+  title.textContent = goal.title;
+  const outcome = document.createElement('p');
+  outcome.className = 'goal-outcome';
+  outcome.textContent = goal.outcome || '';
+  left.append(title, outcome);
+  const status = document.createElement('span');
+  status.className = 'goal-status';
+  status.textContent = statusLabel(goal.status);
+  top.append(left, status);
+
+  const meta = document.createElement('div');
+  meta.className = 'goal-meta';
+  const leftMeta = document.createElement('div');
+  const pr = document.createElement('span');
+  pr.className = 'goal-priority';
+  const dot = document.createElement('span');
+  dot.className = 'prio-dot';
+  const ptext = document.createElement('span');
+  ptext.textContent = `P${Number(goal.priority || 0)}`;
+  pr.append(dot, ptext);
+  leftMeta.append(pr);
+  const rightMeta = document.createElement('div');
+  rightMeta.style.display = 'flex';
+  rightMeta.style.alignItems = 'center';
+  rightMeta.style.gap = '6px';
+  const when = document.createElement('span');
+  when.className = 'goal-deadline';
+  when.textContent = goal.deadline ? new Date(goal.deadline).toLocaleString() : 'No deadline';
+  rightMeta.appendChild(when);
+  meta.append(leftMeta, rightMeta);
+
+  const prog = document.createElement('div');
+  prog.className = 'goal-progress';
+  const pct = Math.max(0, Math.min(100, Number(goal.progress_percent || 0)));
+  const bar = document.createElement('span');
+  bar.style.setProperty('--pct', pct + '%');
+  prog.appendChild(bar);
+
+  card.append(top, meta, prog);
+  return card;
+}
+
+async function refreshGoals() {
+  if (!goalsGrid) return;
+  try {
+    const res = await fetch('/api/v1/goals?limit=50');
+    if (res.status === 401) {
+      goalsGrid.innerHTML = '<p>Please sign in to view your goals.</p>';
+      return;
+    }
+    if (!res.ok) throw new Error('Failed to fetch goals');
+    const items = await res.json();
+    goalsGrid.innerHTML = '';
+    if (!Array.isArray(items) || items.length === 0) {
+      const empty = document.createElement('p');
+      empty.textContent = 'No goals yet. Generate samples, or convert ideas into goals.';
+      goalsGrid.appendChild(empty);
+      return;
+    }
+    const frag = document.createDocumentFragment();
+    items.forEach((g) => frag.appendChild(buildGoalCard(g)));
+    goalsGrid.appendChild(frag);
+  } catch (e) {
+    goalsGrid.innerHTML = '<p>Failed to load goals.</p>';
+  }
+}
+
+seedGoalsBtn?.addEventListener('click', async () => {
+  try {
+    seedGoalsBtn.disabled = true;
+    await apiPost('/api/v1/goals/seed', { overwrite: false });
+  } catch {}
+  finally { seedGoalsBtn.disabled = false; }
+  try { await refreshGoals(); } catch {}
 });
 const transcriptPanel = document.getElementById("transcriptPanel");
 
@@ -488,6 +587,9 @@ function setActiveTab(tab) {
   updateLoginOverlay();
   if (tab === 'ideas') {
     try { refreshIdeas(); } catch {}
+  }
+  if (tab === 'goal') {
+    try { refreshGoals(); } catch {}
   }
 }
 

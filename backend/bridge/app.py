@@ -286,6 +286,23 @@ class IdeaSeedIn(BaseModel):
     overwrite: bool = False
 
 
+# ---- Goals models ----
+class GoalOut(BaseModel):
+    id: str
+    title: str
+    outcome: Optional[str] = None
+    deadline: Optional[str] = None
+    priority: int = 0
+    status: int = 0
+    progress_percent: float = 0.0
+    created_at: str
+    updated_at: str
+
+
+class GoalSeedIn(BaseModel):
+    overwrite: bool = False
+
+
 @dataclass
 class AudioSegmentBuffer:
     device_id: str
@@ -609,6 +626,29 @@ async def init_db() -> None:
         await conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_ig_ideas_sort ON ig_ideas(user_id, status, importance_score DESC, latest_occurrence_at DESC)"
         )
+        # Goals (basic)
+        await conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS ig_goals (
+                id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                title TEXT NOT NULL,
+                outcome TEXT,
+                deadline TIMESTAMPTZ,
+                priority SMALLINT DEFAULT 0,
+                status SMALLINT NOT NULL DEFAULT 0,
+                progress_percent NUMERIC(5,2) DEFAULT 0,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            );
+            """
+        )
+        await conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_ig_goals_user_status ON ig_goals(user_id, status)"
+        )
+        await conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_ig_goals_deadline ON ig_goals(user_id, deadline)"
+        )
 
 
 @app.on_event("startup")
@@ -898,6 +938,115 @@ async def seed_ideas(payload: IdeaSeedIn, request: Request):
                     imp,
                     int(max(1, s["occurrence_count"] // 2)),
                     now,
+                    now,
+                    now,
+                )
+    return {"ok": True, "count": len(samples)}
+
+
+@app.get("/api/v1/goals", response_model=List[GoalOut])
+async def list_goals(limit: int = 50, request: Request = None):
+    uid = await _current_user_id(request)
+    if not uid:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    if not db_pool:
+        raise HTTPException(status_code=503, detail="Requires DATABASE_URL")
+    limit = max(1, min(200, int(limit)))
+    async with db_pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT id, title, outcome, deadline, priority, status, progress_percent, created_at, updated_at
+            FROM ig_goals
+            WHERE user_id=$1 AND (status IN (0,1,2))
+            ORDER BY status ASC, deadline ASC NULLS LAST, priority DESC, updated_at DESC
+            LIMIT $2
+            """,
+            uid,
+            limit,
+        )
+    out: List[GoalOut] = []
+    for r in rows:
+        out.append(
+            GoalOut(
+                id=r["id"],
+                title=r["title"],
+                outcome=r["outcome"],
+                deadline=(r["deadline"].isoformat() if r["deadline"] else None),
+                priority=int(r["priority"] or 0),
+                status=int(r["status"] or 0),
+                progress_percent=float(r["progress_percent"] or 0),
+                created_at=r["created_at"].isoformat(),
+                updated_at=r["updated_at"].isoformat(),
+            )
+        )
+    return out
+
+
+@app.post("/api/v1/goals/seed")
+async def seed_goals(payload: GoalSeedIn, request: Request):
+    uid = await _current_user_id(request)
+    if not uid:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    if not db_pool:
+        raise HTTPException(status_code=503, detail="Requires DATABASE_URL")
+
+    now = datetime.now(tz=timezone.utc)
+    def d(days: int) -> datetime:
+        return now + timedelta(days=days)
+
+    samples = [
+        {
+            "title": "本月发布 4 篇 Medium 文章",
+            "outcome": "文章上线并交叉发布短视频",
+            "deadline": d(20),
+            "priority": 3,
+            "status": 1,
+            "progress_percent": 25.0,
+        },
+        {
+            "title": "OnlyIdeas 商业计划书 v1",
+            "outcome": "整理市场、定价与收入模型",
+            "deadline": d(14),
+            "priority": 2,
+            "status": 1,
+            "progress_percent": 40.0,
+        },
+        {
+            "title": "AI 日记周更短视频（4 支）",
+            "outcome": "每周 1 支 60s 竖屏剪辑",
+            "deadline": d(28),
+            "priority": 3,
+            "status": 0,
+            "progress_percent": 0.0,
+        },
+    ]
+
+    async with db_pool.acquire() as conn:
+        async with conn.transaction():
+            for g in samples:
+                if payload.overwrite:
+                    await conn.execute(
+                        "DELETE FROM ig_goals WHERE user_id=$1 AND title=$2",
+                        uid,
+                        g["title"],
+                    )
+                await conn.execute(
+                    """
+                    INSERT INTO ig_goals (
+                        id, user_id, title, outcome, deadline, priority, status, progress_percent, created_at, updated_at
+                    ) VALUES (
+                        $1,$2,$3,$4,$5,$6,$7,$8,$9,$10
+                    )
+                    ON CONFLICT (id) DO NOTHING
+                    """,
+                    str(uuid.uuid4()),
+                    uid,
+                    g["title"],
+                    g["outcome"],
+                    g["deadline"],
+                    g["priority"],
+                    g["status"],
+                    g["progress_percent"],
                     now,
                     now,
                 )
