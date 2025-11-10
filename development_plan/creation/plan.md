@@ -23,16 +23,16 @@
 - ig_creation_assets — attached media/documents.
 - ig_creation_links — many-to-many links to ig_ideas or ig_goals.
 
-**UI & UX**
-- Grid of square blocks per type (cards): icon + title + status; tap to open detail.
-- Detail: header (title/tags/status), type meta panel, sections editor (reorderable), assets gallery, links (ideas/goals), publish URL.
-- Templates: pre-seed sections based on type; quick add sections.
+**UI & UX (current)**
+- Grid of square blocks per type (cards): title + type badge; tap to open detail.
+- Quick create: from idea + type selector.
+- Detail: centered title, meta line with updated time + language; sections rendered read‑only; assets list with links; publish URL when present.
 
-**API (proposed)**
-- Creations: GET/POST /api/v1/creations; GET/PATCH /api/v1/creations/{id}
-- Sections:  GET/POST /api/v1/creations/{id}/sections; PATCH /api/v1/creations/{id}/sections/{sid}
-- Assets:    POST /api/v1/creations/{id}/assets
-- Links:     POST /api/v1/creations/{id}/link-idea/{idea_id}; /link-goal/{goal_id}
+**API (implemented subset)**
+- GET /api/v1/creations — list
+- POST /api/v1/creations/seed — seed samples
+- POST /api/v1/creations/from-idea — create a creation linked to an idea
+- GET /api/v1/creations/{id} — detail with sections and assets
 
 **Rollout**
 - Phase 1: DB + CRUD + list/detail UI with templates for the main types (research, business, video, post).
@@ -41,4 +41,3 @@
 
 **Samples**
 - See samples/ for examples across all types.
-

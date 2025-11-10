@@ -17,30 +17,23 @@
   - score = min(1, 0.5·sigmoid(occurrence_count) + 0.3·urgency + 0.2·recency_score).
   - Store all components; compute server-side for sorting. Keep fields in `importance` for UI display.
 
-**UX Model**
+**UX Model (current)**
 - Ideas (list)
-  - Row: title, score pill, latest time, tags. Swipe left (Archive/Delete/Edit). Swipe right (Schedule/Add to Goal/Mark Important).
-  - Tap → detail page.
+  - Ranked cards: title, summary, score pill, tags, latest time. Tap → detail.
 - Idea detail
-  - Header: title + tag chips + quick actions (Archive, Add to Goal, Edit).
-  - Importance breakdown (occurrence, urgency, recency) with small explainer.
-  - Evidence timeline (reverse chrono): time, source badge (Transcript/Photo/Note), snippet, language code; play audio if available; deep-link to transcript detail.
-  - CTA: “Make a Goal” or attach to an existing Goal.
+  - Edit: title, summary, language, tags. Actions: archive/unarchive, delete. Importance shown as score + metrics text. Evidence timeline planned (not yet implemented).
 - Goals (list)
   - Card: title, progress bar, due date, priority. Tap → detail.
   - Detail: steps in order; add/edit; quick filters (blocked, due soon).
 - Creations (list)
   - Card: title, type, status; last updated time. Detail: linked ideas, assets, publish URL.
 
-**API (proposed)**
-- Ideas
-  - GET /api/v1/ideas?status=active&limit=50&search=…
-  - POST /api/v1/ideas {Idea}
-  - GET /api/v1/ideas/{id}
-  - PATCH /api/v1/ideas/{id} {title|summary|status|tags|importance…}
-  - POST /api/v1/ideas/{id}/references {IdeaReference}
-  - GET /api/v1/ideas/{id}/references
-  - POST /api/v1/ideas/{id}/archive | /delete (soft)
+**API (implemented)**
+- GET /api/v1/ideas?limit=50 — list active ideas (ranked)
+- POST /api/v1/ideas/seed — seed sample ideas
+- GET /api/v1/ideas/{id} — idea detail
+- PATCH /api/v1/ideas/{id} — edit
+- DELETE /api/v1/ideas/{id} — soft delete
 - Goals
   - GET /api/v1/goals
   - POST /api/v1/goals {Goal}
@@ -82,4 +75,3 @@
 
 **Examples**
 - See samples/*.json for representative payloads grounded in the shared Weixin topics (writing, video editing, AI journaling, strategy, daily review).
-

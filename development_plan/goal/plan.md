@@ -29,20 +29,20 @@
 4) User adds Prophecy entries ("I will do X by Y" with confidence). System tracks fulfillment vs. missed.
 5) Progress rolls up: steps → plan → goal → life goal (via progress_percent fields).
 
-**UI Outline**
-- Life Goals list → detail (vision/why, metrics, linked goals).
-- Goals list → detail (plan, steps, diary, prophecies).
-- Steps: swipe to mark done/blocked; reorder; show dependencies.
-- Diary: timeline with source badges; quick add; convert a TODO diary entry into a step.
-- Prophecy: list with confidence bars; due soon surface; fulfillment toggle.
+**UI Outline (current)**
+- Goals tab top: Prophecy Diary card (clickable) showing diary/vision teaser.
+- Prophecy Diary detail: fancy cards for Prophecy, Who am I, Vision, Why, Strategy, Metrics.
+- Goals grid: clickable cards → detail with edit (outcome, deadline, priority, status, progress).
+- Steps/Diary/Prophecy entries: planned (not yet implemented).
 
-**API (proposed)**
-- LifeGoals: GET/POST/PATCH /api/v1/life-goals
-- Goals:     GET/POST/PATCH /api/v1/goals
-- Plans:     GET/POST/PATCH /api/v1/goals/{id}/plans
-- Steps:     GET/POST/PATCH /api/v1/plans/{id}/steps
-- Diary:     GET/POST      /api/v1/diary  (filter by goal/plan/step/date)
-- Prophecy:  GET/POST/PATCH /api/v1/prophecies
+**API (implemented subset)**
+- Life goals (Prophecy Diary):
+  - GET /api/v1/life-goals — list
+  - GET /api/v1/life-goals/{id} — detail (vision, why, strategy, metrics, diary, identity)
+  - POST /api/v1/life-goals/seed — seed sample
+- Goals:
+  - GET /api/v1/goals, POST /api/v1/goals/seed
+  - GET /api/v1/goals/{id}, PATCH /api/v1/goals/{id}, DELETE /api/v1/goals/{id}
 
 **Extraction from conversations**
 - Map transcript segments to diary entries:
@@ -58,4 +58,3 @@
 
 **Samples**
 - See samples/ for a life goal, a month goal + plan + steps, diary entries from transcripts, and a prophecy entry.
-

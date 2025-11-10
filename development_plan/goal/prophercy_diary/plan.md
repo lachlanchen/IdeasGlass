@@ -5,15 +5,14 @@
 - Runtime table `ig_life_goals` (see db/schema.sql) with vision/why/strategy and optional metrics.
 - One active record per user (typical), but multiple are allowed.
 
-**API (runtime)**
-- GET /api/v1/life-goals — list active life goals (top 1–3).
-- GET /api/v1/life-goals/{id} — detail with all fields.
-- POST /api/v1/life-goals/seed — insert “Prophecy Diary — The Art of Lazying” sample.
+**API (implemented)**
+- GET /api/v1/life-goals — list (teaser used in top panel)
+- GET /api/v1/life-goals/{id} — detail with all fields (vision, why, strategy, metrics, diary, identity)
+- POST /api/v1/life-goals/seed — insert “Prophecy Diary — The Art of Lazying” sample
 
-**UI**
-- Goals tab → top panel “Prophecy Diary” with title and vision teaser; clicking opens a Life Goal detail page.
-- Detail page shows: title, badges, vision, why, strategy, metrics, progress.
+**UI (implemented)**
+- Goals tab → top panel “Prophecy Diary” with diary/vision teaser; clicking opens the detail page.
+- Detail page cards: Prophecy, Who am I, Vision, Why, Strategy, Metrics; includes progress + horizon chips.
 
 **Sample**
 - Based on “The Art of Lazying”: a happy life without unnecessary effort; automate, compound, delegate; build assets that work while resting.
-
