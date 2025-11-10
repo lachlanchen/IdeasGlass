@@ -307,6 +307,15 @@ function setUiLanguage(lang) {
   } catch {}
 }
 
+// Simple debounce helper for autosave UX
+function debounce(fn, wait) {
+  let t = null;
+  return function(...args) {
+    if (t) clearTimeout(t);
+    t = setTimeout(() => fn.apply(this, args), wait);
+  };
+}
+
 // Compute header offset to avoid content underlap
 function updateHeaderOffset() {
   try {
@@ -2429,9 +2438,10 @@ async function refreshSettings() {
     if (mainLangSelect && typeof data?.main_language === 'string') {
       mainLangSelect.value = data.main_language;
     }
-    if (syncUiLangCheckbox && typeof data?.sync_ui_lang === 'boolean') {
-      syncUiLangCheckbox.checked = !!data.sync_ui_lang;
-      if (data.sync_ui_lang && typeof data.main_language === 'string') {
+    if (syncUiLangCheckbox) {
+      const syncVal = (typeof data?.sync_ui_lang === 'boolean') ? !!data.sync_ui_lang : true; // default ON
+      syncUiLangCheckbox.checked = syncVal;
+      if (syncVal && typeof data?.main_language === 'string') {
         setUiLanguage(data.main_language);
       }
     }
@@ -2607,7 +2617,7 @@ ideaDeleteBtn?.addEventListener('click', async () => {
   } catch {}
 });
 
-recordLenSaveBtn?.addEventListener('click', async () => {
+const saveRecordLen = debounce(async () => {
   const secs = parseInt((recordLenInput?.value || '').trim(), 10);
   if (!Number.isFinite(secs) || secs < 5 || secs > 60) {
     setRecordLenStatus('Enter 5–60 seconds');
@@ -2625,13 +2635,16 @@ recordLenSaveBtn?.addEventListener('click', async () => {
   } catch (e) {
     setRecordLenStatus('Save failed');
   }
-});
+}, 600);
+
+recordLenInput?.addEventListener('input', saveRecordLen);
+recordLenSaveBtn?.addEventListener('click', () => saveRecordLen());
 
 function setLangPrefStatus(msg) {
   try { if (langPrefStatus) langPrefStatus.textContent = msg || ''; } catch {}
 }
 
-langPrefSaveBtn?.addEventListener('click', async () => {
+async function saveLangPrefs() {
   const mainLang = (mainLangSelect?.value || 'en');
   const syncUi = !!(syncUiLangCheckbox?.checked);
   try {
@@ -2641,7 +2654,9 @@ langPrefSaveBtn?.addEventListener('click', async () => {
   } catch (e) {
     setLangPrefStatus('Save failed');
   }
-});
+}
+langPrefSaveBtn?.addEventListener('click', saveLangPrefs);
+mainLangSelect?.addEventListener('change', saveLangPrefs);
 
 syncUiLangCheckbox?.addEventListener('change', () => {
   try {
@@ -2650,4 +2665,5 @@ syncUiLangCheckbox?.addEventListener('change', () => {
       setUiLanguage(v);
     }
   } catch {}
+  saveLangPrefs();
 });

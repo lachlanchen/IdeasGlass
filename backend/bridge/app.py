@@ -138,7 +138,7 @@ SEGMENT_GAIN_TARGET_RMS = float(
 # App-level preferences (runtime defaults)
 SUPPORTED_LANGS = ["en", "zh-Hans", "zh-Hant", "ja"]
 MAIN_LANGUAGE: str = os.getenv("IDEASGLASS_MAIN_LANGUAGE", "en")
-SYNC_UI_LANG: bool = os.getenv("IDEASGLASS_SYNC_UI_LANG", "0").lower() not in {"0", "false", "no"}
+SYNC_UI_LANG: bool = os.getenv("IDEASGLASS_SYNC_UI_LANG", "1").lower() not in {"0", "false", "no"}
 
 
 def _parse_thresholds(raw: str) -> List[int]:
