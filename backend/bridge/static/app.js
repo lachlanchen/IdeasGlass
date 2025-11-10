@@ -32,6 +32,7 @@ const livePhotosView = document.getElementById('livePhotosView');
 const livePhotosBack = document.getElementById('livePhotosBack');
 const ideasView = document.getElementById('ideasView');
 const creationView = document.getElementById('creationView');
+const goalView = document.getElementById('goalView');
 const settingsView = document.getElementById('settingsView');
 // Auth + binding
 const authEmail = document.getElementById("authEmail");
@@ -471,7 +472,7 @@ function initLoadMoreObserver() {
 }
 
 function setActiveTab(tab) {
-  const views = { live: liveView, ideas: ideasView, creation: creationView, settings: settingsView };
+  const views = { live: liveView, ideas: ideasView, goal: goalView, creation: creationView, settings: settingsView };
   Object.entries(views).forEach(([k, el]) => {
     if (!el) return;
     el.classList.toggle('hidden', k !== tab);
@@ -1190,7 +1191,7 @@ if (tabButtons.length) {
   // Restore previously selected tab (default to live)
   let saved = null;
   try { saved = localStorage.getItem('ig.selectedTab'); } catch {}
-  const valid = new Set(['live','ideas','creation','settings']);
+  const valid = new Set(['live','ideas','goal','creation','settings']);
   setActiveTab(valid.has(saved) ? saved : 'live');
   // Defer overlay update until after first auth check
   setTimeout(() => { try { updateLoginOverlay && updateLoginOverlay(); } catch {} }, 0);
