@@ -36,6 +36,11 @@ const seedIdeasBtn = document.getElementById('seedIdeasBtn');
 const goalsGrid = document.getElementById('goalsGrid');
 const seedGoalsBtn = document.getElementById('seedGoalsBtn');
 const creationView = document.getElementById('creationView');
+const creationsGrid = document.getElementById('creationsGrid');
+const seedCreationsBtn = document.getElementById('seedCreationsBtn');
+const createFromIdeaSelect = document.getElementById('createFromIdeaSelect');
+const createTypeSelect = document.getElementById('createTypeSelect');
+const createFromIdeaBtn = document.getElementById('createFromIdeaBtn');
 const goalView = document.getElementById('goalView');
 const settingsView = document.getElementById('settingsView');
 // Auth + binding
@@ -590,6 +595,10 @@ function setActiveTab(tab) {
   }
   if (tab === 'goal') {
     try { refreshGoals(); } catch {}
+  }
+  if (tab === 'creation') {
+    try { await populateIdeaSelect(); } catch {}
+    try { refreshCreations(); } catch {}
   }
 }
 
@@ -1573,6 +1582,105 @@ async function apiGet(url) {
   if (!res.ok) throw new Error(`${res.status}`);
   return await res.json();
 }
+
+// ---- Creation tab ----
+function typeLabel(t) {
+  const map = {
+    research_proposal: 'Research',
+    business_plan: 'Business',
+    video_project: 'Video',
+    story_post: 'Post',
+    novel_project: 'Novel',
+    script_project: 'Script',
+    music_track: 'Music',
+    small_file: 'File',
+    other: 'Other',
+  };
+  return map[String(t)] || 'Other';
+}
+
+function buildCreationCard(c) {
+  const card = document.createElement('div');
+  card.className = 'creation-card';
+  const top = document.createElement('div');
+  top.className = 'creation-top';
+  const left = document.createElement('div');
+  const title = document.createElement('h3');
+  title.className = 'creation-title';
+  title.textContent = c.title;
+  const summary = document.createElement('p');
+  summary.className = 'creation-summary';
+  summary.textContent = c.summary || '';
+  left.append(title, summary);
+  const type = document.createElement('span');
+  type.className = 'creation-type';
+  type.textContent = typeLabel(c.creation_type);
+  top.append(left, type);
+  const meta = document.createElement('div');
+  meta.className = 'creation-meta';
+  const when = document.createElement('span');
+  when.textContent = new Date(c.updated_at || c.created_at).toLocaleString();
+  meta.appendChild(when);
+  if (c.outcome_url) {
+    const link = document.createElement('a');
+    link.href = c.outcome_url; link.target = '_blank'; link.rel = 'noopener';
+    link.className = 'creation-link';
+    link.textContent = 'Open';
+    meta.appendChild(link);
+  }
+  card.append(top, meta);
+  return card;
+}
+
+async function refreshCreations() {
+  if (!creationsGrid) return;
+  try {
+    const items = await apiGet('/api/v1/creations?limit=50');
+    creationsGrid.innerHTML = '';
+    if (!Array.isArray(items) || items.length === 0) {
+      const p = document.createElement('p');
+      p.textContent = 'No creations yet. Generate samples or create from an idea.';
+      creationsGrid.appendChild(p);
+      return;
+    }
+    const frag = document.createDocumentFragment();
+    items.forEach((c) => frag.appendChild(buildCreationCard(c)));
+    creationsGrid.appendChild(frag);
+  } catch (e) {
+    creationsGrid.innerHTML = '<p>Failed to load creations.</p>';
+  }
+}
+
+async function populateIdeaSelect() {
+  if (!createFromIdeaSelect) return;
+  try {
+    const ideas = await apiGet('/api/v1/ideas?limit=100');
+    createFromIdeaSelect.innerHTML = '';
+    ideas.forEach((i) => {
+      const opt = document.createElement('option');
+      opt.value = i.id; opt.textContent = i.title;
+      createFromIdeaSelect.appendChild(opt);
+    });
+  } catch {
+    createFromIdeaSelect.innerHTML = '<option value="">(no ideas)</option>';
+  }
+}
+
+createFromIdeaBtn?.addEventListener('click', async () => {
+  const ideaId = createFromIdeaSelect?.value || '';
+  const type = createTypeSelect?.value || 'story_post';
+  if (!ideaId) return;
+  try {
+    await apiPost('/api/v1/creations/from-idea', { idea_id: ideaId, creation_type: type });
+    await refreshCreations();
+  } catch {}
+});
+
+seedCreationsBtn?.addEventListener('click', async () => {
+  try { seedCreationsBtn.disabled = true; await apiPost('/api/v1/creations/seed', { overwrite: false }); } catch {}
+  finally { seedCreationsBtn.disabled = false; }
+  try { await refreshCreations(); } catch {}
+});
 
 // Render transcript detail view body (with language)
 function renderTranscriptDetail(data) {

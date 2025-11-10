@@ -1192,3 +1192,24 @@ footer {
 .bottom-nav .tab-btn span {
   line-height: 1;
 }
+
+/* Creation panel */
+.creation-panel { background:#fff; border-radius:22px; padding: 0.9rem clamp(0.8rem,2vw,1.4rem); box-shadow: 0 25px 60px rgba(15,23,42,0.08); border:1px solid rgba(15,23,42,0.05); }
+.creation-header { display:flex; align-items:center; justify-content: space-between; gap: 0.5rem; }
+.creation-header h2 { margin: 0; color:#111827; }
+.creation-actions { display:flex; align-items:center; gap: 0.5rem; }
+.creation-sub { margin: 0.25rem 0 0.8rem; color:#6b7280; }
+
+.quick-create { display:flex; flex-direction: column; gap: 0.5rem; margin-bottom: 0.8rem; padding: 0.6rem; border-radius: 14px; background: linear-gradient(135deg,#f8fbff,#ffffff); border:1px solid rgba(15,23,42,0.06); }
+.qc-row { display:flex; align-items:center; gap: 0.5rem; flex-wrap: wrap; }
+.qc-label { display:inline-block; width: 100px; color:#6c7da5; font-weight:700; }
+.quick-create select { min-width: 200px; height: 36px; border-radius: 10px; border:1px solid rgba(15,23,42,0.12); background:#f8fafc; padding: 0 0.5rem; }
+
+.creations-grid { display:grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; }
+.creation-card { display:flex; flex-direction:column; gap:0.5rem; padding:0.85rem 0.9rem; border-radius:16px; background: linear-gradient(135deg,#fff,#f8fbff); border:1px solid rgba(15,23,42,0.06); box-shadow: 0 14px 40px rgba(15,23,42,0.08); }
+.creation-top { display:flex; align-items:flex-start; justify-content: space-between; gap: 0.5rem; }
+.creation-title { margin:0; font-size:1.05rem; color:#0f172a; font-weight:800; }
+.creation-type { font-weight:800; padding: 0.1rem 0.5rem; border-radius:999px; border:1px solid rgba(79,70,229,0.2); background:#eef2ff; color:#4338ca; }
+.creation-summary { margin:0; color:#4c5673; font-size:0.95rem; }
+.creation-meta { display:flex; align-items:center; justify-content: space-between; color:#6b7280; font-size:0.86rem; }
+.creation-link { color:#2563eb; font-weight:700; text-decoration: none; }

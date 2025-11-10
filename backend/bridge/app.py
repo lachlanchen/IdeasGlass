@@ -303,6 +303,44 @@ class GoalSeedIn(BaseModel):
     overwrite: bool = False
 
 
+# ---- Creations models ----
+CREATION_TYPES = {
+    "research_proposal": 0,
+    "business_plan": 1,
+    "video_project": 2,
+    "story_post": 3,
+    "novel_project": 4,
+    "script_project": 5,
+    "music_track": 6,
+    "small_file": 7,
+    "other": 8,
+}
+CREATION_TYPES_INV = {v: k for k, v in CREATION_TYPES.items()}
+
+
+class CreationOut(BaseModel):
+    id: str
+    title: str
+    creation_type: str
+    status: int
+    summary: Optional[str] = None
+    language: Optional[str] = None
+    outcome_url: Optional[str] = None
+    created_at: str
+    updated_at: str
+
+
+class CreationSeedIn(BaseModel):
+    overwrite: bool = False
+
+
+class CreationFromIdeaIn(BaseModel):
+    idea_id: str
+    creation_type: str
+    title: Optional[str] = None
+    summary: Optional[str] = None
+
+
 @dataclass
 class AudioSegmentBuffer:
     device_id: str
@@ -648,6 +686,74 @@ async def init_db() -> None:
         )
         await conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_ig_goals_deadline ON ig_goals(user_id, deadline)"
+        )
+        # Creations (basic)
+        await conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS ig_creations (
+                id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                title TEXT NOT NULL,
+                creation_type SMALLINT NOT NULL,
+                status SMALLINT NOT NULL DEFAULT 0, -- 0=draft,1=in_progress,2=review,3=published,4=archived
+                summary TEXT,
+                language TEXT,
+                tags JSONB,
+                meta JSONB,
+                outcome_url TEXT,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            );
+            """
+        )
+        await conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_ig_creations_user_type ON ig_creations(user_id, creation_type, status)"
+        )
+        await conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_ig_creations_user_status ON ig_creations(user_id, status)"
+        )
+        await conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS ig_creation_sections (
+                id TEXT PRIMARY KEY,
+                creation_id TEXT NOT NULL REFERENCES ig_creations(id) ON DELETE CASCADE,
+                title TEXT NOT NULL,
+                kind SMALLINT NOT NULL DEFAULT 10,
+                order_index INT NOT NULL DEFAULT 0,
+                body TEXT,
+                language TEXT,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            );
+            """
+        )
+        await conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_ig_creation_sections_order ON ig_creation_sections(creation_id, order_index)"
+        )
+        await conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS ig_creation_assets (
+                id TEXT PRIMARY KEY,
+                creation_id TEXT NOT NULL REFERENCES ig_creations(id) ON DELETE CASCADE,
+                asset_type SMALLINT NOT NULL,
+                url TEXT NOT NULL,
+                mime_type TEXT,
+                caption TEXT,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            );
+            """
+        )
+        await conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_ig_creation_assets_creation ON ig_creation_assets(creation_id)"
+        )
+        await conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS ig_creation_ideas (
+                creation_id TEXT NOT NULL REFERENCES ig_creations(id) ON DELETE CASCADE,
+                idea_id TEXT NOT NULL,
+                PRIMARY KEY (creation_id, idea_id)
+            );
+            """
         )
 
 
@@ -1051,6 +1157,133 @@ async def seed_goals(payload: GoalSeedIn, request: Request):
                     now,
                 )
     return {"ok": True, "count": len(samples)}
+
+
+@app.get("/api/v1/creations", response_model=List[CreationOut])
+async def list_creations(limit: int = 50, request: Request = None):
+    uid = await _current_user_id(request)
+    if not uid:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    if not db_pool:
+        raise HTTPException(status_code=503, detail="Requires DATABASE_URL")
+    limit = max(1, min(200, int(limit)))
+    async with db_pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT id, title, creation_type, status, summary, language, outcome_url, created_at, updated_at
+            FROM ig_creations
+            WHERE user_id=$1 AND status IN (0,1,2,3)
+            ORDER BY updated_at DESC
+            LIMIT $2
+            """,
+            uid,
+            limit,
+        )
+    out: List[CreationOut] = []
+    for r in rows:
+        out.append(
+            CreationOut(
+                id=r["id"],
+                title=r["title"],
+                creation_type=CREATION_TYPES_INV.get(int(r["creation_type"] or 8), "other"),
+                status=int(r["status"] or 0),
+                summary=r["summary"],
+                language=r["language"],
+                outcome_url=r["outcome_url"],
+                created_at=r["created_at"].isoformat(),
+                updated_at=r["updated_at"].isoformat(),
+            )
+        )
+    return out
+
+
+@app.post("/api/v1/creations/seed")
+async def seed_creations(payload: CreationSeedIn, request: Request):
+    uid = await _current_user_id(request)
+    if not uid:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    if not db_pool:
+        raise HTTPException(status_code=503, detail="Requires DATABASE_URL")
+    now = datetime.now(tz=timezone.utc)
+    samples = [
+        {"title": "OnlyIdeas — 商业计划书", "type": "business_plan", "status": 1, "summary": "定价与收入模型初稿"},
+        {"title": "Multimodal Wearable AI — Proposal", "type": "research_proposal", "status": 0, "summary": "Abstract+Intro"},
+        {"title": "AI Journal Week 1 Clip", "type": "video_project", "status": 0, "summary": "60s vertical"},
+        {"title": "A Week with IdeasGlass", "type": "story_post", "status": 0, "summary": "Medium draft"}
+    ]
+    async with db_pool.acquire() as conn:
+        async with conn.transaction():
+            for s in samples:
+                if payload.overwrite:
+                    await conn.execute("DELETE FROM ig_creations WHERE user_id=$1 AND title=$2", uid, s["title"])
+                await conn.execute(
+                    """
+                    INSERT INTO ig_creations (
+                        id, user_id, title, creation_type, status, summary, created_at, updated_at
+                    ) VALUES (
+                        $1,$2,$3,$4,$5,$6,$7,$8
+                    ) ON CONFLICT (id) DO NOTHING
+                    """,
+                    str(uuid.uuid4()),
+                    uid,
+                    s["title"],
+                    CREATION_TYPES.get(s["type"], 8),
+                    s["status"],
+                    s.get("summary"),
+                    now,
+                    now,
+                )
+    return {"ok": True, "count": len(samples)}
+
+
+@app.post("/api/v1/creations/from-idea", response_model=CreationOut)
+async def create_from_idea(payload: CreationFromIdeaIn, request: Request):
+    uid = await _current_user_id(request)
+    if not uid:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    if not db_pool:
+        raise HTTPException(status_code=503, detail="Requires DATABASE_URL")
+    ctype = CREATION_TYPES.get(payload.creation_type, None)
+    if ctype is None:
+        raise HTTPException(status_code=400, detail="Invalid creation_type")
+    now = datetime.now(tz=timezone.utc)
+    cid = str(uuid.uuid4())
+    async with db_pool.acquire() as conn:
+        async with conn.transaction():
+            await conn.execute(
+                """
+                INSERT INTO ig_creations (id, user_id, title, creation_type, status, summary, created_at, updated_at)
+                VALUES ($1,$2,$3,$4,0,$5,$6,$7)
+                """,
+                cid,
+                uid,
+                payload.title or "New Creation",
+                ctype,
+                payload.summary,
+                now,
+                now,
+            )
+            # link to idea
+            await conn.execute(
+                "INSERT INTO ig_creation_ideas (creation_id, idea_id) VALUES ($1,$2) ON CONFLICT DO NOTHING",
+                cid,
+                payload.idea_id,
+            )
+        row = await conn.fetchrow(
+            "SELECT id, title, creation_type, status, summary, language, outcome_url, created_at, updated_at FROM ig_creations WHERE id=$1",
+            cid,
+        )
+    return CreationOut(
+        id=row["id"],
+        title=row["title"],
+        creation_type=CREATION_TYPES_INV.get(int(row["creation_type"] or 8), "other"),
+        status=int(row["status"] or 0),
+        summary=row["summary"],
+        language=row.get("language") if isinstance(row, dict) else row["language"],
+        outcome_url=row["outcome_url"],
+        created_at=row["created_at"].isoformat(),
+        updated_at=row["updated_at"].isoformat(),
+    )
 
 
 @app.get("/api/v1/devices")

@@ -164,9 +164,37 @@
 
     <div id="creationView" class="view hidden">
       <main>
-        <section>
-          <h2>Creation</h2>
-          <p>Create new content from your recordings. (Coming soon)</p>
+        <section class="creation-panel">
+          <div class="creation-header">
+            <h2>Creation</h2>
+            <div class="creation-actions">
+              <button id="seedCreationsBtn" type="button" class="ghost-btn">Generate Samples</button>
+            </div>
+          </div>
+          <p class="creation-sub">Turn your ideas into concrete outputs — plans, proposals, posts, videos, and more.</p>
+
+          <div class="quick-create">
+            <div class="qc-row">
+              <label class="qc-label">From idea</label>
+              <select id="createFromIdeaSelect"></select>
+            </div>
+            <div class="qc-row">
+              <label class="qc-label">Type</label>
+              <select id="createTypeSelect">
+                <option value="business_plan">Business plan</option>
+                <option value="research_proposal">Research proposal</option>
+                <option value="video_project">Video project</option>
+                <option value="story_post">Story / Post</option>
+                <option value="novel_project">Novel project</option>
+                <option value="script_project">Script project</option>
+                <option value="music_track">Music track</option>
+                <option value="small_file">Small file</option>
+              </select>
+              <button id="createFromIdeaBtn" type="button">Create</button>
+            </div>
+          </div>
+
+          <div id="creationsGrid" class="creations-grid"></div>
         </section>
       </main>
     </div>
