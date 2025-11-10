@@ -1363,3 +1363,13 @@ footer {
 .cd-assets ul, #creationAssets { list-style:none; padding:0; margin:0; }
 .cd-asset { display:flex; align-items:center; gap: 0.5rem; padding: 0.3rem 0; border-bottom: 1px solid rgba(15,23,42,0.06); }
 .cd-asset:last-child { border-bottom: none; }
+.subpage-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding-top: 0.25rem;
+  position: sticky;
+  top: calc(var(--header-offset, var(--header-height, 50px)) * -1);
+  margin-bottom: 0.5rem;
+}
