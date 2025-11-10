@@ -1192,20 +1192,30 @@ void setup()
     pinMode(PIN_BUTTON, INPUT_PULLUP);
 
     // Hold-to-start gating is optional; for charging/dev, skip gate and auto-boot
-    if (REQUIRE_LONG_PRESS_ON_BOOT) {
-        // Require long press only on cold power-on resets; skip after uploads (SW reset)
+    {
+        // Cold-boot detection to optionally require hold-to-start
         esp_reset_reason_t rr = esp_reset_reason();
         bool coldBoot = (rr == ESP_RST_POWERON);
-        if (coldBoot) {
-            if (digitalRead(PIN_BUTTON) == LOW) {
-                unsigned long t0 = millis();
-                while (digitalRead(PIN_BUTTON) == LOW) {
-                    // Fast blink to indicate hold-to-start window
-                    ledOn();  delay(60);
-                    ledOff(); delay(60);
-                    if (millis() - t0 >= LONG_PRESS_BOOT_MS) break;
+        bool buttonHeld = (digitalRead(PIN_BUTTON) == LOW);
+        bool longEnough = false;
+        if (buttonHeld) {
+            unsigned long t0 = millis();
+            while (digitalRead(PIN_BUTTON) == LOW) {
+                // Fast blink to indicate hold-to-start window
+                ledOn();  delay(60);
+                ledOff(); delay(60);
+                if (millis() - t0 >= LONG_PRESS_BOOT_MS) {
+                    longEnough = true;
+                    break;
                 }
-                if (millis() - t0 < LONG_PRESS_BOOT_MS) {
+            }
+            if (!longEnough) {
+                longEnough = (millis() - t0) >= LONG_PRESS_BOOT_MS;
+            }
+        }
+        if (REQUIRE_LONG_PRESS_ON_BOOT && coldBoot) {
+            if (buttonHeld) {
+                if (!longEnough) {
                     goDeepSleep();
                 }
             } else {
@@ -1213,12 +1223,9 @@ void setup()
                 goDeepSleep();
             }
         } else {
-            // After upload/reset via RTS/DTR, boot normally like Arduino
+            // Auto-boot (charging/upload); still show blink feedback if button was held
             ledOff();
         }
-    } else {
-        // No boot hold; always continue
-        ledOff();
     }
 
     WiFi.mode(WIFI_MODE_STA);
