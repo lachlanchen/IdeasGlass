@@ -780,6 +780,7 @@ function setActiveTab(tab) {
     // Ideas/Goal/Creation detail sub-pages
     ideaDetailView?.classList.add('hidden');
     goalDetailView?.classList.add('hidden');
+    lifeGoalDetailView?.classList.add('hidden');
     creationDetailView?.classList.add('hidden');
     // Close photo modal if open and pause any audio
     closePhotoModal && closePhotoModal();
