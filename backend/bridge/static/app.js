@@ -131,6 +131,11 @@ const accountAvatar = document.getElementById("accountAvatar");
 const recordLenInput = document.getElementById('recordLenInput');
 const recordLenSaveBtn = document.getElementById('recordLenSaveBtn');
 const recordLenStatus = document.getElementById('recordLenStatus');
+// Language prefs in Settings
+const mainLangSelect = document.getElementById('mainLangSelect');
+const syncUiLangCheckbox = document.getElementById('syncUiLangCheckbox');
+const langPrefSaveBtn = document.getElementById('langPrefSaveBtn');
+const langPrefStatus = document.getElementById('langPrefStatus');
 
 // ---- i18n: language detection, persistence, and application ----
 const langSelect = document.getElementById('langSelect');
@@ -292,6 +297,15 @@ function initLanguage() {
 }
 
 initLanguage();
+
+function setUiLanguage(lang) {
+  try {
+    if (!SUPPORTED_LANGS.includes(lang)) return;
+    localStorage.setItem(LANG_KEY, lang);
+    if (langSelect) langSelect.value = lang;
+    applyI18n(lang);
+  } catch {}
+}
 
 // Compute header offset to avoid content underlap
 function updateHeaderOffset() {
@@ -2408,6 +2422,15 @@ async function refreshSettings() {
       if (recordLenInput) recordLenInput.value = String(secs);
       state.segmentTargetMs = data.segment_target_ms;
     }
+    if (mainLangSelect && typeof data?.main_language === 'string') {
+      mainLangSelect.value = data.main_language;
+    }
+    if (syncUiLangCheckbox && typeof data?.sync_ui_lang === 'boolean') {
+      syncUiLangCheckbox.checked = !!data.sync_ui_lang;
+      if (data.sync_ui_lang && typeof data.main_language === 'string') {
+        setUiLanguage(data.main_language);
+      }
+    }
   } catch {}
 }
 
@@ -2598,4 +2621,29 @@ recordLenSaveBtn?.addEventListener('click', async () => {
   } catch (e) {
     setRecordLenStatus('Save failed');
   }
+});
+
+function setLangPrefStatus(msg) {
+  try { if (langPrefStatus) langPrefStatus.textContent = msg || ''; } catch {}
+}
+
+langPrefSaveBtn?.addEventListener('click', async () => {
+  const mainLang = (mainLangSelect?.value || 'en');
+  const syncUi = !!(syncUiLangCheckbox?.checked);
+  try {
+    await apiPost('/api/v1/settings', { main_language: mainLang, sync_ui_lang: syncUi });
+    setLangPrefStatus('Saved ✔');
+    if (syncUi) setUiLanguage(mainLang);
+  } catch (e) {
+    setLangPrefStatus('Save failed');
+  }
+});
+
+syncUiLangCheckbox?.addEventListener('change', () => {
+  try {
+    if (syncUiLangCheckbox.checked) {
+      const v = mainLangSelect?.value || 'en';
+      setUiLanguage(v);
+    }
+  } catch {}
 });

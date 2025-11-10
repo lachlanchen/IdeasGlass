@@ -135,6 +135,11 @@ SEGMENT_GAIN_TARGET_RMS = float(
     os.getenv("IDEASGLASS_SEGMENT_GAIN_TARGET", str(AUDIO_GAIN_TARGET_RMS))
 )
 
+# App-level preferences (runtime defaults)
+SUPPORTED_LANGS = ["en", "zh-Hans", "zh-Hant", "ja"]
+MAIN_LANGUAGE: str = os.getenv("IDEASGLASS_MAIN_LANGUAGE", "en")
+SYNC_UI_LANG: bool = os.getenv("IDEASGLASS_SYNC_UI_LANG", "0").lower() not in {"0", "false", "no"}
+
 
 def _parse_thresholds(raw: str) -> List[int]:
     values: List[int] = []
@@ -258,10 +263,14 @@ class MeOut(BaseModel):
 
 class SettingsOut(BaseModel):
     segment_target_ms: int
+    main_language: Optional[str] = None
+    sync_ui_lang: bool = False
 
 
 class SettingsIn(BaseModel):
     segment_target_ms: Optional[int] = Field(default=None, ge=MIN_SEGMENT_MS, le=SEGMENT_MAX_MS)
+    main_language: Optional[str] = None
+    sync_ui_lang: Optional[bool] = None
 
 
 # ---- Ideas models ----
@@ -898,6 +907,15 @@ async def startup_event():
                     if seg:
                         _apply_segment_target_ms(seg)
                         print(f"[Settings] segment_target_ms loaded: {SEGMENT_TARGET_MS} ms")
+                    ml = cfg.get("main_language")
+                    if isinstance(ml, str) and ml in SUPPORTED_LANGS:
+                        global MAIN_LANGUAGE
+                        MAIN_LANGUAGE = ml
+                    sl = cfg.get("sync_ui_lang")
+                    if isinstance(sl, bool):
+                        global SYNC_UI_LANG
+                        SYNC_UI_LANG = sl
+                    print(f"[Settings] main_language={MAIN_LANGUAGE} sync_ui_lang={SYNC_UI_LANG}")
             except Exception as exc:
                 print(f"[Settings] Failed to load settings: {exc}")
         except Exception as exc:
@@ -971,7 +989,11 @@ async def auth_me(request: Request):
 @app.get("/api/v1/settings", response_model=SettingsOut)
 async def get_settings():
     # Return current runtime values (persisted if DB present)
-    return SettingsOut(segment_target_ms=SEGMENT_TARGET_MS)
+    return SettingsOut(
+        segment_target_ms=SEGMENT_TARGET_MS,
+        main_language=MAIN_LANGUAGE,
+        sync_ui_lang=SYNC_UI_LANG,
+    )
 
 
 @app.post("/api/v1/settings", response_model=SettingsOut)
@@ -982,6 +1004,12 @@ async def update_settings(payload: SettingsIn, request: Request):
     # For now, any authenticated user can update app-level recording length
     new_ms = int(payload.segment_target_ms) if payload.segment_target_ms is not None else SEGMENT_TARGET_MS
     _apply_segment_target_ms(new_ms)
+    # Update languages
+    global MAIN_LANGUAGE, SYNC_UI_LANG
+    if isinstance(payload.main_language, str) and payload.main_language in SUPPORTED_LANGS:
+        MAIN_LANGUAGE = payload.main_language
+    if isinstance(payload.sync_ui_lang, bool):
+        SYNC_UI_LANG = payload.sync_ui_lang
     # Persist if DB is available
     if db_pool:
         try:
@@ -992,11 +1020,19 @@ async def update_settings(payload: SettingsIn, request: Request):
                     VALUES ('app', $1, NOW())
                     ON CONFLICT (key) DO UPDATE SET value=$1, updated_at=NOW()
                     """,
-                    json.dumps({"segment_target_ms": SEGMENT_TARGET_MS}),
+                    json.dumps({
+                        "segment_target_ms": SEGMENT_TARGET_MS,
+                        "main_language": MAIN_LANGUAGE,
+                        "sync_ui_lang": SYNC_UI_LANG,
+                    }),
                 )
         except Exception as exc:
             print(f"[Settings] Persist failed: {exc}")
-    return SettingsOut(segment_target_ms=SEGMENT_TARGET_MS)
+    return SettingsOut(
+        segment_target_ms=SEGMENT_TARGET_MS,
+        main_language=MAIN_LANGUAGE,
+        sync_ui_lang=SYNC_UI_LANG,
+    )
 
 
 @app.get("/api/v1/ideas", response_model=List[IdeaOut])
