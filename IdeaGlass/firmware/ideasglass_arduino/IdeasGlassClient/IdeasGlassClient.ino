@@ -889,7 +889,12 @@ void audioSenderTask(void *param)
                 Serial.printf("[Audio] chunk #%u %s (rms=%.3f)\n", packet.sequence, ok ? "sent" : "FAILED", packet.rms);
             }
             if (packet.samples) {
+#if IG_TUNE_PREALLOC_AUDIO
+                extern bool poolFreeAudio(int16_t *ptr);
+                if (!poolFreeAudio(packet.samples)) free(packet.samples);
+#else
                 free(packet.samples);
+#endif
                 packet.samples = nullptr;
             }
             vTaskDelay(pdMS_TO_TICKS(5));
@@ -958,7 +963,17 @@ void handleAudioStreaming()
             g_bufferedSamples = 0;
             return;
         }
-        int16_t *chunkCopy = (int16_t *)malloc(g_bufferedSamples * sizeof(int16_t));
+        int16_t *chunkCopy = nullptr;
+#if IG_TUNE_PREALLOC_AUDIO
+        extern int16_t *poolAllocAudio(size_t samples);
+        chunkCopy = poolAllocAudio(g_bufferedSamples);
+        if (!chunkCopy) {
+            // fall back to malloc if pool exhausted
+            chunkCopy = (int16_t *)malloc(g_bufferedSamples * sizeof(int16_t));
+        }
+#else
+        chunkCopy = (int16_t *)malloc(g_bufferedSamples * sizeof(int16_t));
+#endif
         if (!chunkCopy) {
             Serial.println("[Audio] Out of memory allocating audio chunk");
             g_bufferedSamples = 0;
@@ -971,10 +986,49 @@ void handleAudioStreaming()
         packet.rms = rms;
         packet.sequence = chunkIndex;
         if (xQueueSend(g_audioQueue, &packet, 0) != pdTRUE) {
+#if IG_TUNE_QUEUE_DROP_OLDEST
+            AudioPacket oldest;
+            if (xQueueReceive(g_audioQueue, &oldest, 0) == pdTRUE) {
+                if (oldest.samples) {
+#if IG_TUNE_PREALLOC_AUDIO
+                    extern bool poolFreeAudio(int16_t *ptr);
+                    if (!poolFreeAudio(oldest.samples)) free(oldest.samples);
+#else
+                    free(oldest.samples);
+#endif
+                }
+                if (xQueueSend(g_audioQueue, &packet, 0) != pdTRUE) {
+                    Serial.println("[Audio] Queue remained full after drop-oldest; dropped new chunk");
+#if IG_TUNE_PREALLOC_AUDIO
+                    if (!poolFreeAudio(chunkCopy)) free(chunkCopy);
+#else
+                    free(chunkCopy);
+#endif
+#if IG_TUNE_DEBUG_COUNTERS
+                    g_stats.audio_queue_drop++;
+#endif
+                }
+            } else {
+                Serial.println("[Audio] Queue full, could not drop oldest; dropping new chunk");
+#if IG_TUNE_PREALLOC_AUDIO
+                if (!poolFreeAudio(chunkCopy)) free(chunkCopy);
+#else
+                free(chunkCopy);
+#endif
+#if IG_TUNE_DEBUG_COUNTERS
+                g_stats.audio_queue_drop++;
+#endif
+            }
+#else
             Serial.println("[Audio] Send queue full, dropping chunk");
+#if IG_TUNE_PREALLOC_AUDIO
+            if (!poolFreeAudio(chunkCopy)) free(chunkCopy);
+#else
             free(chunkCopy);
+#endif
 #if IG_TUNE_DEBUG_COUNTERS
             g_stats.audio_queue_drop++;
+#endif
 #endif
         }
         g_bufferedSamples = 0;
@@ -1191,3 +1245,48 @@ void loop()
     }
 #endif
 }
+
+#if IG_TUNE_PREALLOC_AUDIO
+// ---------------------------------------------------------------------------
+// Audio buffer pool (optional)
+// ---------------------------------------------------------------------------
+static constexpr size_t AUDIO_POOL_COUNT = 8;
+static int16_t *g_audioPool[AUDIO_POOL_COUNT] = {nullptr};
+static bool g_audioPoolUsed[AUDIO_POOL_COUNT] = {false};
+static bool g_audioPoolInited = false;
+
+static void ensureAudioPool()
+{
+    if (g_audioPoolInited) return;
+    for (size_t i = 0; i < AUDIO_POOL_COUNT; ++i) {
+        g_audioPool[i] = (int16_t *)malloc(AUDIO_BLOCK_SAMPLES * sizeof(int16_t));
+        g_audioPoolUsed[i] = false;
+    }
+    g_audioPoolInited = true;
+}
+
+int16_t *poolAllocAudio(size_t samples)
+{
+    (void)samples;
+    ensureAudioPool();
+    for (size_t i = 0; i < AUDIO_POOL_COUNT; ++i) {
+        if (!g_audioPoolUsed[i] && g_audioPool[i]) {
+            g_audioPoolUsed[i] = true;
+            return g_audioPool[i];
+        }
+    }
+    return nullptr;
+}
+
+bool poolFreeAudio(int16_t *ptr)
+{
+    if (!ptr) return true;
+    for (size_t i = 0; i < AUDIO_POOL_COUNT; ++i) {
+        if (g_audioPool[i] == ptr) {
+            g_audioPoolUsed[i] = false;
+            return true;
+        }
+    }
+    return false;
+}
+#endif

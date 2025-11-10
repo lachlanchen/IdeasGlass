@@ -73,6 +73,14 @@ constexpr bool kAudioLogSuppress = true;
 #ifndef IG_TUNE_DEBUG_COUNTERS
 #define IG_TUNE_DEBUG_COUNTERS 0
 #endif
+// Preallocate a small pool of audio buffers to reduce malloc/free churn
+#ifndef IG_TUNE_PREALLOC_AUDIO
+#define IG_TUNE_PREALLOC_AUDIO 0
+#endif
+// When audio queue is full, drop the oldest pending packet instead of the newest
+#ifndef IG_TUNE_QUEUE_DROP_OLDEST
+#define IG_TUNE_QUEUE_DROP_OLDEST 0
+#endif
 
 // ---------------------------------------------------------------------------
 // Wi-Fi / Backend
