@@ -333,6 +333,7 @@ class LifeGoalOut(BaseModel):
     metrics: Optional[List[dict]] = None
     start_date: Optional[str] = None
     target_date: Optional[str] = None
+    diary: Optional[str] = None
     created_at: str
     updated_at: str
 
@@ -784,6 +785,10 @@ async def init_db() -> None:
         )
         await conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_ig_life_goals_user_status ON ig_life_goals(user_id, status)"
+        )
+        # Ensure diary narrative column exists for life goals
+        await conn.execute(
+            "ALTER TABLE ig_life_goals ADD COLUMN IF NOT EXISTS diary TEXT"
         )
         # Creations (basic)
         await conn.execute(
@@ -1364,7 +1369,7 @@ async def list_life_goals(limit: int = 3, request: Request = None):
     async with db_pool.acquire() as conn:
         rows = await conn.fetch(
             """
-            SELECT id, title, vision, why, strategy, categories, horizon, status, progress_percent, metrics, start_date, target_date, created_at, updated_at
+            SELECT id, title, vision, why, strategy, categories, horizon, status, progress_percent, metrics, start_date, target_date, diary, created_at, updated_at
             FROM ig_life_goals
             WHERE user_id=$1 AND status=0
             ORDER BY updated_at DESC
@@ -1389,6 +1394,7 @@ async def list_life_goals(limit: int = 3, request: Request = None):
                 metrics=(r["metrics"] if isinstance(r["metrics"], list) else None),
                 start_date=(r["start_date"].isoformat() if r["start_date"] else None),
                 target_date=(r["target_date"].isoformat() if r["target_date"] else None),
+                diary=r["diary"],
                 created_at=r["created_at"].isoformat(),
                 updated_at=r["updated_at"].isoformat(),
             )
@@ -1406,7 +1412,7 @@ async def get_life_goal(life_goal_id: str, request: Request):
     async with db_pool.acquire() as conn:
         row = await conn.fetchrow(
             """
-            SELECT id, title, vision, why, strategy, categories, horizon, status, progress_percent, metrics, start_date, target_date, created_at, updated_at
+            SELECT id, title, vision, why, strategy, categories, horizon, status, progress_percent, metrics, start_date, target_date, diary, created_at, updated_at
             FROM ig_life_goals WHERE id=$1 AND user_id=$2
             """,
             life_goal_id,
@@ -1427,6 +1433,7 @@ async def get_life_goal(life_goal_id: str, request: Request):
         metrics=(row["metrics"] if isinstance(row["metrics"], list) else None),
         start_date=(row["start_date"].isoformat() if row["start_date"] else None),
         target_date=(row["target_date"].isoformat() if row["target_date"] else None),
+        diary=row["diary"],
         created_at=row["created_at"].isoformat(),
         updated_at=row["updated_at"].isoformat(),
     )
@@ -1449,9 +1456,9 @@ async def seed_life_goal(payload: LifeGoalSeedIn, request: Request):
         await conn.execute(
             """
             INSERT INTO ig_life_goals (
-              id, user_id, title, vision, why, strategy, categories, horizon, status, progress_percent, metrics, start_date, target_date, created_at, updated_at
+              id, user_id, title, vision, why, strategy, categories, horizon, status, progress_percent, metrics, start_date, target_date, diary, created_at, updated_at
             ) VALUES (
-              $1,$2,$3,$4,$5,$6,$7,$8,0,$9,$10,$11,$12,$13,$14
+              $1,$2,$3,$4,$5,$6,$7,$8,0,$9,$10,$11,$12,$13,$14,$15
             )
             ON CONFLICT (id) DO NOTHING
             """,
@@ -1470,6 +1477,19 @@ async def seed_life_goal(payload: LifeGoalSeedIn, request: Request):
             ]),
             None,
             None,
+            (
+                "It is a quiet morning in the not‑too‑distant future. \n"
+                "You wake up without an alarm; the house has already taken care of the small things —"
+                " the air is fresh, sunlight warms the room, and your thoughts are unburdened.\n\n"
+                "You make tea and smile: another piece of your gentle system has carried you forward while you rested.\n"
+                "Ideas you recorded yesterday have become notes, notes became drafts, and drafts turned into assets that move while you breathe.\n\n"
+                "Work is light now. You choose one meaningful thing each day, and that is enough.\n"
+                "Opportunities come because you share what you love; income flows from creations that keep serving others.\n\n"
+                "Friends say you seem calmer. You feel it too — the steady joy of a life designed to be kind.\n"
+                "There is space to learn, to play, to nap in the afternoon sun.\n\n"
+                "Tomorrow arrives gently; you greet it with curiosity.\n"
+                "This is The Art of Lazying: a happy life without unnecessary effort, and it is happening now."
+            ),
             now,
             now,
         )

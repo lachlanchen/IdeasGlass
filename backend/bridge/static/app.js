@@ -285,7 +285,9 @@ async function refreshLifeGoalPanel() {
     if (Array.isArray(items) && items.length) {
       const g = items[0];
       currentLifeGoalId = g.id;
-      if (prophecyTeaser) prophecyTeaser.textContent = g.vision || 'Define who you want to be and what you want to do.';
+      const teaserSrc = (g.diary && String(g.diary)) || g.vision || 'Define who you want to be and what you want to do.';
+      const teaser = teaserSrc.length > 140 ? teaserSrc.slice(0, 140) + '…' : teaserSrc;
+      if (prophecyTeaser) prophecyTeaser.textContent = teaser;
     } else {
       currentLifeGoalId = null;
       if (prophecyTeaser) prophecyTeaser.textContent = 'No life goal yet — seed a sample to get started.';
@@ -325,7 +327,11 @@ function setChip(el, text) { if (!el) return; el.textContent = text || ''; }
 async function loadLifeGoalDetail(id) {
   try {
     const g = await apiGet(`/api/v1/life-goals/${encodeURIComponent(id)}`);
-    if (lgTitle) lgTitle.textContent = g.title || 'Prophecy Diary';
+    // Display title without leading "Prophecy Diary —" if present
+    let displayTitle = g.title || 'Prophecy Diary';
+    try { displayTitle = displayTitle.replace(/^\s*Prophecy\s+Diary\s*[—-]\s*/i, ''); } catch {}
+    if (lgTitle) lgTitle.textContent = displayTitle;
+    if (g.diary && typeof g.diary === 'string' && lgDiary) lgDiary.textContent = g.diary;
     if (lgVision) lgVision.textContent = g.vision || '';
     setChip(lgHorizon, (g.horizon === 0 ? 'LIFE' : String(g.horizon)));
     setChip(lgProgress, `${Math.round(Number(g.progress_percent||0))}%`);
