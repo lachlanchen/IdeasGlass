@@ -132,6 +132,167 @@ const recordLenInput = document.getElementById('recordLenInput');
 const recordLenSaveBtn = document.getElementById('recordLenSaveBtn');
 const recordLenStatus = document.getElementById('recordLenStatus');
 
+// ---- i18n: language detection, persistence, and application ----
+const langSelect = document.getElementById('langSelect');
+const LANG_KEY = 'ig.lang';
+const SUPPORTED_LANGS = ['en','zh-Hans','zh-Hant','ja'];
+const I18N = {
+  'en': {
+    'header.subtitle': 'Live device feed',
+    'nav.live': 'Live',
+    'nav.ideas': 'Ideas',
+    'nav.goal': 'Goal',
+    'nav.creation': 'Creation',
+    'nav.settings': 'Settings',
+    'live.photos': 'Photos',
+    'live.incoming_photos': 'Incoming photos',
+    'live.transcripts': 'Transcripts',
+    'live.transcript': 'Transcript',
+    'btn.more': 'More »',
+    'btn.show_older_photos': 'Show older photos',
+    'btn.show_older_transcripts': 'Show older transcripts',
+    'btn.back_to_live': '← Back to Live',
+    'btn.back_to_ideas': '← Back to Ideas',
+    'btn.back_to_goals': '← Back to Goals',
+    'btn.back_to_creations': '← Back to Creations',
+    'btn.back': '← Back',
+    'ideas.singular': 'Idea',
+    'creation.plural': 'Creation',
+    'creation.singular': 'Creation',
+    'goal.singular': 'Goal',
+    'goal.prophecy': 'Prophecy Diary'
+  },
+  'zh-Hans': {
+    'header.subtitle': '实时设备信息',
+    'nav.live': '直播',
+    'nav.ideas': '想法',
+    'nav.goal': '目标',
+    'nav.creation': '创作',
+    'nav.settings': '设置',
+    'live.photos': '照片',
+    'live.incoming_photos': '最新照片',
+    'live.transcripts': '转写',
+    'live.transcript': '转写',
+    'btn.more': '更多 »',
+    'btn.show_older_photos': '查看更早的照片',
+    'btn.show_older_transcripts': '查看更早的转写',
+    'btn.back_to_live': '← 返回直播',
+    'btn.back_to_ideas': '← 返回想法',
+    'btn.back_to_goals': '← 返回目标',
+    'btn.back_to_creations': '← 返回创作',
+    'btn.back': '← 返回',
+    'ideas.singular': '想法',
+    'creation.plural': '创作',
+    'creation.singular': '创作',
+    'goal.singular': '目标',
+    'goal.prophecy': '预言日记'
+  },
+  'zh-Hant': {
+    'header.subtitle': '即時裝置資訊',
+    'nav.live': '直播',
+    'nav.ideas': '想法',
+    'nav.goal': '目標',
+    'nav.creation': '創作',
+    'nav.settings': '設定',
+    'live.photos': '照片',
+    'live.incoming_photos': '最新照片',
+    'live.transcripts': '逐字稿',
+    'live.transcript': '逐字稿',
+    'btn.more': '更多 »',
+    'btn.show_older_photos': '查看更早的照片',
+    'btn.show_older_transcripts': '查看更早的逐字稿',
+    'btn.back_to_live': '← 返回直播',
+    'btn.back_to_ideas': '← 返回想法',
+    'btn.back_to_goals': '← 返回目標',
+    'btn.back_to_creations': '← 返回創作',
+    'btn.back': '← 返回',
+    'ideas.singular': '想法',
+    'creation.plural': '創作',
+    'creation.singular': '創作',
+    'goal.singular': '目標',
+    'goal.prophecy': '預言日記'
+  },
+  'ja': {
+    'header.subtitle': 'ライブデバイスフィード',
+    'nav.live': 'ライブ',
+    'nav.ideas': 'アイデア',
+    'nav.goal': '目標',
+    'nav.creation': 'クリエーション',
+    'nav.settings': '設定',
+    'live.photos': '写真',
+    'live.incoming_photos': '受信した写真',
+    'live.transcripts': '書き起こし',
+    'live.transcript': '書き起こし',
+    'btn.more': 'もっと見る »',
+    'btn.show_older_photos': '以前の写真を表示',
+    'btn.show_older_transcripts': '以前の書き起こしを表示',
+    'btn.back_to_live': '← ライブに戻る',
+    'btn.back_to_ideas': '← アイデアに戻る',
+    'btn.back_to_goals': '← 目標に戻る',
+    'btn.back_to_creations': '← クリエーションに戻る',
+    'btn.back': '← 戻る',
+    'ideas.singular': 'アイデア',
+    'creation.plural': 'クリエーション',
+    'creation.singular': 'クリエーション',
+    'goal.singular': '目標',
+    'goal.prophecy': '予言日記'
+  }
+};
+
+function mapLocaleToSupported(loc) {
+  if (!loc) return 'en';
+  const L = loc.toLowerCase();
+  if (L.startsWith('ja')) return 'ja';
+  if (L.startsWith('zh')) {
+    if (L.includes('hant') || L.includes('tw') || L.includes('hk') || L.includes('mo')) return 'zh-Hant';
+    return 'zh-Hans';
+  }
+  return 'en';
+}
+
+function detectLang() {
+  const saved = localStorage.getItem(LANG_KEY);
+  if (saved && SUPPORTED_LANGS.includes(saved)) return saved;
+  const langs = navigator.languages && navigator.languages.length ? navigator.languages : [navigator.language || 'en'];
+  for (const l of langs) {
+    const m = mapLocaleToSupported(l);
+    if (SUPPORTED_LANGS.includes(m)) return m;
+  }
+  return 'en';
+}
+
+function t(lang, key) {
+  return (I18N[lang] && I18N[lang][key]) || (I18N['en'][key] || '');
+}
+
+function applyI18n(lang) {
+  try {
+    document.documentElement.lang = lang;
+    document.querySelectorAll('[data-i18n]').forEach((el) => {
+      const k = el.getAttribute('data-i18n');
+      const val = t(lang, k);
+      if (val) el.textContent = val;
+    });
+  } catch {}
+}
+
+function initLanguage() {
+  const lang = detectLang();
+  if (langSelect) {
+    langSelect.value = lang;
+    langSelect.addEventListener('change', () => {
+      const v = langSelect.value;
+      if (!SUPPORTED_LANGS.includes(v)) return;
+      localStorage.setItem(LANG_KEY, v);
+      applyI18n(v);
+    });
+  }
+  localStorage.setItem(LANG_KEY, lang);
+  applyI18n(lang);
+}
+
+initLanguage();
+
 // Compute header offset to avoid content underlap
 function updateHeaderOffset() {
   try {

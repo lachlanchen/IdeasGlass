@@ -13,10 +13,16 @@
     <header>
       <div>
         <h1>IdeasGlass</h1>
-        <p class="subtitle">Live device feed</p>
+        <p class="subtitle" data-i18n="header.subtitle">Live device feed</p>
       </div>
       <div class="header-actions">
         <span id="batteryStatus" class="battery-pill" title="Battery">🔋 --%</span>
+        <select id="langSelect" class="lang-select" aria-label="Language">
+          <option value="en">English</option>
+          <option value="zh-Hant">繁體中文</option>
+          <option value="zh-Hans">简体中文</option>
+          <option value="ja">日本語</option>
+        </select>
       </div>
     </header>
 
@@ -45,16 +51,16 @@
 
     <main>
       <section id="logPanel">
-        <h2>Incoming photos</h2>
+        <h2 data-i18n="live.incoming_photos">Incoming photos</h2>
         <ul id="messageList"></ul>
         <div id="galleryGridCompact" class="gallery-grid gallery-grid--compact"></div>
       </section>
 
       <section id="transcriptsPanel">
-        <h2>Transcripts</h2>
+        <h2 data-i18n="live.transcripts">Transcripts</h2>
         <ul id="transcriptCompactList"></ul>
         <div class="load-more-container">
-          <button id="transcriptsMoreCompactBtn" type="button">More »</button>
+          <button id="transcriptsMoreCompactBtn" type="button" data-i18n="btn.more">More »</button>
         </div>
       </section>
     </main>
@@ -65,13 +71,13 @@
       <main>
         <section>
           <div style="display:flex;align-items:center;gap:0.5rem;justify-content:space-between;">
-            <button id="livePhotosBack" class="ghost-btn" type="button">← Back to Live</button>
-            <h2>Photos</h2>
+            <button id="livePhotosBack" class="ghost-btn" type="button" data-i18n="btn.back_to_live">← Back to Live</button>
+            <h2 data-i18n="live.photos">Photos</h2>
             <span></span>
           </div>
           <div id="galleryGrid" class="gallery-grid"></div>
           <div class="load-more-container">
-            <button id="loadMoreBtn" type="button" hidden>Show older photos</button>
+            <button id="loadMoreBtn" type="button" hidden data-i18n="btn.show_older_photos">Show older photos</button>
           </div>
         </section>
       </main>
@@ -82,13 +88,13 @@
       <main>
         <section>
           <div style="display:flex;align-items:center;gap:0.5rem;justify-content:space-between;">
-            <button id="liveTranscriptsBack" class="ghost-btn" type="button">← Back to Live</button>
-            <h2>Transcripts</h2>
+            <button id="liveTranscriptsBack" class="ghost-btn" type="button" data-i18n="btn.back_to_live">← Back to Live</button>
+            <h2 data-i18n="live.transcripts">Transcripts</h2>
             <span></span>
           </div>
           <ul id="transcriptList"></ul>
           <div class="load-more-container">
-            <button id="transcriptMoreBtn" type="button" hidden>Show older transcripts</button>
+            <button id="transcriptMoreBtn" type="button" hidden data-i18n="btn.show_older_transcripts">Show older transcripts</button>
           </div>
         </section>
       </main>
@@ -99,8 +105,8 @@
       <main>
         <section>
           <div style="display:flex;align-items:center;gap:0.5rem;justify-content:space-between;">
-            <button id="liveTranscriptDetailBack" class="ghost-btn" type="button">← Back</button>
-            <h2>Transcript</h2>
+            <button id="liveTranscriptDetailBack" class="ghost-btn" type="button" data-i18n="btn.back">← Back</button>
+            <h2 data-i18n="live.transcript">Transcript</h2>
             <span></span>
           </div>
           <audio id="transcriptDetailAudio" controls style="width:100%;margin:0.3rem 0 0.6rem;"></audio>
@@ -136,7 +142,7 @@
       <main>
         <section class="ideas-panel">
           <div class="ideas-header">
-            <h2>Ideas</h2>
+            <h2 data-i18n="ideas.plural">Ideas</h2>
             <div class="ideas-actions">
               <button id="seedIdeasBtn" type="button" class="ghost-btn">Generate Samples</button>
             </div>
@@ -152,8 +158,8 @@
       <main>
         <section class="ideas-panel">
           <div class="ideas-header">
-            <button id="ideaDetailBack" class="ghost-btn" type="button">← Back to Ideas</button>
-            <h2>Idea</h2>
+            <button id="ideaDetailBack" class="ghost-btn" type="button" data-i18n="btn.back_to_ideas">← Back to Ideas</button>
+            <h2 data-i18n="ideas.singular">Idea</h2>
             <div class="ideas-actions">
               <button id="ideaDeleteBtn" type="button" class="ghost-btn">Delete</button>
             </div>
@@ -201,7 +207,7 @@
             </div>
           </div>
           <div class="goals-header">
-            <h2>Goals</h2>
+            <h2 data-i18n="goal.plural">Goals</h2>
             <div class="goals-actions">
               <button id="seedGoalsBtn" type="button" class="ghost-btn">Generate Samples</button>
             </div>
@@ -325,7 +331,7 @@
       <main>
         <section class="creation-panel">
           <div class="creation-header">
-            <h2>Creation</h2>
+            <h2 data-i18n="creation.plural">Creation</h2>
             <div class="creation-actions">
               <button id="seedCreationsBtn" type="button" class="ghost-btn">Generate Samples</button>
             </div>
@@ -363,8 +369,8 @@
       <main>
         <section class="creation-panel">
           <div class="creation-header">
-            <button id="creationDetailBack" class="ghost-btn" type="button">← Back to Creations</button>
-            <h2>Creation</h2>
+            <button id="creationDetailBack" class="ghost-btn" type="button" data-i18n="btn.back_to_creations">← Back to Creations</button>
+            <h2 data-i18n="creation.singular">Creation</h2>
             <span></span>
           </div>
           <div class="creation-detail">
@@ -471,11 +477,11 @@
     <nav id="bottomNav" class="bottom-nav">
       <button class="tab-btn active" data-tab="live" aria-label="Live">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12h3l2-4 3 8 2-6 2 2h4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        <span>Live</span>
+        <span data-i18n="nav.live">Live</span>
       </button>
       <button class="tab-btn" data-tab="ideas" aria-label="Ideas">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18h6M10 15h4M8 10a6 6 0 1 1 8 0c-1.2 1.1-2 2.2-2 3.5V15H10v-1.5c0-1.3-.8-2.4-2-3.5z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        <span>Ideas</span>
+        <span data-i18n="nav.ideas">Ideas</span>
       </button>
       <button class="tab-btn" data-tab="goal" aria-label="Goal">
         <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -483,15 +489,15 @@
           <circle cx="12" cy="12" r="5" fill="none" stroke="currentColor" stroke-width="2"/>
           <circle cx="12" cy="12" r="2" fill="currentColor"/>
         </svg>
-        <span>Goal</span>
+        <span data-i18n="nav.goal">Goal</span>
       </button>
       <button class="tab-btn" data-tab="creation" aria-label="Creation">
         <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 8v8M8 12h8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-        <span>Creation</span>
+        <span data-i18n="nav.creation">Creation</span>
       </button>
       <button class="tab-btn" data-tab="settings" aria-label="Settings">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h10M4 16h16M10 6v4M16 14v4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-        <span>Settings</span>
+        <span data-i18n="nav.settings">Settings</span>
       </button>
     </nav>
 
