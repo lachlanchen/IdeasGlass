@@ -13,6 +13,8 @@ body {
   flex-direction: column;
   background: linear-gradient(160deg, #f7faff 0%, #eef2fb 45%, #fdf6ff 100%);
   padding-bottom: calc(70px + env(safe-area-inset-bottom, 0px));
+  touch-action: pan-x pan-y;
+  overscroll-behavior-x: contain;
 }
 
 /* Only add top padding when header is fixed (Live tab) */
@@ -63,6 +65,11 @@ header h1 {
   color: #5b6b8d;
   font-weight: 500;
   font-size: 0.85rem;
+}
+
+/* Prevent input zoom on iOS by keeping minimum font-size */
+input, textarea, select, button {
+  font-size: 16px;
 }
 
 main {

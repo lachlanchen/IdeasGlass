@@ -145,6 +145,37 @@ function updateHeaderOffset() {
 updateHeaderOffset();
 window.addEventListener('resize', () => { updateHeaderOffset(); });
 
+// Disable pinch-zoom and double-tap zoom for app-like feel
+(function disableZoomGestures() {
+  let lastTouchEnd = 0;
+  // Prevent double-tap zoom
+  document.addEventListener('touchend', function (e) {
+    try {
+      const now = Date.now();
+      if (now - lastTouchEnd <= 300) {
+        e.preventDefault();
+      }
+      lastTouchEnd = now;
+    } catch {}
+  }, { passive: false });
+  // Prevent two-finger pinch zoom
+  document.addEventListener('touchstart', function (e) {
+    if (e.touches && e.touches.length > 1) {
+      e.preventDefault();
+    }
+  }, { passive: false });
+  // iOS gesture events
+  ['gesturestart','gesturechange','gestureend'].forEach((evt) => {
+    document.addEventListener(evt, function (e) { try { e.preventDefault(); } catch {} }, { passive: false });
+  });
+  // Desktop trackpad pinch (Ctrl + wheel zoom)
+  document.addEventListener('wheel', function (e) {
+    if (e.ctrlKey) {
+      e.preventDefault();
+    }
+  }, { passive: false });
+})();
+
 segmentTranscriptClose?.addEventListener("click", () => {
   hideSegmentTranscript();
 });
