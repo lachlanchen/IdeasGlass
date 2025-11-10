@@ -190,6 +190,16 @@
     <div id="goalView" class="view hidden">
       <main>
         <section class="goals-panel">
+          <div id="prophecyPanel" class="prophecy-card">
+            <div class="prophecy-left">
+              <div class="prophecy-title">Prophecy Diary</div>
+              <div class="prophecy-sub" id="prophecyTeaser">Define who you want to be and what you want to do — a gentle plan for a happy life.</div>
+            </div>
+            <div class="prophecy-actions">
+              <button id="prophecyViewBtn" type="button">View</button>
+              <button id="prophecySeedBtn" type="button" class="ghost-btn">Seed Sample</button>
+            </div>
+          </div>
           <div class="goals-header">
             <h2>Goals</h2>
             <div class="goals-actions">
@@ -254,6 +264,33 @@
             <div class="if-actions">
               <button id="goalSaveBtn" type="button">Save</button>
             </div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <!-- Life goal (Prophecy) detail sub-page -->
+    <div id="lifeGoalDetailView" class="hidden">
+      <main>
+        <section class="goals-panel">
+          <div class="goals-header">
+            <button id="lifeGoalDetailBack" class="ghost-btn" type="button">← Back to Goals</button>
+            <h2>Prophecy Diary</h2>
+            <span></span>
+          </div>
+          <div class="life-goal-detail">
+            <h3 id="lgTitle" class="goal-title"></h3>
+            <p id="lgVision" class="goal-outcome"></p>
+            <div class="if-row">
+              <div class="if-col"><span class="chip" id="lgHorizon">LIFE</span></div>
+              <div class="if-col"><span class="chip" id="lgProgress">0%</span></div>
+            </div>
+            <h4>Why</h4>
+            <p id="lgWhy" class="cd-section-body"></p>
+            <h4>Strategy</h4>
+            <pre id="lgStrategy" class="cd-section-body"></pre>
+            <h4>Metrics</h4>
+            <ul id="lgMetrics"></ul>
           </div>
         </section>
       </main>

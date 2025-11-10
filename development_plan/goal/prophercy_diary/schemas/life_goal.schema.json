@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ideasglass.dev/schemas/prophecy_diary_life_goal.schema.json",
+  "title": "ProphecyDiaryLifeGoal",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "id": { "type": "string" },
+    "user_id": { "type": "string" },
+    "title": { "type": "string", "minLength": 1 },
+    "vision": { "type": "string" },
+    "why": { "type": "string" },
+    "strategy": { "type": "string" },
+    "categories": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
+    "horizon": { "type": "string", "enum": ["life", "decade", "year", "quarter", "month"] },
+    "status": { "type": "string", "enum": ["active", "archived", "deleted"] },
+    "progress_percent": { "type": "number", "minimum": 0, "maximum": 100 },
+    "metrics": {
+      "type": "array",
+      "items": { "type": "object", "properties": { "name": { "type": "string" }, "target_value": { "type": "number" }, "unit": { "type": "string" } }, "required": ["name"] }
+    },
+    "start_date": { "type": "string", "format": "date" },
+    "target_date": { "type": "string", "format": "date" },
+    "created_at": { "type": "string", "format": "date-time" },
+    "updated_at": { "type": "string", "format": "date-time" }
+  },
+  "required": ["id", "user_id", "title", "horizon", "status", "created_at", "updated_at"]
+}
+

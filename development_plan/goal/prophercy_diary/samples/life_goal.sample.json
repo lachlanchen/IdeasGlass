@@ -1,0 +1,21 @@
+{
+  "id": "f0aa2e79-6df3-4556-9a23-5dc0a7a1fabc",
+  "user_id": "00000000-0000-0000-0000-000000000001",
+  "title": "Prophecy Diary — The Art of Lazying",
+  "vision": "Make everything in life feel light: a happy, sustainable life without unnecessary effort or hard working.",
+  "why": "Reduce burnout, maximize creativity and joy; focus on what matters.",
+  "strategy": "Automate and delegate; compound small, enjoyable habits; build assets (content, tools) that work while you rest; design systems that default to ease.",
+  "categories": ["life", "career", "wellbeing"],
+  "horizon": "life",
+  "status": "active",
+  "progress_percent": 8,
+  "metrics": [
+    { "name": "Days feeling rested", "target_value": 25, "unit": "/month" },
+    { "name": "Passive income", "target_value": 5000, "unit": "USD/mo" }
+  ],
+  "start_date": "2025-01-01",
+  "target_date": "2030-12-31",
+  "created_at": "2025-11-10T03:40:00Z",
+  "updated_at": "2025-11-10T03:40:00Z"
+}
+

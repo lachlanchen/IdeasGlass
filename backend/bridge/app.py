@@ -320,6 +320,27 @@ class GoalUpdateIn(BaseModel):
     progress_percent: Optional[float] = Field(default=None, ge=0, le=100)
 
 
+class LifeGoalOut(BaseModel):
+    id: str
+    title: str
+    vision: Optional[str] = None
+    why: Optional[str] = None
+    strategy: Optional[str] = None
+    categories: Optional[List[str]] = None
+    horizon: int = 0
+    status: int = 0
+    progress_percent: float = 0.0
+    metrics: Optional[List[dict]] = None
+    start_date: Optional[str] = None
+    target_date: Optional[str] = None
+    created_at: str
+    updated_at: str
+
+
+class LifeGoalSeedIn(BaseModel):
+    overwrite: bool = False
+
+
 # ---- Creations models ----
 CREATION_TYPES = {
     "research_proposal": 0,
@@ -737,6 +758,32 @@ async def init_db() -> None:
         )
         await conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_ig_goals_deadline ON ig_goals(user_id, deadline)"
+        )
+        # Life goals (Prophecy Diary)
+        await conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS ig_life_goals (
+                id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                title TEXT NOT NULL,
+                vision TEXT,
+                why TEXT,
+                strategy TEXT,
+                categories JSONB,
+                horizon SMALLINT NOT NULL DEFAULT 0,
+                status SMALLINT NOT NULL DEFAULT 0,
+                progress_percent NUMERIC(5,2) DEFAULT 0,
+                metrics JSONB,
+                start_date DATE,
+                target_date DATE,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                deleted_at TIMESTAMPTZ
+            );
+            """
+        )
+        await conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_ig_life_goals_user_status ON ig_life_goals(user_id, status)"
         )
         # Creations (basic)
         await conn.execute(
@@ -1304,6 +1351,129 @@ async def delete_goal(goal_id: str, request: Request):
     if not res or not res.startswith("DELETE"):
         raise HTTPException(status_code=404, detail="Not Found")
     return {"ok": True}
+
+
+@app.get("/api/v1/life-goals", response_model=List[LifeGoalOut])
+async def list_life_goals(limit: int = 3, request: Request = None):
+    uid = await _current_user_id(request)
+    if not uid:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    if not db_pool:
+        raise HTTPException(status_code=503, detail="Requires DATABASE_URL")
+    limit = max(1, min(10, int(limit)))
+    async with db_pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT id, title, vision, why, strategy, categories, horizon, status, progress_percent, metrics, start_date, target_date, created_at, updated_at
+            FROM ig_life_goals
+            WHERE user_id=$1 AND status=0
+            ORDER BY updated_at DESC
+            LIMIT $2
+            """,
+            uid,
+            limit,
+        )
+    out: List[LifeGoalOut] = []
+    for r in rows:
+        out.append(
+            LifeGoalOut(
+                id=r["id"],
+                title=r["title"],
+                vision=r["vision"],
+                why=r["why"],
+                strategy=r["strategy"],
+                categories=(r["categories"] if isinstance(r["categories"], list) else None),
+                horizon=int(r["horizon"] or 0),
+                status=int(r["status"] or 0),
+                progress_percent=float(r["progress_percent"] or 0),
+                metrics=(r["metrics"] if isinstance(r["metrics"], list) else None),
+                start_date=(r["start_date"].isoformat() if r["start_date"] else None),
+                target_date=(r["target_date"].isoformat() if r["target_date"] else None),
+                created_at=r["created_at"].isoformat(),
+                updated_at=r["updated_at"].isoformat(),
+            )
+        )
+    return out
+
+
+@app.get("/api/v1/life-goals/{life_goal_id}", response_model=LifeGoalOut)
+async def get_life_goal(life_goal_id: str, request: Request):
+    uid = await _current_user_id(request)
+    if not uid:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    if not db_pool:
+        raise HTTPException(status_code=503, detail="Requires DATABASE_URL")
+    async with db_pool.acquire() as conn:
+        row = await conn.fetchrow(
+            """
+            SELECT id, title, vision, why, strategy, categories, horizon, status, progress_percent, metrics, start_date, target_date, created_at, updated_at
+            FROM ig_life_goals WHERE id=$1 AND user_id=$2
+            """,
+            life_goal_id,
+            uid,
+        )
+    if not row:
+        raise HTTPException(status_code=404, detail="Not Found")
+    return LifeGoalOut(
+        id=row["id"],
+        title=row["title"],
+        vision=row["vision"],
+        why=row["why"],
+        strategy=row["strategy"],
+        categories=(row["categories"] if isinstance(row["categories"], list) else None),
+        horizon=int(row["horizon"] or 0),
+        status=int(row["status"] or 0),
+        progress_percent=float(row["progress_percent"] or 0),
+        metrics=(row["metrics"] if isinstance(row["metrics"], list) else None),
+        start_date=(row["start_date"].isoformat() if row["start_date"] else None),
+        target_date=(row["target_date"].isoformat() if row["target_date"] else None),
+        created_at=row["created_at"].isoformat(),
+        updated_at=row["updated_at"].isoformat(),
+    )
+
+
+@app.post("/api/v1/life-goals/seed")
+async def seed_life_goal(payload: LifeGoalSeedIn, request: Request):
+    uid = await _current_user_id(request)
+    if not uid:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    if not db_pool:
+        raise HTTPException(status_code=503, detail="Requires DATABASE_URL")
+    now = datetime.now(tz=timezone.utc)
+    lg_id = str(uuid.uuid4())
+    title = "Prophecy Diary — The Art of Lazying"
+    if payload.overwrite:
+        async with db_pool.acquire() as conn:
+            await conn.execute("DELETE FROM ig_life_goals WHERE user_id=$1 AND title=$2", uid, title)
+    async with db_pool.acquire() as conn:
+        await conn.execute(
+            """
+            INSERT INTO ig_life_goals (
+              id, user_id, title, vision, why, strategy, categories, horizon, status, progress_percent, metrics, start_date, target_date, created_at, updated_at
+            ) VALUES (
+              $1,$2,$3,$4,$5,$6,$7,$8,0,$9,$10,$11,$12,$13,$14
+            )
+            ON CONFLICT (id) DO NOTHING
+            """,
+            lg_id,
+            uid,
+            title,
+            "Make everything in life feel light: a happy, sustainable life without unnecessary effort.",
+            "Reduce burnout, maximize creativity and joy; focus on what matters.",
+            "Automate and delegate; compound small, enjoyable habits; build assets (content, tools) that work while you rest; design systems that default to ease.",
+            json.dumps(["life","career","wellbeing"]),
+            0,
+            12.0,
+            json.dumps([
+                {"name":"Days feeling rested","target_value":25,"unit":"/month"},
+                {"name":"Passive income","target_value":5000,"unit":"USD/mo"}
+            ]),
+            None,
+            None,
+            now,
+            now,
+        )
+    return {"ok": True, "id": lg_id}
 
 
 @app.get("/api/v1/ideas/{idea_id}", response_model=IdeaOut)

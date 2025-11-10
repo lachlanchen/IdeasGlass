@@ -79,6 +79,21 @@ const goalProgressInput = document.getElementById('goalProgressInput');
 const goalSaveBtn = document.getElementById('goalSaveBtn');
 const goalDeleteBtn = document.getElementById('goalDeleteBtn');
 let currentGoalId = null;
+// Prophecy/Life goal panel + detail
+const prophecyPanel = document.getElementById('prophecyPanel');
+const prophecyViewBtn = document.getElementById('prophecyViewBtn');
+const prophecySeedBtn = document.getElementById('prophecySeedBtn');
+const prophecyTeaser = document.getElementById('prophecyTeaser');
+const lifeGoalDetailView = document.getElementById('lifeGoalDetailView');
+const lifeGoalDetailBack = document.getElementById('lifeGoalDetailBack');
+const lgTitle = document.getElementById('lgTitle');
+const lgVision = document.getElementById('lgVision');
+const lgHorizon = document.getElementById('lgHorizon');
+const lgProgress = document.getElementById('lgProgress');
+const lgWhy = document.getElementById('lgWhy');
+const lgStrategy = document.getElementById('lgStrategy');
+const lgMetrics = document.getElementById('lgMetrics');
+let currentLifeGoalId = null;
 const settingsView = document.getElementById('settingsView');
 // Auth + binding
 const authEmail = document.getElementById("authEmail");
@@ -218,6 +233,73 @@ seedGoalsBtn?.addEventListener('click', async () => {
   finally { seedGoalsBtn.disabled = false; }
   try { await refreshGoals(); } catch {}
 });
+
+async function refreshLifeGoalPanel() {
+  if (!prophecyPanel) return;
+  try {
+    const items = await apiGet('/api/v1/life-goals?limit=1');
+    if (Array.isArray(items) && items.length) {
+      const g = items[0];
+      currentLifeGoalId = g.id;
+      if (prophecyTeaser) prophecyTeaser.textContent = g.vision || 'Define who you want to be and what you want to do.';
+    } else {
+      currentLifeGoalId = null;
+      if (prophecyTeaser) prophecyTeaser.textContent = 'No life goal yet — seed a sample to get started.';
+    }
+  } catch {
+    currentLifeGoalId = null;
+  }
+}
+
+prophecySeedBtn?.addEventListener('click', async () => {
+  try { prophecySeedBtn.disabled = true; await apiPost('/api/v1/life-goals/seed', { overwrite: false }); } catch {}
+  finally { prophecySeedBtn.disabled = false; }
+  try { await refreshLifeGoalPanel(); } catch {}
+});
+
+prophecyViewBtn?.addEventListener('click', async () => {
+  if (!currentLifeGoalId) {
+    try { await apiPost('/api/v1/life-goals/seed', { overwrite: false }); await refreshLifeGoalPanel(); } catch {}
+  }
+  if (!currentLifeGoalId) return;
+  openLifeGoalDetail(currentLifeGoalId);
+});
+
+function openLifeGoalDetail(id) {
+  goalView?.classList.add('hidden');
+  if (lifeGoalDetailView) {
+    lifeGoalDetailView.classList.remove('hidden');
+    lifeGoalDetailView.classList.add('slide-in');
+    setTimeout(() => lifeGoalDetailView.classList.remove('slide-in'), 300);
+  }
+  loadLifeGoalDetail(id);
+}
+
+function setChip(el, text) { if (!el) return; el.textContent = text || ''; }
+
+async function loadLifeGoalDetail(id) {
+  try {
+    const g = await apiGet(`/api/v1/life-goals/${encodeURIComponent(id)}`);
+    if (lgTitle) lgTitle.textContent = g.title || 'Prophecy Diary';
+    if (lgVision) lgVision.textContent = g.vision || '';
+    setChip(lgHorizon, (g.horizon === 0 ? 'LIFE' : String(g.horizon)));
+    setChip(lgProgress, `${Math.round(Number(g.progress_percent||0))}%`);
+    if (lgWhy) lgWhy.textContent = g.why || '';
+    if (lgStrategy) lgStrategy.textContent = g.strategy || '';
+    if (lgMetrics) {
+      lgMetrics.innerHTML = '';
+      const frag = document.createDocumentFragment();
+      (Array.isArray(g.metrics) ? g.metrics : []).forEach((m) => {
+        const li = document.createElement('li');
+        li.textContent = `${m.name}${m.target_value ? ' → ' + m.target_value : ''}${m.unit ? ' ' + m.unit : ''}`;
+        frag.appendChild(li);
+      });
+      lgMetrics.appendChild(frag);
+    }
+  } catch {}
+}
+
+lifeGoalDetailBack?.addEventListener('click', () => { showGoalsList(); try { refreshLifeGoalPanel(); } catch {} });
 
 function showGoalsList() {
   goalView?.classList.remove('hidden');
@@ -715,6 +797,7 @@ function setActiveTab(tab) {
   }
   if (tab === 'goal') {
     try { refreshGoals(); } catch {}
+    try { refreshLifeGoalPanel(); } catch {}
   }
   if (tab === 'creation') {
     try { populateIdeaSelect(); } catch {}
