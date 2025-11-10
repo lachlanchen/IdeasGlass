@@ -1315,6 +1315,8 @@ footer {
 
 /* Extra nudge for Ideas icon which has more top mass */
 .bottom-nav .tab-btn[data-tab="ideas"] svg {
+  width: 20px;
+  height: 20px;
   transform: translateY(3px);
 }
 
