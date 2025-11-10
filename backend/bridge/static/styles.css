@@ -1077,6 +1077,8 @@ footer {
 .if-meta { display:flex; align-items:center; gap: 0.5rem; }
 .if-actions { display:flex; gap: 0.5rem; }
 
+.goal-form { display:flex; flex-direction: column; gap: 0.5rem; }
+
 /* Goals panel */
 .goals-panel {
   background: #ffffff;

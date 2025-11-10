@@ -311,6 +311,15 @@ class GoalSeedIn(BaseModel):
     overwrite: bool = False
 
 
+class GoalUpdateIn(BaseModel):
+    title: Optional[str] = None
+    outcome: Optional[str] = None
+    deadline: Optional[str] = None  # ISO string
+    priority: Optional[int] = Field(default=None, ge=0, le=5)
+    status: Optional[int] = Field(default=None, ge=0, le=4)
+    progress_percent: Optional[float] = Field(default=None, ge=0, le=100)
+
+
 # ---- Creations models ----
 CREATION_TYPES = {
     "research_proposal": 0,
@@ -1165,6 +1174,102 @@ async def seed_goals(payload: GoalSeedIn, request: Request):
                     now,
                 )
     return {"ok": True, "count": len(samples)}
+
+
+@app.get("/api/v1/goals/{goal_id}", response_model=GoalOut)
+async def get_goal(goal_id: str, request: Request):
+    uid = await _current_user_id(request)
+    if not uid:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    if not db_pool:
+        raise HTTPException(status_code=503, detail="Requires DATABASE_URL")
+    async with db_pool.acquire() as conn:
+        row = await conn.fetchrow(
+            """
+            SELECT id, title, outcome, deadline, priority, status, progress_percent, created_at, updated_at
+            FROM ig_goals WHERE id=$1 AND user_id=$2
+            """,
+            goal_id,
+            uid,
+        )
+    if not row:
+        raise HTTPException(status_code=404, detail="Not Found")
+    return GoalOut(
+        id=row["id"],
+        title=row["title"],
+        outcome=row["outcome"],
+        deadline=(row["deadline"].isoformat() if row["deadline"] else None),
+        priority=int(row["priority"] or 0),
+        status=int(row["status"] or 0),
+        progress_percent=float(row["progress_percent"] or 0),
+        created_at=row["created_at"].isoformat(),
+        updated_at=row["updated_at"].isoformat(),
+    )
+
+
+@app.patch("/api/v1/goals/{goal_id}", response_model=GoalOut)
+async def update_goal(goal_id: str, payload: GoalUpdateIn, request: Request):
+    uid = await _current_user_id(request)
+    if not uid:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    if not db_pool:
+        raise HTTPException(status_code=503, detail="Requires DATABASE_URL")
+    fields: Dict[str, Any] = {}
+    if payload.title is not None:
+        fields["title"] = payload.title
+    if payload.outcome is not None:
+        fields["outcome"] = payload.outcome
+    if payload.priority is not None:
+        fields["priority"] = int(payload.priority)
+    if payload.status is not None:
+        fields["status"] = int(payload.status)
+    if payload.progress_percent is not None:
+        fields["progress_percent"] = float(payload.progress_percent)
+    if payload.deadline is not None:
+        # Parse ISO string; normalize to UTC if naive
+        try:
+            dl = datetime.fromisoformat(payload.deadline)
+            if dl.tzinfo is None:
+                dl = dl.replace(tzinfo=timezone.utc)
+            fields["deadline"] = dl
+        except Exception:
+            raise HTTPException(status_code=400, detail="Invalid deadline format")
+    if not fields:
+        return await get_goal(goal_id, request)
+    sets = []
+    values = []
+    idx = 1
+    for k, v in fields.items():
+        sets.append(f"{k}=${idx}")
+        values.append(v)
+        idx += 1
+    sets.append(f"updated_at=${idx}")
+    values.append(datetime.now(tz=timezone.utc))
+    idx += 1
+    values.append(goal_id)
+    values.append(uid)
+    async with db_pool.acquire() as conn:
+        res = await conn.execute(
+            f"UPDATE ig_goals SET {', '.join(sets)} WHERE id=${idx} AND user_id=${idx+1}",
+            *values,
+        )
+        if not res or not res.startswith("UPDATE"):
+            raise HTTPException(status_code=404, detail="Not Found")
+    return await get_goal(goal_id, request)
+
+
+@app.delete("/api/v1/goals/{goal_id}")
+async def delete_goal(goal_id: str, request: Request):
+    uid = await _current_user_id(request)
+    if not uid:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    if not db_pool:
+        raise HTTPException(status_code=503, detail="Requires DATABASE_URL")
+    async with db_pool.acquire() as conn:
+        res = await conn.execute("DELETE FROM ig_goals WHERE id=$1 AND user_id=$2", goal_id, uid)
+    if not res or not res.startswith("DELETE"):
+        raise HTTPException(status_code=404, detail="Not Found")
+    return {"ok": True}
 
 
 @app.get("/api/v1/ideas/{idea_id}", response_model=IdeaOut)

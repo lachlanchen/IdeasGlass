@@ -202,6 +202,63 @@
       </main>
     </div>
 
+    <!-- Goal detail sub-page (push-style) -->
+    <div id="goalDetailView" class="hidden">
+      <main>
+        <section class="goals-panel">
+          <div class="goals-header">
+            <button id="goalDetailBack" class="ghost-btn" type="button">← Back to Goals</button>
+            <h2>Goal</h2>
+            <div class="goals-actions">
+              <button id="goalDeleteBtn" type="button" class="ghost-btn">Delete</button>
+            </div>
+          </div>
+          <div class="goal-form">
+            <label class="if-label">Title</label>
+            <input id="goalTitleInput" class="if-input" placeholder="Title" />
+            <label class="if-label">Outcome</label>
+            <textarea id="goalOutcomeInput" class="if-textarea" rows="3" placeholder="Outcome"></textarea>
+            <div class="if-row">
+              <div class="if-col">
+                <label class="if-label">Deadline</label>
+                <input id="goalDeadlineInput" class="if-input" type="datetime-local" />
+              </div>
+              <div class="if-col">
+                <label class="if-label">Priority</label>
+                <select id="goalPriorityInput" class="if-input">
+                  <option value="0">P0</option>
+                  <option value="1">P1</option>
+                  <option value="2">P2</option>
+                  <option value="3">P3</option>
+                  <option value="4">P4</option>
+                  <option value="5">P5</option>
+                </select>
+              </div>
+            </div>
+            <div class="if-row">
+              <div class="if-col">
+                <label class="if-label">Status</label>
+                <select id="goalStatusInput" class="if-input">
+                  <option value="0">Not started</option>
+                  <option value="1">In progress</option>
+                  <option value="2">Blocked</option>
+                  <option value="3">Done</option>
+                  <option value="4">Canceled</option>
+                </select>
+              </div>
+              <div class="if-col">
+                <label class="if-label">Progress %</label>
+                <input id="goalProgressInput" class="if-input" type="number" min="0" max="100" step="1" />
+              </div>
+            </div>
+            <div class="if-actions">
+              <button id="goalSaveBtn" type="button">Save</button>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+
     <div id="creationView" class="view hidden">
       <main>
         <section class="creation-panel">

@@ -56,6 +56,18 @@ const createFromIdeaSelect = document.getElementById('createFromIdeaSelect');
 const createTypeSelect = document.getElementById('createTypeSelect');
 const createFromIdeaBtn = document.getElementById('createFromIdeaBtn');
 const goalView = document.getElementById('goalView');
+// Goal detail elements
+const goalDetailView = document.getElementById('goalDetailView');
+const goalDetailBack = document.getElementById('goalDetailBack');
+const goalTitleInput = document.getElementById('goalTitleInput');
+const goalOutcomeInput = document.getElementById('goalOutcomeInput');
+const goalDeadlineInput = document.getElementById('goalDeadlineInput');
+const goalPriorityInput = document.getElementById('goalPriorityInput');
+const goalStatusInput = document.getElementById('goalStatusInput');
+const goalProgressInput = document.getElementById('goalProgressInput');
+const goalSaveBtn = document.getElementById('goalSaveBtn');
+const goalDeleteBtn = document.getElementById('goalDeleteBtn');
+let currentGoalId = null;
 const settingsView = document.getElementById('settingsView');
 // Auth + binding
 const authEmail = document.getElementById("authEmail");
@@ -158,6 +170,7 @@ function buildGoalCard(goal) {
   prog.appendChild(bar);
 
   card.append(top, meta, prog);
+  card.addEventListener('click', () => openGoalDetailPage(goal.id));
   return card;
 }
 
@@ -193,6 +206,74 @@ seedGoalsBtn?.addEventListener('click', async () => {
   } catch {}
   finally { seedGoalsBtn.disabled = false; }
   try { await refreshGoals(); } catch {}
+});
+
+function showGoalsList() {
+  goalView?.classList.remove('hidden');
+  goalView?.classList.add('slide-in');
+  setTimeout(() => goalView?.classList.remove('slide-in'), 300);
+  goalDetailView?.classList.add('hidden');
+}
+
+function openGoalDetailPage(id) {
+  currentGoalId = id;
+  goalView?.classList.add('hidden');
+  if (goalDetailView) {
+    goalDetailView.classList.remove('hidden');
+    goalDetailView.classList.add('slide-in');
+    setTimeout(() => goalDetailView.classList.remove('slide-in'), 300);
+  }
+  loadGoalDetail(id);
+}
+
+function toLocalDatetimeInput(iso) {
+  try {
+    const d = new Date(iso);
+    if (String(d) === 'Invalid Date') return '';
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  } catch { return ''; }
+}
+
+async function loadGoalDetail(id) {
+  try {
+    const g = await apiGet(`/api/v1/goals/${encodeURIComponent(id)}`);
+    if (goalTitleInput) goalTitleInput.value = g.title || '';
+    if (goalOutcomeInput) goalOutcomeInput.value = g.outcome || '';
+    if (goalDeadlineInput) goalDeadlineInput.value = g.deadline ? toLocalDatetimeInput(g.deadline) : '';
+    if (goalPriorityInput) goalPriorityInput.value = String(g.priority || 0);
+    if (goalStatusInput) goalStatusInput.value = String(g.status || 0);
+    if (goalProgressInput) goalProgressInput.value = String(Math.round(Number(g.progress_percent || 0)));
+  } catch {}
+}
+
+goalDetailBack?.addEventListener('click', () => { showGoalsList(); try { refreshGoals(); } catch {} });
+
+goalSaveBtn?.addEventListener('click', async () => {
+  if (!currentGoalId) return;
+  const deadline = goalDeadlineInput?.value || '';
+  const payload = {
+    title: goalTitleInput?.value || undefined,
+    outcome: goalOutcomeInput?.value || undefined,
+    deadline: deadline ? new Date(deadline).toISOString() : null,
+    priority: Number(goalPriorityInput?.value || 0),
+    status: Number(goalStatusInput?.value || 0),
+    progress_percent: Number(goalProgressInput?.value || 0),
+  };
+  try {
+    await apiPatch(`/api/v1/goals/${encodeURIComponent(currentGoalId)}`, payload);
+    await loadGoalDetail(currentGoalId);
+  } catch {}
+});
+
+goalDeleteBtn?.addEventListener('click', async () => {
+  if (!currentGoalId) return;
+  try {
+    await apiDelete(`/api/v1/goals/${encodeURIComponent(currentGoalId)}`);
+    currentGoalId = null;
+    showGoalsList();
+    await refreshGoals();
+  } catch {}
 });
 const transcriptPanel = document.getElementById("transcriptPanel");
 
