@@ -3,6 +3,7 @@
     BlinkMacSystemFont, "Segoe UI", sans-serif;
   color: #1a1f36;
   background-color: #eef2fb;
+  --header-height: 50px;
 }
 
 body {
@@ -11,20 +12,26 @@ body {
   display: flex;
   flex-direction: column;
   background: linear-gradient(160deg, #f7faff 0%, #eef2fb 45%, #fdf6ff 100%);
-  /* generous space for bottom nav + mobile safe area */
-  /* Keep content just above the bottom nav; minimal gap */
   padding-bottom: calc(70px + env(safe-area-inset-bottom, 0px));
 }
 
+/* Only add top padding when header is fixed (Live tab) */
+body.header-fixed { padding-top: calc(var(--header-height) + env(safe-area-inset-top, 0px)); }
+
 header {
+  position: relative;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 1.5rem clamp(1rem, 4vw, 3rem);
+  height: var(--header-height);
+  padding: 0.3rem 0.8rem;
   background: linear-gradient(135deg, #ffffff 0%, #f7faff 70%);
   border-bottom: 1px solid rgba(15, 23, 42, 0.08);
-  box-shadow: 0 20px 60px rgba(99, 102, 241, 0.18);
+  box-shadow: 0 6px 18px rgba(99, 102, 241, 0.12);
 }
+
+/* Fix header only on Live tab */
+body.header-fixed header { position: fixed; top: 0; left: 0; right: 0; z-index: 2000; }
 
 .header-actions { display:flex; align-items:center; gap: 0.6rem; }
 .battery-pill {
@@ -45,14 +52,15 @@ header {
 
 header h1 {
   margin: 0;
-  font-size: clamp(1.6rem, 4vw, 2rem);
+  font-size: clamp(1.2rem, 3vw, 1.6rem);
   color: #111827;
 }
 
 .subtitle {
-  margin: 0.25rem 0 0;
+  margin: 0.1rem 0 0;
   color: #5b6b8d;
   font-weight: 500;
+  font-size: 0.85rem;
 }
 
 main {
