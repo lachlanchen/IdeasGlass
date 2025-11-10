@@ -689,6 +689,20 @@ function setActiveTab(tab) {
     if (!el) return;
     el.classList.toggle('hidden', k !== tab);
   });
+  // Ensure any sub-pages/modals from other tabs are hidden when switching tabs
+  try {
+    // Live sub-pages
+    livePhotosView?.classList.add('hidden');
+    liveTranscriptsView?.classList.add('hidden');
+    liveTranscriptDetailView?.classList.add('hidden');
+    // Ideas/Goal/Creation detail sub-pages
+    ideaDetailView?.classList.add('hidden');
+    goalDetailView?.classList.add('hidden');
+    creationDetailView?.classList.add('hidden');
+    // Close photo modal if open and pause any audio
+    closePhotoModal && closePhotoModal();
+    pauseAllAudio && pauseAllAudio();
+  } catch {}
   tabButtons.forEach((btn) => {
     btn.classList.toggle('active', btn.dataset.tab === tab);
   });
