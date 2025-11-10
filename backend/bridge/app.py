@@ -3144,7 +3144,17 @@ async def ingest_message(payload: MessageIn):
 
 @app.websocket("/ws/photo-ingest")
 async def photo_ingest_socket(websocket: WebSocket):
-    await websocket.accept()
+    # Echo subprotocol if provided by client to keep intermediaries happy
+    proto_hdr = (websocket.headers.get("sec-websocket-protocol") or "").strip()
+    subproto = proto_hdr.split(",")[0].strip() if proto_hdr else None
+    try:
+        if subproto:
+            await websocket.accept(subprotocol=subproto)
+        else:
+            await websocket.accept()
+    except Exception:
+        # Fallback accept without subprotocol if negotiation fails
+        await websocket.accept()
     try:
         while True:
             text_message = await websocket.receive_text()
@@ -3256,7 +3266,16 @@ async def websocket_endpoint(websocket: WebSocket):
 
 @app.websocket("/ws/audio-ingest")
 async def audio_ingest_socket(websocket: WebSocket):
-    await websocket.accept()
+    # Echo subprotocol if the client sent one (e.g., "ideasglass-audio")
+    proto_hdr = (websocket.headers.get("sec-websocket-protocol") or "").strip()
+    subproto = proto_hdr.split(",")[0].strip() if proto_hdr else None
+    try:
+        if subproto:
+            await websocket.accept(subprotocol=subproto)
+        else:
+            await websocket.accept()
+    except Exception:
+        await websocket.accept()
     try:
         while True:
             text_message = await websocket.receive_text()
