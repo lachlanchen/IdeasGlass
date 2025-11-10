@@ -1288,9 +1288,14 @@ def _photo_extension(mime: Optional[str]) -> str:
 async def save_photo_to_disk(photo_id: str, photo_bytes: bytes, mime: Optional[str]) -> str:
     ext = _photo_extension(mime)
     filename = f"{photo_id}{ext}"
-    disk_path = PHOTO_STORAGE_DIR / filename
+    # Organize photos by UTC date/hour: YYYY/MM/DD/HH
+    now = datetime.now(tz=timezone.utc)
+    subdir = Path(now.strftime("%Y/%m/%d/%H"))
+    target_dir = PHOTO_STORAGE_DIR / subdir
+    target_dir.mkdir(parents=True, exist_ok=True)
+    disk_path = target_dir / filename
     await asyncio.to_thread(disk_path.write_bytes, photo_bytes)
-    return f"{PHOTO_STORAGE_URL_PREFIX}/{filename}"
+    return f"{PHOTO_STORAGE_URL_PREFIX}/{subdir.as_posix()}/{filename}"
 
 
 async def persist_transcript_record(transcript: AudioTranscriptOut) -> None:
@@ -1722,7 +1727,12 @@ async def _flush_segment_state(state: AudioSegmentBuffer) -> None:
         ended_at=ended_at,
     )
     filename = f"{record.id}.wav"
-    disk_path = AUDIO_SEGMENTS_DIR / filename
+    # Place segments under UTC date/hour subfolders based on segment start time
+    seg_dt = record.started_at if isinstance(record.started_at, datetime) else datetime.fromisoformat(str(record.started_at))
+    subdir = Path(seg_dt.astimezone(timezone.utc).strftime("%Y/%m/%d/%H"))
+    target_dir = AUDIO_SEGMENTS_DIR / subdir
+    target_dir.mkdir(parents=True, exist_ok=True)
+    disk_path = target_dir / filename
     try:
         # Offload final WAV write to thread
         await asyncio.to_thread(disk_path.write_bytes, wav_payload)
