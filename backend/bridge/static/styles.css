@@ -16,7 +16,7 @@ body {
 }
 
 /* Only add top padding when header is fixed (Live tab) */
-body.header-fixed { padding-top: calc(var(--header-height) + env(safe-area-inset-top, 0px)); }
+body.header-fixed { padding-top: calc(var(--header-offset, var(--header-height)) + env(safe-area-inset-top, 0px)); }
 body.header-fixed.hide-header { padding-top: env(safe-area-inset-top, 0px); }
 body.hide-header header { display: none; }
 

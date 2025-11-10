@@ -132,6 +132,19 @@ const recordLenInput = document.getElementById('recordLenInput');
 const recordLenSaveBtn = document.getElementById('recordLenSaveBtn');
 const recordLenStatus = document.getElementById('recordLenStatus');
 
+// Compute header offset to avoid content underlap
+function updateHeaderOffset() {
+  try {
+    const h = document.querySelector('header');
+    const px = h ? h.offsetHeight : 50;
+    document.documentElement.style.setProperty('--header-offset', px + 'px');
+  } catch {}
+}
+
+// Initial measure and on resize
+updateHeaderOffset();
+window.addEventListener('resize', () => { updateHeaderOffset(); });
+
 segmentTranscriptClose?.addEventListener("click", () => {
   hideSegmentTranscript();
 });
@@ -799,6 +812,7 @@ function setActiveTab(tab) {
   } catch {}
   // Keep header fixed for all tabs
   try { document.body.classList.add('header-fixed'); } catch {}
+  updateHeaderOffset();
   updateLoginOverlay();
   if (tab === 'ideas') {
     try { refreshIdeas(); } catch {}
