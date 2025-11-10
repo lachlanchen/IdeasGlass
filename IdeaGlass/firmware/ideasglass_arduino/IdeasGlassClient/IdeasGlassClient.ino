@@ -130,6 +130,19 @@ static bool g_timeSynced = false;
 static bool g_ntpStarted = false;
 static char g_ntpGwAddr[32] = {0};
 
+#if IG_TUNE_DEBUG_COUNTERS
+static struct {
+    uint32_t ws_audio_ok = 0;
+    uint32_t ws_audio_fail = 0;
+    uint32_t http_audio_ok = 0;
+    uint32_t http_audio_fail = 0;
+    uint32_t photo_ok = 0;
+    uint32_t photo_fail = 0;
+    uint32_t audio_queue_drop = 0;
+} g_stats;
+static unsigned long g_statsLastPrint = 0;
+#endif
+
 void initAudioStreamer();
 void audioSenderTask(void *param);
 #if ENABLE_PHOTO_CAPTURE
@@ -410,6 +423,25 @@ static int batteryPercentFromVoltage(float v)
     return static_cast<int>(pct + 0.5f);
 }
 
+#if IG_TUNE_BATTERY_FILTER
+static float readBatteryVoltageFiltered()
+{
+    static unsigned long lastMs = 0;
+    static float lastV = 0.0f;
+    unsigned long now = millis();
+    if (now - lastMs < kBatterySampleIntervalMs && lastMs != 0) return lastV;
+    const int samples = 6;
+    double acc = 0.0;
+    for (int i = 0; i < samples; ++i) {
+        acc += readBatteryVoltage();
+        delay(2);
+    }
+    lastV = static_cast<float>(acc / samples);
+    lastMs = now;
+    return lastV;
+}
+#endif
+
 class SimpleWebSocketClient
 {
 public:
@@ -591,6 +623,36 @@ private:
 static SimpleWebSocketClient g_audioWsClient;
 static SimpleWebSocketClient g_photoWsClient;
 
+#if IG_TUNE_HTTP_KEEPALIVE
+static WiFiClientSecure g_httpAudioClient;
+static WiFiClientSecure g_httpMessageClient;
+
+static bool httpPostPooled(WiFiClientSecure &client, const char *host, uint16_t port, const char *path, const String &body, uint32_t timeoutMs)
+{
+    if (!client.connected()) {
+        client.stop();
+        client.setCACert(ideas_cert);
+        client.setTimeout(timeoutMs / 1000);
+        if (!client.connect(host, port)) {
+            return false;
+        }
+    }
+    client.printf(
+        "POST %s HTTP/1.1\r\n"
+        "Host: %s\r\n"
+        "Content-Type: application/json\r\n"
+        "Connection: keep-alive\r\n"
+        "Content-Length: %d\r\n\r\n",
+        path, host, body.length());
+    client.print(body);
+    String status = client.readStringUntil('\n');
+    status.trim();
+    bool ok = status.startsWith("HTTP/1.1 200") || status.startsWith("HTTP/1.1 201");
+    if (!ok) client.stop();
+    return ok;
+}
+#endif
+
 bool capturePhotoBase64(String &outBase64)
 {
     camera_fb_t *fb = esp_camera_fb_get();
@@ -768,38 +830,52 @@ bool sendAudioChunkPacket(const AudioPacket &packet)
     // Try WebSocket first for lowest overhead
     if (g_audioWsClient.ensureConnected()) {
         if (g_audioWsClient.sendText(body)) {
+#if IG_TUNE_DEBUG_COUNTERS
+            g_stats.ws_audio_ok++;
+#endif
             return true;
         }
+#if IG_TUNE_DEBUG_COUNTERS
+        g_stats.ws_audio_fail++;
+#endif
         Serial.println("[AudioUpload] WS send failed, falling back to HTTPS");
     } else {
+#if IG_TUNE_DEBUG_COUNTERS
+        g_stats.ws_audio_fail++;
+#endif
         Serial.println("[AudioUpload] WS not connected, falling back to HTTPS");
     }
 
     // HTTP fallback to /api/v1/audio (fast timeout to avoid blocking the sender)
+    bool ok = false;
+#if IG_TUNE_HTTP_KEEPALIVE
+    ok = httpPostPooled(g_httpAudioClient, kServerHost, kServerPort, "/api/v1/audio", body, 6000);
+#else
     WiFiClientSecure client;
     client.setCACert(ideas_cert);
     client.setTimeout(6000); // keep it short for responsiveness
-    if (!client.connect(kServerHost, kServerPort)) {
-        Serial.println("[AudioUpload][HTTP] Connection failed");
-        return false;
+    if (client.connect(kServerHost, kServerPort)) {
+        client.printf(
+            "POST /api/v1/audio HTTP/1.1\r\n"
+            "Host: %s\r\n"
+            "Content-Type: application/json\r\n"
+            "Content-Length: %d\r\n"
+            "Connection: close\r\n\r\n",
+            kServerHost,
+            body.length());
+        client.print(body);
+        String status = client.readStringUntil('\n');
+        status.trim();
+        ok = status.startsWith("HTTP/1.1 200") || status.startsWith("HTTP/1.1 201");
+        client.stop();
+        if (!ok) {
+            Serial.printf("[AudioUpload][HTTP] Failed: %s\n", status.c_str());
+        }
     }
-    client.printf(
-        "POST /api/v1/audio HTTP/1.1\r\n"
-        "Host: %s\r\n"
-        "Content-Type: application/json\r\n"
-        "Content-Length: %d\r\n"
-        "Connection: close\r\n\r\n",
-        kServerHost,
-        body.length());
-    client.print(body);
-    // Read status line only; no need to consume full body
-    String status = client.readStringUntil('\n');
-    status.trim();
-    client.stop();
-    bool ok = status.startsWith("HTTP/1.1 200") || status.startsWith("HTTP/1.1 201");
-    if (!ok) {
-        Serial.printf("[AudioUpload][HTTP] Failed: %s\n", status.c_str());
-    }
+#endif
+#if IG_TUNE_DEBUG_COUNTERS
+    if (ok) g_stats.http_audio_ok++; else g_stats.http_audio_fail++;
+#endif
     return ok;
 }
 
@@ -897,6 +973,9 @@ void handleAudioStreaming()
         if (xQueueSend(g_audioQueue, &packet, 0) != pdTRUE) {
             Serial.println("[Audio] Send queue full, dropping chunk");
             free(chunkCopy);
+#if IG_TUNE_DEBUG_COUNTERS
+            g_stats.audio_queue_drop++;
+#endif
         }
         g_bufferedSamples = 0;
     }
@@ -930,7 +1009,12 @@ void connectToWiFi()
 
 String buildMessageBody(const String &message, const String &metaValue, const String *photoBase64)
 {
-    float vb = readBatteryVoltage();
+    float vb =
+#if IG_TUNE_BATTERY_FILTER
+        readBatteryVoltageFiltered();
+#else
+        readBatteryVoltage();
+#endif
     int bp = batteryPercentFromVoltage(vb);
     String body = String("{\"device_id\":\"") + kDeviceId + "\","
                    "\"message\":\"" + message + "\","
@@ -967,18 +1051,17 @@ bool sendPhotoOverWebSocket(const String &message, const String &metaValue, cons
 
 bool sendPayload(const String &message, const String &metaValue, const String *photoBase64)
 {
+    String body = buildMessageBody(message, metaValue, photoBase64);
+#if IG_TUNE_HTTP_KEEPALIVE
+    return httpPostPooled(g_httpMessageClient, kServerHost, kServerPort, "/api/v1/messages", body, 8000);
+#else
     WiFiClientSecure messageClient;
     messageClient.setCACert(ideas_cert);
-    messageClient.setTimeout(15000);
-
-    Serial.printf("[HTTP] Connecting to %s:%u ...\n", kServerHost, kServerPort);
+    messageClient.setTimeout(8000);
     if (!messageClient.connect(kServerHost, kServerPort)) {
         Serial.println("[HTTP] Connection failed");
         return false;
     }
-
-    String body = buildMessageBody(message, metaValue, photoBase64);
-
     messageClient.printf(
         "POST /api/v1/messages HTTP/1.1\r\n"
         "Host: %s\r\n"
@@ -988,12 +1071,11 @@ bool sendPayload(const String &message, const String &metaValue, const String *p
         kServerHost,
         body.length());
     messageClient.print(body);
-
-    String response = messageClient.readString();
-    Serial.println("[HTTP] Response:");
-    Serial.println(response);
+    String status = messageClient.readStringUntil('\n');
+    status.trim();
     messageClient.stop();
-    return response.indexOf("200") != -1;
+    return status.startsWith("HTTP/1.1 200") || status.startsWith("HTTP/1.1 201");
+#endif
 }
 
 // ---------------------------------------------------------------------------
@@ -1093,4 +1175,19 @@ void loop()
     }
 
     handleAudioStreaming();
+
+#if IG_TUNE_DEBUG_COUNTERS
+    unsigned long nowStats = millis();
+    if (nowStats - g_statsLastPrint >= 30000) {
+        g_statsLastPrint = nowStats;
+        Serial.printf("[Stats] ws_audio_ok=%lu ws_audio_fail=%lu http_audio_ok=%lu http_audio_fail=%lu photo_ok=%lu photo_fail=%lu audio_queue_drop=%lu\n",
+                      (unsigned long)g_stats.ws_audio_ok,
+                      (unsigned long)g_stats.ws_audio_fail,
+                      (unsigned long)g_stats.http_audio_ok,
+                      (unsigned long)g_stats.http_audio_fail,
+                      (unsigned long)g_stats.photo_ok,
+                      (unsigned long)g_stats.photo_fail,
+                      (unsigned long)g_stats.audio_queue_drop);
+    }
+#endif
 }

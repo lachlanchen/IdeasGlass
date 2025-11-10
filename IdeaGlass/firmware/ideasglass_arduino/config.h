@@ -59,6 +59,22 @@ constexpr unsigned long kPhotoIntervalMs = 15'000;
 constexpr bool kAudioLogSuppress = true;
 
 // ---------------------------------------------------------------------------
+// Optional hardening flags (off by default; enable after validation)
+// ---------------------------------------------------------------------------
+// Keep-Alive pooled HTTPS clients for audio/photo POST fallbacks
+#ifndef IG_TUNE_HTTP_KEEPALIVE
+#define IG_TUNE_HTTP_KEEPALIVE 0
+#endif
+// Smoothed and cached battery ADC reading (reduces ADC/CPU usage)
+#ifndef IG_TUNE_BATTERY_FILTER
+#define IG_TUNE_BATTERY_FILTER 0
+#endif
+// Lightweight periodic counters for network/path observability
+#ifndef IG_TUNE_DEBUG_COUNTERS
+#define IG_TUNE_DEBUG_COUNTERS 0
+#endif
+
+// ---------------------------------------------------------------------------
 // Wi-Fi / Backend
 // ---------------------------------------------------------------------------
 constexpr char kBackendHost[] = "ideasglass.local";
