@@ -1105,6 +1105,7 @@ footer {
   border: 1px solid rgba(15, 23, 42, 0.05);
 }
 .prophecy-card { display:flex; align-items:center; justify-content: space-between; gap: 0.5rem; margin-bottom: 0.6rem; padding: 0.8rem 0.9rem; border-radius:16px; background: linear-gradient(135deg,#fff7ed,#f0f9ff); border:1px solid rgba(15,23,42,0.06); box-shadow: 0 12px 36px rgba(15,23,42,0.08); }
+.prophecy-card { cursor: pointer; }
 .prophecy-left { display:flex; flex-direction: column; gap: 0.2rem; }
 .prophecy-title { font-weight: 900; color:#0f172a; }
 .prophecy-sub { color:#475569; }

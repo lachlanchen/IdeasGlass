@@ -297,13 +297,24 @@ async function refreshLifeGoalPanel() {
   }
 }
 
-prophecySeedBtn?.addEventListener('click', async () => {
+prophecySeedBtn?.addEventListener('click', async (e) => {
+  try { e && e.stopPropagation && e.stopPropagation(); } catch {}
   try { prophecySeedBtn.disabled = true; await apiPost('/api/v1/life-goals/seed', { overwrite: false }); } catch {}
   finally { prophecySeedBtn.disabled = false; }
   try { await refreshLifeGoalPanel(); } catch {}
 });
 
-prophecyViewBtn?.addEventListener('click', async () => {
+prophecyViewBtn?.addEventListener('click', async (e) => {
+  try { e && e.stopPropagation && e.stopPropagation(); } catch {}
+  if (!currentLifeGoalId) {
+    try { await apiPost('/api/v1/life-goals/seed', { overwrite: false }); await refreshLifeGoalPanel(); } catch {}
+  }
+  if (!currentLifeGoalId) return;
+  openLifeGoalDetail(currentLifeGoalId);
+});
+
+// Make the entire prophecy panel clickable to view the diary
+prophecyPanel?.addEventListener('click', async () => {
   if (!currentLifeGoalId) {
     try { await apiPost('/api/v1/life-goals/seed', { overwrite: false }); await refreshLifeGoalPanel(); } catch {}
   }
