@@ -272,6 +272,7 @@ function openLifeGoalDetail(id) {
     lifeGoalDetailView.classList.add('slide-in');
     setTimeout(() => lifeGoalDetailView.classList.remove('slide-in'), 300);
   }
+  try { document.body.classList.add('hide-header'); } catch {}
   loadLifeGoalDetail(id);
 }
 
@@ -306,6 +307,8 @@ function showGoalsList() {
   goalView?.classList.add('slide-in');
   setTimeout(() => goalView?.classList.remove('slide-in'), 300);
   goalDetailView?.classList.add('hidden');
+  lifeGoalDetailView?.classList.add('hidden');
+  try { document.body.classList.remove('hide-header'); } catch {}
 }
 
 function openGoalDetailPage(id) {
@@ -316,6 +319,7 @@ function openGoalDetailPage(id) {
     goalDetailView.classList.add('slide-in');
     setTimeout(() => goalDetailView.classList.remove('slide-in'), 300);
   }
+  try { document.body.classList.add('hide-header'); } catch {}
   loadGoalDetail(id);
 }
 
@@ -785,6 +789,7 @@ function setActiveTab(tab) {
     // Close photo modal if open and pause any audio
     closePhotoModal && closePhotoModal();
     pauseAllAudio && pauseAllAudio();
+    document.body && document.body.classList.remove('hide-header');
   } catch {}
   tabButtons.forEach((btn) => {
     btn.classList.toggle('active', btn.dataset.tab === tab);
@@ -1323,6 +1328,7 @@ function openLiveTranscriptsPage() {
   liveTranscriptsView.classList.remove('hidden');
   liveTranscriptsView.classList.add('slide-in');
   liveMainView.classList.add('hidden');
+  try { document.body.classList.add('hide-header'); } catch {}
   setTimeout(() => liveTranscriptsView.classList.remove('slide-in'), 300);
 }
 function closeLiveTranscriptsPage() {
@@ -1332,6 +1338,7 @@ function closeLiveTranscriptsPage() {
   liveMainView.classList.add('slide-in');
   setTimeout(() => liveMainView.classList.remove('slide-in'), 300);
   liveTranscriptsView.classList.add('hidden');
+  try { document.body.classList.remove('hide-header'); } catch {}
 }
 // Use direct lookup to avoid TDZ issues in some caches
 document.getElementById('liveTranscriptsBack')?.addEventListener('click', closeLiveTranscriptsPage);
@@ -1551,6 +1558,7 @@ function openLiveTranscriptDetailPage(segmentId) {
   liveTranscriptDetailView.classList.remove('hidden');
   liveTranscriptDetailView.classList.add('slide-in');
   setTimeout(() => liveTranscriptDetailView.classList.remove('slide-in'), 300);
+  try { document.body.classList.add('hide-header'); } catch {}
 }
 
 function closeLiveTranscriptDetailPage() {
@@ -1568,6 +1576,7 @@ function closeLiveTranscriptDetailPage() {
     liveMainView.classList.add('slide-in');
     setTimeout(() => liveMainView.classList.remove('slide-in'), 300);
   }
+  try { document.body.classList.remove('hide-header'); } catch {}
 }
 document.getElementById('liveTranscriptDetailBack')?.addEventListener('click', closeLiveTranscriptDetailPage);
 
@@ -1623,6 +1632,7 @@ function openLivePhotosPage() {
   livePhotosView.classList.remove('hidden');
   livePhotosView.classList.add('slide-in');
   liveMainView.classList.add('hidden');
+  try { document.body.classList.add('hide-header'); } catch {}
   setTimeout(() => livePhotosView.classList.remove('slide-in'), 300);
 }
 function closeLivePhotosPage() {
@@ -1632,6 +1642,7 @@ function closeLivePhotosPage() {
   liveMainView.classList.add('slide-in');
   setTimeout(() => liveMainView.classList.remove('slide-in'), 300);
   livePhotosView.classList.add('hidden');
+  try { document.body.classList.remove('hide-header'); } catch {}
 }
 document.getElementById('livePhotosBack')?.addEventListener('click', closeLivePhotosPage);
 ideasBackBtn?.addEventListener('click', () => setActiveTab('live'));
@@ -1911,6 +1922,7 @@ function showCreationList() {
   creationView?.classList.add('slide-in');
   setTimeout(() => creationView?.classList.remove('slide-in'), 300);
   creationDetailView?.classList.add('hidden');
+  try { document.body.classList.remove('hide-header'); } catch {}
 }
 
 function openCreationDetailPage(id) {
@@ -1921,6 +1933,7 @@ function openCreationDetailPage(id) {
     creationDetailView.classList.add('slide-in');
     setTimeout(() => creationDetailView.classList.remove('slide-in'), 300);
   }
+  try { document.body.classList.add('hide-header'); } catch {}
   loadCreationDetail(id);
 }
 
@@ -2264,6 +2277,7 @@ function showIdeasList() {
   ideasView?.classList.add('slide-in');
   setTimeout(() => ideasView?.classList.remove('slide-in'), 300);
   ideaDetailView?.classList.add('hidden');
+  try { document.body.classList.remove('hide-header'); } catch {}
 }
 
 function openIdeaDetailPage(id) {
@@ -2276,6 +2290,7 @@ function openIdeaDetailPage(id) {
     ideaDetailView.classList.add('slide-in');
     setTimeout(() => ideaDetailView.classList.remove('slide-in'), 300);
   }
+  try { document.body.classList.add('hide-header'); } catch {}
   loadIdeaDetail(id);
 }
 

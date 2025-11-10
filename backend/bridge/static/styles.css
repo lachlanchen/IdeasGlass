@@ -17,6 +17,8 @@ body {
 
 /* Only add top padding when header is fixed (Live tab) */
 body.header-fixed { padding-top: var(--header-height); }
+body.header-fixed.hide-header { padding-top: 0; }
+body.hide-header header { display: none; }
 
 header {
   position: relative;
