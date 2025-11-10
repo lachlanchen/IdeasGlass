@@ -81,6 +81,10 @@ constexpr bool kAudioLogSuppress = true;
 #ifndef IG_TUNE_QUEUE_DROP_OLDEST
 #define IG_TUNE_QUEUE_DROP_OLDEST 0
 #endif
+// Non-blocking WS reconnect with exponential backoff + jitter
+#ifndef IG_TUNE_WS_BACKOFF
+#define IG_TUNE_WS_BACKOFF 0
+#endif
 
 // ---------------------------------------------------------------------------
 // Wi-Fi / Backend

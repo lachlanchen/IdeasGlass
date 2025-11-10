@@ -456,6 +456,10 @@ public:
         }
         _client.setTimeout(8000);
         close();
+#if IG_TUNE_WS_BACKOFF
+        _backoffMs = 0;
+        _nextReconnectAt = 0;
+#endif
     }
 
     bool ensureConnected()
@@ -464,16 +468,33 @@ public:
             return true;
         }
         close();
+#if IG_TUNE_WS_BACKOFF
+        unsigned long now = millis();
+        if (_nextReconnectAt && (long)(now - _nextReconnectAt) < 0) {
+            // Still in backoff window; skip blocking connect
+            return false;
+        }
+#endif
         if (!_client.connect(_host, _port)) {
             Serial.printf("[WS] Connect failed to %s:%u for %s\n",
                           _host ? _host : "(null)", _port, _path ? _path : "/");
+#if IG_TUNE_WS_BACKOFF
+            scheduleBackoff();
+#endif
             return false;
         }
         if (!handshake()) {
             close();
+#if IG_TUNE_WS_BACKOFF
+            scheduleBackoff();
+#endif
             return false;
         }
         _connected = true;
+#if IG_TUNE_WS_BACKOFF
+        _backoffMs = 0;
+        _nextReconnectAt = 0;
+#endif
         return true;
     }
 
@@ -515,9 +536,25 @@ public:
             _client.stop();
         }
         _connected = false;
+#if IG_TUNE_WS_BACKOFF
+        // allow immediate retry by default after explicit close
+        _backoffMs = 0;
+        _nextReconnectAt = 0;
+#endif
     }
 
 private:
+#if IG_TUNE_WS_BACKOFF
+    void scheduleBackoff()
+    {
+        // Exponential backoff with jitter (cap at 5000 ms)
+        const uint32_t initialMs = 600; // fast first retry
+        const uint32_t capMs = 5000;
+        if (_backoffMs == 0) _backoffMs = initialMs; else _backoffMs = (_backoffMs * 2 > capMs) ? capMs : _backoffMs * 2;
+        uint32_t jitter = (uint32_t)(esp_random() % (_backoffMs / 4 + 1));
+        _nextReconnectAt = millis() + _backoffMs + jitter;
+    }
+#endif
     bool handshake()
     {
         uint8_t randomKey[16];
@@ -618,6 +655,10 @@ private:
     uint16_t _port = 0;
     bool _connected = false;
     const char *_protocol = nullptr;
+#if IG_TUNE_WS_BACKOFF
+    uint32_t _backoffMs = 0;
+    unsigned long _nextReconnectAt = 0;
+#endif
 };
 
 static SimpleWebSocketClient g_audioWsClient;
