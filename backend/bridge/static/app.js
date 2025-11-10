@@ -136,6 +136,10 @@ const mainLangSelect = document.getElementById('mainLangSelect');
 const syncUiLangCheckbox = document.getElementById('syncUiLangCheckbox');
 const langPrefSaveBtn = document.getElementById('langPrefSaveBtn');
 const langPrefStatus = document.getElementById('langPrefStatus');
+// BLE (beta)
+const bleScanBtn = document.getElementById('bleScanBtn');
+const bleStatus = document.getElementById('bleStatus');
+const bleDeviceList = document.getElementById('bleDeviceList');
 
 // ---- i18n: language detection, persistence, and application ----
 const langSelect = document.getElementById('langSelect');
@@ -2667,3 +2671,74 @@ syncUiLangCheckbox?.addEventListener('change', () => {
   } catch {}
   saveLangPrefs();
 });
+
+// ---- Web Bluetooth (Android Chrome/Edge) ----
+function setBleStatus(msg) { try { bleStatus && (bleStatus.textContent = msg || ''); } catch {}
+}
+function supportWebBluetooth() { try { return !!navigator.bluetooth; } catch { return false; } }
+
+function renderBleItem(device, info) {
+  const li = document.createElement('li');
+  li.className = 'ble-item';
+  const name = document.createElement('div'); name.className = 'ble-name'; name.textContent = device.name || '(unknown)';
+  const meta = document.createElement('div'); meta.className = 'ble-meta'; meta.textContent = info || device.id || '';
+  const spacer = document.createElement('div'); spacer.className = 'ble-spacer';
+  const btn = document.createElement('button'); btn.type = 'button'; btn.textContent = 'Bind';
+  btn.addEventListener('click', async () => {
+    try {
+      // Prefer serial/model gleaned from Device Information service if present
+      const deviceId = (li._serial || li._model || device.name || device.id || '').toString().trim();
+      if (!deviceId) { setBleStatus('No device identifier found'); return; }
+      await apiPost('/api/v1/devices/bind', { device_id: deviceId });
+      setBleStatus(`Bound ${deviceId} ✔`);
+      refreshAccount();
+    } catch (e) {
+      setBleStatus('Bind failed');
+    }
+  });
+  li.append(name, meta, spacer, btn);
+  return li;
+}
+
+async function requestBleDevice() {
+  if (!supportWebBluetooth()) { setBleStatus('Web Bluetooth not supported on this device/browser'); return; }
+  setBleStatus('Scanning…');
+  try {
+    const device = await navigator.bluetooth.requestDevice({
+      // Prefer name filters if your device advertises a prefix; fallback to accept all
+      acceptAllDevices: true,
+      optionalServices: [0x180A] // Device Information service
+    });
+    if (!bleDeviceList) return;
+    // Create row immediately
+    const li = renderBleItem(device, '');
+    bleDeviceList.appendChild(li);
+    // Try connect + read Device Information
+    try {
+      const server = await device.gatt.connect();
+      const svc = await server.getPrimaryService(0x180A);
+      const tryRead = async (uuid) => {
+        try { const ch = await svc.getCharacteristic(uuid); const val = await ch.readValue(); return new TextDecoder('utf-8').decode(val.buffer); } catch { return ''; }
+      };
+      const model = await tryRead(0x2A24); // Model Number String
+      const serial = await tryRead(0x2A25); // Serial Number String
+      const mfg = await tryRead(0x2A29); // Manufacturer Name String
+      const info = [model && `Model ${model}`, serial && `SN ${serial}`, mfg && `${mfg}`].filter(Boolean).join(' · ');
+      li._serial = serial; li._model = model;
+      const meta = li.querySelector('.ble-meta'); if (meta) meta.textContent = info || device.id || '';
+      setBleStatus('Device ready');
+    } catch {
+      setBleStatus('Connected (no device info)');
+    }
+  } catch (e) {
+    setBleStatus('Canceled');
+  }
+}
+
+if (bleScanBtn) {
+  if (!supportWebBluetooth()) {
+    bleScanBtn.disabled = true;
+    setBleStatus('Unavailable on this device/browser');
+  }
+  bleScanBtn.addEventListener('click', requestBleDevice);
+}

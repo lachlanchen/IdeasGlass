@@ -470,6 +470,18 @@
           </div>
         </section>
 
+        <section id="bluetoothPanel" class="card">
+          <h2>Bluetooth (beta)</h2>
+          <p class="install-help">Discover your IdeasGlass device over Bluetooth LE.
+            <small class="muted">Android Chrome/Edge only; iOS Safari/Chrome do not support Web Bluetooth.</small>
+          </p>
+          <div class="ble-actions">
+            <button id="bleScanBtn" type="button">Scan for devices</button>
+            <span id="bleStatus" class="status"></span>
+          </div>
+          <ul id="bleDeviceList" class="ble-list"></ul>
+        </section>
+
         <section id="installPanel" class="card">
           <h2>Install</h2>
           <p class="install-help">Install this PWA for a native-like IdeasGlass dashboard.</p>
