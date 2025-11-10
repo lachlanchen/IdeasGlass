@@ -14,6 +14,12 @@
 #include <freertos/queue.h>
 #include <freertos/task.h>
 #include "../config.h"
+#if ENABLE_BLE_PAIRING
+#include <BLEDevice.h>
+#include <BLEServer.h>
+#include <BLEUtils.h>
+#include <BLE2902.h>
+#endif
 
 #if __has_include("../wifi_credentials.h")
 #include "../wifi_credentials.h"
@@ -129,6 +135,100 @@ static TaskHandle_t g_audioSenderHandle = nullptr;
 static bool g_timeSynced = false;
 static bool g_ntpStarted = false;
 static char g_ntpGwAddr[32] = {0};
+
+#if ENABLE_BLE_PAIRING
+// ---------------------------------------------------------------------------
+// BLE (simple pairing/communication)
+// ---------------------------------------------------------------------------
+static BLEServer *g_bleServer = nullptr;
+static BLEAdvertising *g_bleAdv = nullptr;
+static BLECharacteristic *g_bleTelemetry = nullptr; // notify
+static BLECharacteristic *g_bleCommand = nullptr;   // write
+static volatile bool g_bleConnected = false;
+static unsigned long g_bleAdvStartMs = 0;
+
+class IgServerCallbacks : public BLEServerCallbacks {
+  void onConnect(BLEServer *server) override {
+    g_bleConnected = true;
+    if (kBleStopAdvertiseOnConnect && g_bleAdv) { g_bleAdv->stop(); }
+    // send a small hello on connect
+    if (g_bleTelemetry) {
+      std::string hello = std::string("HELLO ") + kDeviceName;
+      g_bleTelemetry->setValue((uint8_t*)hello.data(), hello.size());
+      g_bleTelemetry->notify();
+    }
+  }
+  void onDisconnect(BLEServer *server) override {
+    g_bleConnected = false;
+    // restart advertising if within pairing window
+    if (g_bleAdv && (millis() - g_bleAdvStartMs) < kBlePairingAdvertiseMs) {
+      g_bleAdv->start();
+    }
+  }
+};
+
+class IgCommandCallbacks : public BLECharacteristicCallbacks {
+  void onWrite(BLECharacteristic *c) override {
+    std::string v = c->getValue();
+    if (v.empty()) return;
+    // Echo back any command for simple communication proof
+    if (g_bleTelemetry) {
+      g_bleTelemetry->setValue((uint8_t*)v.data(), v.size());
+      g_bleTelemetry->notify();
+    }
+  }
+};
+
+static void startBlePairing()
+{
+  if (g_bleServer) return;
+  // Compose device name with MAC suffix for uniqueness
+  String mac = WiFi.macAddress();
+  String suffix = mac.substring(mac.length() - 5); // e.g., 71:F8
+  suffix.replace(":", "");
+  String devName = String(kDeviceName) + "-" + suffix;
+  BLEDevice::init(devName.c_str());
+  BLEDevice::setPower(ESP_PWR_LVL_P0);
+  g_bleServer = BLEDevice::createServer();
+  g_bleServer->setCallbacks(new IgServerCallbacks());
+  // UART-like custom service
+  BLEService *svc = g_bleServer->createService(kBleServiceUuid);
+  g_bleTelemetry = svc->createCharacteristic(kBleTelemetryCharUuid, BLECharacteristic::PROPERTY_NOTIFY);
+  g_bleTelemetry->addDescriptor(new BLE2902());
+  g_bleCommand = svc->createCharacteristic(kBleCommandCharUuid, BLECharacteristic::PROPERTY_WRITE);
+  g_bleCommand->setCallbacks(new IgCommandCallbacks());
+  svc->start();
+  // Device Information service (optional)
+  BLEService *dis = nullptr;
+  try { dis = g_bleServer->createService(BLEUUID((uint16_t)0x180A)); } catch (...) { dis = nullptr; }
+  if (dis) {
+    auto model = dis->createCharacteristic(BLEUUID((uint16_t)0x2A24), BLECharacteristic::PROPERTY_READ);
+    model->setValue(kHardwareRevision);
+    auto serial = dis->createCharacteristic(BLEUUID((uint16_t)0x2A25), BLECharacteristic::PROPERTY_READ);
+    serial->setValue(mac.c_str());
+    auto mfg = dis->createCharacteristic(BLEUUID((uint16_t)0x2A29), BLECharacteristic::PROPERTY_READ);
+    mfg->setValue("IdeasGlass");
+    dis->start();
+  }
+  g_bleAdv = BLEDevice::getAdvertising();
+  g_bleAdv->addServiceUUID(kBleServiceUuid);
+  g_bleAdv->setScanResponse(false);
+  g_bleAdv->setMinPreferred(0x00);
+  g_bleAdv->start();
+  g_bleAdvStartMs = millis();
+  Serial.printf("[BLE] Advertising as %s for %lu ms\n", devName.c_str(), (unsigned long)kBlePairingAdvertiseMs);
+}
+
+static void maybeStopBleAdvertising()
+{
+  if (!g_bleAdv) return;
+  if ((millis() - g_bleAdvStartMs) > kBlePairingAdvertiseMs) {
+    try { g_bleAdv->stop(); } catch (...) {}
+    Serial.println("[BLE] Pairing window elapsed; advertising stopped");
+    g_bleAdv = nullptr;
+  }
+}
+#endif // ENABLE_BLE_PAIRING
 
 #if IG_TUNE_DEBUG_COUNTERS
 static struct {
@@ -1244,6 +1344,10 @@ void setup()
         startPhotoTask();
     }
 #endif
+  // Start BLE pairing window (non-blocking), then auto-sleep pairing adverts
+#if ENABLE_BLE_PAIRING
+    startBlePairing();
+#endif
 }
 
 void loop()
@@ -1270,6 +1374,12 @@ void loop()
     }
 
     handleAudioStreaming();
+
+#if ENABLE_BLE_PAIRING
+    if (!g_bleConnected) {
+        maybeStopBleAdvertising();
+    }
+#endif
 
 #if IG_TUNE_DEBUG_COUNTERS
     unsigned long nowStats = millis();

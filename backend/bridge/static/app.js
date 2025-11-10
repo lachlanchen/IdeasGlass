@@ -2704,11 +2704,17 @@ async function requestBleDevice() {
   if (!supportWebBluetooth()) { setBleStatus('Web Bluetooth not supported on this device/browser'); return; }
   setBleStatus('Scanning…');
   try {
-    const device = await navigator.bluetooth.requestDevice({
-      // Prefer name filters if your device advertises a prefix; fallback to accept all
-      acceptAllDevices: true,
-      optionalServices: [0x180A] // Device Information service
-    });
+    const UART_UUID = '6e400001-b5a3-f393-e0a9-e50e24dcca9e';
+    const CMD_UUID  = '6e400002-b5a3-f393-e0a9-e50e24dcca9e';
+    const TLM_UUID  = '6e400003-b5a3-f393-e0a9-e50e24dcca9e';
+    const filters = [{ namePrefix: 'IdeasGlass' }];
+    let device = null;
+    try {
+      device = await navigator.bluetooth.requestDevice({ filters, optionalServices: [UART_UUID, 0x180A] });
+    } catch (e) {
+      // Fallback to accept all if filter not supported or no matches
+      device = await navigator.bluetooth.requestDevice({ acceptAllDevices: true, optionalServices: [UART_UUID, 0x180A] });
+    }
     if (!bleDeviceList) return;
     // Create row immediately
     const li = renderBleItem(device, '');
@@ -2716,16 +2722,33 @@ async function requestBleDevice() {
     // Try connect + read Device Information
     try {
       const server = await device.gatt.connect();
-      const svc = await server.getPrimaryService(0x180A);
-      const tryRead = async (uuid) => {
-        try { const ch = await svc.getCharacteristic(uuid); const val = await ch.readValue(); return new TextDecoder('utf-8').decode(val.buffer); } catch { return ''; }
-      };
-      const model = await tryRead(0x2A24); // Model Number String
-      const serial = await tryRead(0x2A25); // Serial Number String
-      const mfg = await tryRead(0x2A29); // Manufacturer Name String
-      const info = [model && `Model ${model}`, serial && `SN ${serial}`, mfg && `${mfg}`].filter(Boolean).join(' · ');
-      li._serial = serial; li._model = model;
-      const meta = li.querySelector('.ble-meta'); if (meta) meta.textContent = info || device.id || '';
+      // Read Device Information if present
+      try {
+        const dis = await server.getPrimaryService(0x180A);
+        const tryRead = async (uuid) => {
+          try { const ch = await dis.getCharacteristic(uuid); const val = await ch.readValue(); return new TextDecoder('utf-8').decode(val.buffer); } catch { return ''; }
+        };
+        const model = await tryRead(0x2A24);
+        const serial = await tryRead(0x2A25);
+        const mfg = await tryRead(0x2A29);
+        const info = [model && `Model ${model}`, serial && `SN ${serial}`, mfg && `${mfg}`].filter(Boolean).join(' · ');
+        li._serial = serial; li._model = model;
+        const meta = li.querySelector('.ble-meta'); if (meta) meta.textContent = info || device.id || '';
+      } catch {}
+      // Try UART-like service for a simple pairing message
+      try {
+        const uart = await server.getPrimaryService(UART_UUID);
+        const cmd = await uart.getCharacteristic(CMD_UUID);
+        const tlm = await uart.getCharacteristic(TLM_UUID);
+        try { await tlm.startNotifications(); } catch {}
+        const encoder = new TextEncoder();
+        const deviceId = (li._serial || li._model || device.name || device.id || '').toString();
+        const payload = encoder.encode(`BIND ${deviceId}`);
+        await cmd.writeValueWithoutResponse(payload);
+        setBleStatus('Paired (message sent)');
+      } catch {
+        setBleStatus('Connected (no UART service)');
+      }
       setBleStatus('Device ready');
     } catch {
       setBleStatus('Connected (no device info)');

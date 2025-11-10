@@ -16,6 +16,12 @@ constexpr char kBleServiceUuid[] = "6E400001-B5A3-F393-E0A9-E50E24DCCA9E";
 constexpr char kBleTelemetryCharUuid[] = "6E400003-B5A3-F393-E0A9-E50E24DCCA9E";
 constexpr char kBleCommandCharUuid[] = "6E400002-B5A3-F393-E0A9-E50E24DCCA9E";
 constexpr char kBlePhotoCharUuid[] = "19B10005-E8F2-537E-4F6C-D104768A1214";
+// BLE pairing mode configuration
+#ifndef ENABLE_BLE_PAIRING
+#define ENABLE_BLE_PAIRING 1
+#endif
+constexpr uint32_t kBlePairingAdvertiseMs = 120000; // auto-stop adverts after 2 min
+constexpr bool kBleStopAdvertiseOnConnect = true;    // stop advertising while connected
 
 // ---------------------------------------------------------------------------
 // Pins (Seeed XIAO ESP32S3 Sense)
