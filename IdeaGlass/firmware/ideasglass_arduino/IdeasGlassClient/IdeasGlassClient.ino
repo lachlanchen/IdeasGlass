@@ -1241,7 +1241,7 @@ void setup()
     setupAudio();
 #if ENABLE_PHOTO_CAPTURE
     if (!g_photoUploadQueue) {
-        g_photoUploadQueue = xQueueCreate(4, sizeof(PhotoUploadJob *));
+        g_photoUploadQueue = xQueueCreate(8, sizeof(PhotoUploadJob *));
         if (!g_photoUploadQueue) {
             Serial.println("[Photo] Failed to create upload queue");
         }
