@@ -55,6 +55,17 @@ const seedCreationsBtn = document.getElementById('seedCreationsBtn');
 const createFromIdeaSelect = document.getElementById('createFromIdeaSelect');
 const createTypeSelect = document.getElementById('createTypeSelect');
 const createFromIdeaBtn = document.getElementById('createFromIdeaBtn');
+// Creation detail
+const creationDetailView = document.getElementById('creationDetailView');
+const creationDetailBack = document.getElementById('creationDetailBack');
+const creationTitle = document.getElementById('creationTitle');
+const creationTypeBadge = document.getElementById('creationTypeBadge');
+const creationSummary = document.getElementById('creationSummary');
+const creationMetaText = document.getElementById('creationMetaText');
+const creationOutcomeLink = document.getElementById('creationOutcomeLink');
+const creationSections = document.getElementById('creationSections');
+const creationAssets = document.getElementById('creationAssets');
+let currentCreationId = null;
 const goalView = document.getElementById('goalView');
 // Goal detail elements
 const goalDetailView = document.getElementById('goalDetailView');
@@ -1741,6 +1752,7 @@ function buildCreationCard(c) {
     meta.appendChild(link);
   }
   card.append(top, meta);
+  card.addEventListener('click', () => openCreationDetailPage(c.id));
   return card;
 }
 
@@ -1793,6 +1805,77 @@ seedCreationsBtn?.addEventListener('click', async () => {
   finally { seedCreationsBtn.disabled = false; }
   try { await refreshCreations(); } catch {}
 });
+
+function showCreationList() {
+  creationView?.classList.remove('hidden');
+  creationView?.classList.add('slide-in');
+  setTimeout(() => creationView?.classList.remove('slide-in'), 300);
+  creationDetailView?.classList.add('hidden');
+}
+
+function openCreationDetailPage(id) {
+  currentCreationId = id;
+  creationView?.classList.add('hidden');
+  if (creationDetailView) {
+    creationDetailView.classList.remove('hidden');
+    creationDetailView.classList.add('slide-in');
+    setTimeout(() => creationDetailView.classList.remove('slide-in'), 300);
+  }
+  loadCreationDetail(id);
+}
+
+function setText(el, v) { if (!el) return; el.textContent = v || ''; }
+function setHidden(el, hidden) { try { if (el) el.hidden = !!hidden; } catch {} }
+
+async function loadCreationDetail(id) {
+  try {
+    const d = await apiGet(`/api/v1/creations/${encodeURIComponent(id)}`);
+    setText(creationTitle, d.title);
+    setText(creationTypeBadge, typeLabel(d.creation_type));
+    setText(creationSummary, d.summary);
+    if (creationMetaText) creationMetaText.textContent = `${new Date(d.updated_at || d.created_at).toLocaleString()} · ${d.language || ''}`.trim();
+    if (creationOutcomeLink) {
+      creationOutcomeLink.href = d.outcome_url || '#';
+      setHidden(creationOutcomeLink, !d.outcome_url);
+    }
+    if (creationSections) {
+      creationSections.innerHTML = '';
+      const frag = document.createDocumentFragment();
+      (Array.isArray(d.sections) ? d.sections : []).forEach((s) => {
+        const holder = document.createElement('div');
+        holder.className = 'cd-section';
+        const h = document.createElement('div');
+        h.className = 'cd-section-title';
+        h.textContent = s.title || '(untitled)';
+        const p = document.createElement('pre');
+        p.className = 'cd-section-body';
+        p.textContent = s.body || '';
+        holder.append(h, p);
+        frag.appendChild(holder);
+      });
+      creationSections.appendChild(frag);
+    }
+    if (creationAssets) {
+      creationAssets.innerHTML = '';
+      const fragA = document.createDocumentFragment();
+      (Array.isArray(d.assets) ? d.assets : []).forEach((a) => {
+        const li = document.createElement('li');
+        li.className = 'cd-asset';
+        const kind = document.createElement('span');
+        kind.className = 'chip';
+        kind.textContent = (a.asset_type || '').toUpperCase();
+        const link = document.createElement('a');
+        link.href = a.url; link.target = '_blank'; link.rel = 'noopener';
+        link.textContent = a.caption || a.url;
+        li.append(kind, link);
+        fragA.appendChild(li);
+      });
+      creationAssets.appendChild(fragA);
+    }
+  } catch {}
+}
+
+creationDetailBack?.addEventListener('click', () => { showCreationList(); try { refreshCreations(); } catch {} });
 
 // Render transcript detail view body (with language)
 function renderTranscriptDetail(data) {

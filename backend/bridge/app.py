@@ -358,6 +358,40 @@ class CreationFromIdeaIn(BaseModel):
     summary: Optional[str] = None
 
 
+ASSET_TYPES = {
+    0: "image",
+    1: "audio",
+    2: "video",
+    3: "document",
+    4: "other",
+}
+
+
+class CreationSectionOut(BaseModel):
+    id: str
+    title: str
+    kind: Optional[int] = None
+    order_index: int
+    body: Optional[str] = None
+    language: Optional[str] = None
+
+
+class CreationAssetOut(BaseModel):
+    id: str
+    asset_type: str
+    url: str
+    mime_type: Optional[str] = None
+    caption: Optional[str] = None
+    created_at: str
+
+
+class CreationDetailOut(CreationOut):
+    tags: Optional[List[str]] = None
+    meta: Optional[dict] = None
+    sections: List[CreationSectionOut] = []
+    assets: List[CreationAssetOut] = []
+
+
 @dataclass
 class AudioSegmentBuffer:
     device_id: str
@@ -1500,6 +1534,82 @@ async def create_from_idea(payload: CreationFromIdeaIn, request: Request):
         outcome_url=row["outcome_url"],
         created_at=row["created_at"].isoformat(),
         updated_at=row["updated_at"].isoformat(),
+    )
+
+
+@app.get("/api/v1/creations/{creation_id}", response_model=CreationDetailOut)
+async def get_creation(creation_id: str, request: Request):
+    uid = await _current_user_id(request)
+    if not uid:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    if not db_pool:
+        raise HTTPException(status_code=503, detail="Requires DATABASE_URL")
+    async with db_pool.acquire() as conn:
+        row = await conn.fetchrow(
+            """
+            SELECT id, title, creation_type, status, summary, language, tags, meta, outcome_url, created_at, updated_at
+            FROM ig_creations WHERE id=$1 AND user_id=$2
+            """,
+            creation_id,
+            uid,
+        )
+        if not row:
+            raise HTTPException(status_code=404, detail="Not Found")
+        # Sections
+        sec_rows = await conn.fetch(
+            """
+            SELECT id, title, kind, order_index, body, language, created_at, updated_at
+            FROM ig_creation_sections WHERE creation_id=$1 ORDER BY order_index ASC, created_at ASC
+            """,
+            creation_id,
+        )
+        # Assets
+        asset_rows = await conn.fetch(
+            """
+            SELECT id, asset_type, url, mime_type, caption, created_at
+            FROM ig_creation_assets WHERE creation_id=$1 ORDER BY created_at ASC
+            """,
+            creation_id,
+        )
+    sections: List[CreationSectionOut] = []
+    for s in sec_rows:
+        sections.append(
+            CreationSectionOut(
+                id=s["id"],
+                title=s["title"],
+                kind=(int(s["kind"]) if s["kind"] is not None else None),
+                order_index=int(s["order_index"] or 0),
+                body=s["body"],
+                language=s["language"],
+            )
+        )
+    assets: List[CreationAssetOut] = []
+    for a in asset_rows:
+        atype = ASSET_TYPES.get(int(a["asset_type"] or 4), "other")
+        assets.append(
+            CreationAssetOut(
+                id=a["id"],
+                asset_type=atype,
+                url=a["url"],
+                mime_type=a["mime_type"],
+                caption=a["caption"],
+                created_at=a["created_at"].isoformat(),
+            )
+        )
+    return CreationDetailOut(
+        id=row["id"],
+        title=row["title"],
+        creation_type=CREATION_TYPES_INV.get(int(row["creation_type"] or 8), "other"),
+        status=int(row["status"] or 0),
+        summary=row["summary"],
+        language=row["language"],
+        outcome_url=row["outcome_url"],
+        created_at=row["created_at"].isoformat(),
+        updated_at=row["updated_at"].isoformat(),
+        tags=(row["tags"] if isinstance(row["tags"], list) else None),
+        meta=(row["meta"] if isinstance(row["meta"], dict) else None),
+        sections=sections,
+        assets=assets,
     )
 
 

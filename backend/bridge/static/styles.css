@@ -1224,3 +1224,13 @@ footer {
 .creation-summary { margin:0; color:#4c5673; font-size:0.95rem; }
 .creation-meta { display:flex; align-items:center; justify-content: space-between; color:#6b7280; font-size:0.86rem; }
 .creation-link { color:#2563eb; font-weight:700; text-decoration: none; }
+
+.creation-detail { display:flex; flex-direction: column; gap: 0.6rem; }
+.cd-header { display:flex; align-items:center; justify-content: space-between; gap: 0.5rem; }
+.cd-sections h4, .cd-assets h4 { margin: 0.5rem 0 0.25rem; color:#111827; }
+.cd-section { padding: 0.5rem 0.6rem; border-radius: 12px; background:#f8fafc; border:1px solid rgba(15,23,42,0.06); margin-bottom: 0.4rem; }
+.cd-section-title { font-weight:800; margin: 0 0 0.2rem; }
+.cd-section-body { margin:0; color:#334155; white-space: pre-wrap; }
+.cd-assets ul, #creationAssets { list-style:none; padding:0; margin:0; }
+.cd-asset { display:flex; align-items:center; gap: 0.5rem; padding: 0.3rem 0; border-bottom: 1px solid rgba(15,23,42,0.06); }
+.cd-asset:last-child { border-bottom: none; }

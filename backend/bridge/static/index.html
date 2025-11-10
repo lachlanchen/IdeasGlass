@@ -296,6 +296,38 @@
       </main>
     </div>
 
+    <!-- Creation detail sub-page (push-style) -->
+    <div id="creationDetailView" class="hidden">
+      <main>
+        <section class="creation-panel">
+          <div class="creation-header">
+            <button id="creationDetailBack" class="ghost-btn" type="button">← Back to Creations</button>
+            <h2>Creation</h2>
+            <span></span>
+          </div>
+          <div class="creation-detail">
+            <div class="cd-header">
+              <h3 id="creationTitle" class="creation-title"></h3>
+              <span id="creationTypeBadge" class="creation-type"></span>
+            </div>
+            <p id="creationSummary" class="creation-summary"></p>
+            <div class="creation-meta">
+              <small id="creationMetaText" class="muted"></small>
+              <a id="creationOutcomeLink" class="creation-link" target="_blank" rel="noopener" hidden>Open</a>
+            </div>
+            <div class="cd-sections">
+              <h4>Sections</h4>
+              <div id="creationSections"></div>
+            </div>
+            <div class="cd-assets">
+              <h4>Assets</h4>
+              <ul id="creationAssets"></ul>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+
     <div id="settingsView" class="view hidden">
       <main>
         <div class="settings-grid">
