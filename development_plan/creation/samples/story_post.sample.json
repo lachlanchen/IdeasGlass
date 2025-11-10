@@ -1,0 +1,26 @@
+{
+  "id": "1d9a3c77-3c48-4d6a-9d25-45b746eedf5b",
+  "user_id": "0c9d1bc1-7b1a-41fb-84f2-9e2a1b01b6a4",
+  "title": "From Idea to Action: A Week with IdeasGlass",
+  "creation_type": "story_post",
+  "status": "draft",
+  "summary": "How a wearable helped me capture and act on ideas.",
+  "language": "en",
+  "tags": ["productivity", "ai"],
+  "meta": {
+    "type": "story_post",
+    "platform": "medium",
+    "category": "productivity",
+    "reading_minutes": 6
+  },
+  "sections": [
+    { "title": "Intro", "kind": "intro", "order_index": 0, "body": "…" },
+    { "title": "How it works", "kind": "discussion", "order_index": 1, "body": "…" }
+  ],
+  "assets": [],
+  "idea_ids": [],
+  "goal_ids": [],
+  "created_at": "2025-11-10T03:06:00Z",
+  "updated_at": "2025-11-10T03:06:00Z"
+}
+

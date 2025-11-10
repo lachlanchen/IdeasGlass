@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ideasglass.dev/schemas/asset.schema.json",
+  "title": "CreationAsset",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "asset_type": { "type": "string", "enum": ["image", "audio", "video", "document", "other"] },
+    "url": { "type": "string", "format": "uri" },
+    "mime_type": { "type": "string", "maxLength": 128 },
+    "caption": { "type": "string", "maxLength": 512 }
+  },
+  "required": ["asset_type", "url"]
+}
+

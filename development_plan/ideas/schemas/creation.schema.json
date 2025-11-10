@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ideasglass.dev/schemas/creation.schema.json",
+  "title": "Creation",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "id": { "$ref": "#/$defs/uuid" },
+    "user_id": { "$ref": "#/$defs/uuid" },
+    "title": { "type": "string", "minLength": 1, "maxLength": 256 },
+    "content_type": { "type": "string", "enum": ["article", "video", "script", "music", "photo_set", "other"] },
+    "status": { "type": "string", "enum": ["draft", "in_progress", "review", "published", "archived"] },
+    "outcome_url": { "type": "string", "format": "uri" },
+    "idea_ids": { "type": "array", "items": { "$ref": "#/$defs/uuid" }, "uniqueItems": true },
+    "assets": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "asset_type": { "type": "string", "enum": ["image", "audio", "video", "document", "other"] },
+          "url": { "type": "string", "format": "uri" },
+          "mime_type": { "type": "string", "maxLength": 128 }
+        },
+        "required": ["asset_type", "url"]
+      },
+      "maxItems": 128
+    },
+    "created_at": { "$ref": "#/$defs/iso_datetime" },
+    "updated_at": { "$ref": "#/$defs/iso_datetime" },
+    "deleted_at": { "$ref": "#/$defs/iso_datetime" }
+  },
+  "required": ["id", "user_id", "title", "content_type", "status", "created_at", "updated_at"],
+  "$defs": {
+    "uuid": { "type": "string", "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$" },
+    "iso_datetime": { "type": "string", "format": "date-time" }
+  }
+}
+

@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ideasglass.dev/schemas/idea_reference.schema.json",
+  "title": "IdeaReference",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "id": { "$ref": "#/$defs/uuid" },
+    "idea_id": { "$ref": "#/$defs/uuid" },
+    "source_type": { "type": "string", "enum": ["transcript", "photo", "note", "external"] },
+    "source_id": { "type": "string", "maxLength": 128, "description": "Foreign id or URL slug (e.g., audio segment id)" },
+    "snippet_text": { "type": "string", "maxLength": 4096 },
+    "language": { "type": "string", "maxLength": 32 },
+    "device_id": { "type": "string", "maxLength": 128 },
+    "audio_segment_id": { "$ref": "#/$defs/uuid" },
+    "transcript_start_ms": { "type": "integer", "minimum": 0 },
+    "transcript_end_ms": { "type": "integer", "minimum": 0 },
+    "occurred_at": { "$ref": "#/$defs/iso_datetime" },
+    "link_url": { "type": "string", "format": "uri" },
+    "location": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "lat": { "type": "number", "minimum": -90, "maximum": 90 },
+        "lon": { "type": "number", "minimum": -180, "maximum": 180 },
+        "place": { "type": "string", "maxLength": 256 }
+      }
+    },
+    "created_at": { "$ref": "#/$defs/iso_datetime" }
+  },
+  "required": ["id", "idea_id", "source_type", "occurred_at", "created_at"],
+  "$defs": {
+    "uuid": {
+      "type": "string",
+      "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$"
+    },
+    "iso_datetime": { "type": "string", "format": "date-time" }
+  }
+}
+

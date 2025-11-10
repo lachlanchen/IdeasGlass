@@ -1,0 +1,23 @@
+{
+  "id": "e1a25f6b-4e5b-4d2d-bf1a-2f8d9b6e2c44",
+  "user_id": "0c9d1bc1-7b1a-41fb-84f2-9e2a1b01b6a4",
+  "title": "Short Skit: The Whispering Glass",
+  "creation_type": "script_project",
+  "status": "draft",
+  "language": "en",
+  "tags": ["skit"],
+  "meta": {
+    "type": "script_project",
+    "format": "short",
+    "duration_minutes": 3
+  },
+  "sections": [
+    { "title": "Scene 1", "kind": "scene", "order_index": 0, "body": "INT. ROOM — NIGHT …" }
+  ],
+  "assets": [],
+  "idea_ids": [],
+  "goal_ids": [],
+  "created_at": "2025-11-10T03:08:00Z",
+  "updated_at": "2025-11-10T03:08:00Z"
+}
+

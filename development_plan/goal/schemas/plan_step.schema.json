@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ideasglass.dev/schemas/plan_step.schema.json",
+  "title": "GoalPlanStep",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "id": { "$ref": "#/$defs/uuid" },
+    "plan_id": { "$ref": "#/$defs/uuid" },
+    "title": { "type": "string", "minLength": 1, "maxLength": 256 },
+    "description": { "type": "string", "maxLength": 4096 },
+    "status": { "type": "string", "enum": ["todo", "doing", "done", "blocked", "canceled"] },
+    "order_index": { "type": "integer", "minimum": 0 },
+    "due_at": { "$ref": "#/$defs/iso_datetime" },
+    "effort": { "type": "string", "enum": ["XS", "S", "M", "L", "XL"] },
+    "blocking": { "type": "boolean" },
+    "depends_on": { "type": "array", "items": { "$ref": "#/$defs/uuid" }, "uniqueItems": true, "maxItems": 16 },
+    "created_at": { "$ref": "#/$defs/iso_datetime" },
+    "updated_at": { "$ref": "#/$defs/iso_datetime" }
+  },
+  "required": ["id", "plan_id", "title", "status", "order_index", "created_at", "updated_at"],
+  "$defs": {
+    "uuid": { "type": "string", "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$" },
+    "iso_datetime": { "type": "string", "format": "date-time" }
+  }
+}
+

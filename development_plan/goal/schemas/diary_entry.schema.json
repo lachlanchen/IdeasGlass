@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ideasglass.dev/schemas/diary_entry.schema.json",
+  "title": "GoalDiaryEntry",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "id": { "$ref": "#/$defs/uuid" },
+    "user_id": { "$ref": "#/$defs/uuid" },
+    "goal_id": { "$ref": "#/$defs/uuid" },
+    "plan_id": { "$ref": "#/$defs/uuid" },
+    "step_id": { "$ref": "#/$defs/uuid" },
+    "type": { "type": "string", "enum": ["done", "todo", "insight", "decision", "obstacle", "reflection", "review"] },
+    "text": { "type": "string", "maxLength": 8192 },
+    "language": { "type": "string", "maxLength": 32 },
+    "occurred_at": { "$ref": "#/$defs/iso_datetime" },
+    "source": { "type": "string", "enum": ["transcript", "photo", "manual", "external"] },
+    "source_id": { "type": "string", "maxLength": 128 },
+    "tags": { "type": "array", "items": { "type": "string", "maxLength": 64 }, "uniqueItems": true, "maxItems": 32 },
+    "created_at": { "$ref": "#/$defs/iso_datetime" }
+  },
+  "required": ["id", "user_id", "type", "occurred_at", "created_at"],
+  "$defs": {
+    "uuid": { "type": "string", "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$" },
+    "iso_datetime": { "type": "string", "format": "date-time" }
+  }
+}
+

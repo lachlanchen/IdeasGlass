@@ -1,0 +1,43 @@
+{
+  "id": "4f934b0c-8b11-4d50-9f1f-0b6c7f6b4f63",
+  "user_id": "0c9d1bc1-7b1a-41fb-84f2-9e2a1b01b6a4",
+  "title": "Medium articles + short scripts about AI journaling",
+  "summary": "Publish a weekly Medium series turning daily AI journal insights into articles and short scripts for social video.",
+  "language": "zh",
+  "status": "active",
+  "tags": ["writing", "video", "ai-journal"],
+  "importance": {
+    "score": 0.82,
+    "occurrence_count": 7,
+    "urgency": 0.6,
+    "recency_score": 0.44
+  },
+  "evidence_count": 3,
+  "latest_occurrence_at": "2025-11-10T02:20:31Z",
+  "goal_ids": ["8a86b2f9-5b6a-4ff2-b4a5-6e6f19c6a7a0"],
+  "created_at": "2025-11-09T12:00:00Z",
+  "updated_at": "2025-11-10T02:21:00Z",
+  "references": [
+    {
+      "id": "2b3c6c1b-b3e1-4f8d-9f03-7b00db2a6a27",
+      "idea_id": "4f934b0c-8b11-4d50-9f1f-0b6c7f6b4f63",
+      "source_type": "transcript",
+      "source_id": "dae612d4-f0c9-4b82-b04b-d9cd72618421",
+      "snippet_text": "AI 日記 → 圖文、小說、劇本、音樂創作",
+      "language": "zh",
+      "device_id": "ideasglass-devkit-01",
+      "audio_segment_id": "dae612d4-f0c9-4b82-b04b-d9cd72618421",
+      "transcript_start_ms": 900,
+      "transcript_end_ms": 2100,
+      "occurred_at": "2025-11-09T12:21:00Z"
+    },
+    {
+      "id": "b3c2c9f6-5f2c-4621-bfd5-60b2efe4d203",
+      "idea_id": "4f934b0c-8b11-4d50-9f1f-0b6c7f6b4f63",
+      "source_type": "note",
+      "snippet_text": "Weekly cadence, 3 posts, cross-post to Weixin group",
+      "occurred_at": "2025-11-10T01:03:00Z"
+    }
+  ]
+}
+

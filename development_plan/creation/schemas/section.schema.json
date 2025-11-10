@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ideasglass.dev/schemas/section.schema.json",
+  "title": "CreationSection",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "id": { "type": "string", "maxLength": 64 },
+    "title": { "type": "string", "maxLength": 256 },
+    "kind": { "type": "string", "enum": ["intro", "abstract", "background", "method", "result", "discussion", "conclusion", "chapter", "scene", "lyrics", "notes", "custom"] },
+    "order_index": { "type": "integer", "minimum": 0 },
+    "body": { "type": "string" },
+    "language": { "type": "string", "maxLength": 32 }
+  },
+  "required": ["title", "order_index"]
+}
+

@@ -1,0 +1,28 @@
+{
+  "id": "7a04e5b9-b0b1-4b8f-bf05-3b1d21f36f0c",
+  "user_id": "0c9d1bc1-7b1a-41fb-84f2-9e2a1b01b6a4",
+  "title": "Clip: AI Journal Week 1",
+  "creation_type": "video_project",
+  "status": "draft",
+  "summary": "60s vertical clip summarizing AI Journal insights.",
+  "language": "en",
+  "tags": ["short", "vertical"],
+  "meta": {
+    "type": "video_project",
+    "duration_seconds": 60,
+    "aspect_ratio": "9:16",
+    "platform": "tiktok",
+    "script_style": "concise"
+  },
+  "sections": [
+    { "title": "Script", "kind": "scene", "order_index": 0, "body": "Hook → Bullet points → CTA" }
+  ],
+  "assets": [
+    { "asset_type": "image", "url": "https://ideas.lazying.art/static/photos/2025/11/10/01/ef4e7ce4.png", "mime_type": "image/png" }
+  ],
+  "idea_ids": ["4f934b0c-8b11-4d50-9f1f-0b6c7f6b4f63"],
+  "goal_ids": ["24c1a8f9-9c4b-4b8a-9f4c-6f01b7512dc5"],
+  "created_at": "2025-11-10T03:04:00Z",
+  "updated_at": "2025-11-10T03:04:00Z"
+}
+

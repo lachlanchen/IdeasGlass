@@ -1,0 +1,29 @@
+{
+  "id": "c1a1b7a5-1e82-4d87-84d9-27f0f6e8b9a1",
+  "user_id": "0c9d1bc1-7b1a-41fb-84f2-9e2a1b01b6a4",
+  "title": "Multimodal Wearable AI for Idea Capture",
+  "creation_type": "research_proposal",
+  "status": "draft",
+  "summary": "Propose a wearable system to capture and structure spontaneous ideas.",
+  "language": "en",
+  "tags": ["wearable", "ai", "transcription"],
+  "meta": {
+    "type": "research_proposal",
+    "field": "HCI",
+    "keywords": ["PWA", "ESP32", "Whisper"],
+    "institution": "IdeasGlass Lab",
+    "pi": "L. Chen",
+    "co_authors": ["C. Miao"],
+    "funding_target": 50000
+  },
+  "sections": [
+    { "title": "Abstract", "kind": "abstract", "order_index": 0, "body": "…" },
+    { "title": "Introduction", "kind": "background", "order_index": 1, "body": "…" }
+  ],
+  "assets": [],
+  "idea_ids": ["4f934b0c-8b11-4d50-9f1f-0b6c7f6b4f63"],
+  "goal_ids": [],
+  "created_at": "2025-11-10T03:00:00Z",
+  "updated_at": "2025-11-10T03:00:00Z"
+}
+

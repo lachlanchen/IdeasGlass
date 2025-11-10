@@ -1,0 +1,21 @@
+{
+  "id": "b0ac8a9f-1c5a-412c-9e7c-6d2f8a5d5d0f",
+  "user_id": "0c9d1bc1-7b1a-41fb-84f2-9e2a1b01b6a4",
+  "title": "AI Journal — Week 1 roundup",
+  "content_type": "article",
+  "status": "draft",
+  "outcome_url": null,
+  "idea_ids": [
+    "4f934b0c-8b11-4d50-9f1f-0b6c7f6b4f63"
+  ],
+  "assets": [
+    {
+      "asset_type": "image",
+      "url": "https://ideas.lazying.art/static/photos/2025/11/10/01/ef4e7ce4.png",
+      "mime_type": "image/png"
+    }
+  ],
+  "created_at": "2025-11-10T02:12:00Z",
+  "updated_at": "2025-11-10T02:12:00Z"
+}
+

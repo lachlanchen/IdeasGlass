@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ideasglass.dev/schemas/meta/video_project.schema.json",
+  "title": "VideoProjectMeta",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "type": { "const": "video_project" },
+    "duration_seconds": { "type": "integer", "minimum": 1 },
+    "aspect_ratio": { "type": "string", "enum": ["9:16", "1:1", "16:9", "4:3"] },
+    "platform": { "type": "string", "enum": ["tiktok", "youtube", "instagram", "bilibili", "other"] },
+    "script_style": { "type": "string", "maxLength": 128 }
+  },
+  "required": ["type"]
+}
+

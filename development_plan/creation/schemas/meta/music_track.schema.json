@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ideasglass.dev/schemas/meta/music_track.schema.json",
+  "title": "MusicTrackMeta",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "type": { "const": "music_track" },
+    "genre": { "type": "string", "maxLength": 64 },
+    "bpm": { "type": "integer", "minimum": 20, "maximum": 260 },
+    "key": { "type": "string", "maxLength": 8 },
+    "length_seconds": { "type": "integer", "minimum": 5 }
+  },
+  "required": ["type"]
+}
+

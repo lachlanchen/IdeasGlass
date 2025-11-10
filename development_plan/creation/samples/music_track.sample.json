@@ -1,0 +1,27 @@
+{
+  "id": "a4f84fd2-7de5-4a28-8dd6-9c6a216f9f50",
+  "user_id": "0c9d1bc1-7b1a-41fb-84f2-9e2a1b01b6a4",
+  "title": "EchoMind Theme",
+  "creation_type": "music_track",
+  "status": "draft",
+  "language": "en",
+  "tags": ["ambient"],
+  "meta": {
+    "type": "music_track",
+    "genre": "ambient",
+    "bpm": 92,
+    "key": "Am",
+    "length_seconds": 90
+  },
+  "sections": [
+    { "title": "Intro", "kind": "lyrics", "order_index": 0, "body": "(instrumental)" }
+  ],
+  "assets": [
+    { "asset_type": "audio", "url": "https://ideas.lazying.art/static/audio/demo/ecomind-theme.mp3", "mime_type": "audio/mpeg" }
+  ],
+  "idea_ids": [],
+  "goal_ids": [],
+  "created_at": "2025-11-10T03:09:00Z",
+  "updated_at": "2025-11-10T03:09:00Z"
+}
+

@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ideasglass.dev/schemas/meta/script_project.schema.json",
+  "title": "ScriptProjectMeta",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "type": { "const": "script_project" },
+    "format": { "type": "string", "enum": ["film", "tv", "short", "skit"] },
+    "duration_minutes": { "type": "integer", "minimum": 1 }
+  },
+  "required": ["type"]
+}
+

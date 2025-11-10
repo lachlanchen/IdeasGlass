@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ideasglass.dev/schemas/meta/novel_project.schema.json",
+  "title": "NovelProjectMeta",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "type": { "const": "novel_project" },
+    "genre": { "type": "string", "maxLength": 64 },
+    "target_words": { "type": "integer", "minimum": 1000 },
+    "audience": { "type": "string", "maxLength": 64 }
+  },
+  "required": ["type"]
+}
+

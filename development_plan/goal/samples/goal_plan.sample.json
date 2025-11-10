@@ -1,0 +1,52 @@
+{
+  "life_goal": {
+    "id": "b7d7b3e3-3f2e-4b1d-971a-7c2fd9d9a9aa",
+    "title": "Financial independence with creative work"
+  },
+  "goal": {
+    "id": "24c1a8f9-9c4b-4b8a-9f4c-6f01b7512dc5",
+    "user_id": "0c9d1bc1-7b1a-41fb-84f2-9e2a1b01b6a4",
+    "parent_life_goal_id": "b7d7b3e3-3f2e-4b1d-971a-7c2fd9d9a9aa",
+    "title": "Publish 4 Medium articles this month",
+    "outcome": "4 articles live + 8 short videos",
+    "deadline": "2025-11-30T16:00:00Z",
+    "priority": 3,
+    "status": "in_progress",
+    "progress_percent": 25,
+    "created_at": "2025-11-10T02:31:00Z",
+    "updated_at": "2025-11-10T02:31:00Z"
+  },
+  "plan": {
+    "id": "a9043f08-6a67-4e52-8ee1-6db8edd5d4ef",
+    "goal_id": "24c1a8f9-9c4b-4b8a-9f4c-6f01b7512dc5",
+    "title": "Week-by-week content plan",
+    "strategy": "Draft 2/week, edit with AI assist, cross-post clips.",
+    "assumptions": "2 hrs/day available; access to editing tools.",
+    "risks": "Network issues for uploads; writer's block.",
+    "metrics": [
+      { "name": "Articles published", "target": 4, "unit": "count" },
+      { "name": "Clips posted", "target": 8, "unit": "count" }
+    ],
+    "status": "active",
+    "created_at": "2025-11-10T02:31:10Z",
+    "updated_at": "2025-11-10T02:31:10Z"
+  },
+  "steps": [
+    {
+      "id": "b8e1fb3a-fb8d-4c7c-9a90-1f36d9d7a207",
+      "plan_id": "a9043f08-6a67-4e52-8ee1-6db8edd5d4ef",
+      "title": "Outline Week 1 topics",
+      "status": "done",
+      "order_index": 0
+    },
+    {
+      "id": "0893f37c-0c6f-4d24-8de9-1f1a2a86b9e0",
+      "plan_id": "a9043f08-6a67-4e52-8ee1-6db8edd5d4ef",
+      "title": "Draft Article 1",
+      "status": "doing",
+      "order_index": 1,
+      "due_at": "2025-11-12T16:00:00Z"
+    }
+  ]
+}
+

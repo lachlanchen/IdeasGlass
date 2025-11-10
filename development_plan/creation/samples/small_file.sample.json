@@ -1,0 +1,24 @@
+{
+  "id": "3f5e2c9b-2e33-4a26-b7b0-8aee0c8b3254",
+  "user_id": "0c9d1bc1-7b1a-41fb-84f2-9e2a1b01b6a4",
+  "title": "Draft Outline — Week 2",
+  "creation_type": "small_file",
+  "status": "in_progress",
+  "summary": "Quick outline notes for article week 2.",
+  "language": "en",
+  "tags": ["outline"],
+  "meta": {
+    "type": "small_file",
+    "file_kind": "markdown",
+    "size_bytes": 2048
+  },
+  "sections": [],
+  "assets": [
+    { "asset_type": "document", "url": "https://ideas.lazying.art/static/docs/outline-week2.md", "mime_type": "text/markdown" }
+  ],
+  "idea_ids": [],
+  "goal_ids": [],
+  "created_at": "2025-11-10T03:10:30Z",
+  "updated_at": "2025-11-10T03:10:30Z"
+}
+

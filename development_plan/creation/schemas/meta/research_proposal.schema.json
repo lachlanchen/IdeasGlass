@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ideasglass.dev/schemas/meta/research_proposal.schema.json",
+  "title": "ResearchProposalMeta",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "type": { "const": "research_proposal" },
+    "field": { "type": "string", "maxLength": 128 },
+    "keywords": { "type": "array", "items": { "type": "string", "maxLength": 64 }, "uniqueItems": true, "maxItems": 32 },
+    "institution": { "type": "string", "maxLength": 128 },
+    "pi": { "type": "string", "maxLength": 128 },
+    "co_authors": { "type": "array", "items": { "type": "string", "maxLength": 128 }, "maxItems": 16 },
+    "funding_target": { "type": "number" }
+  },
+  "required": ["type"]
+}
+

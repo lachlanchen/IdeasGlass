@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ideasglass.dev/schemas/meta/business_plan.schema.json",
+  "title": "BusinessPlanMeta",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "type": { "const": "business_plan" },
+    "industry": { "type": "string", "maxLength": 128 },
+    "target_market": { "type": "string", "maxLength": 256 },
+    "business_model": { "type": "string", "maxLength": 256 },
+    "revenue_streams": { "type": "array", "items": { "type": "string", "maxLength": 128 }, "maxItems": 16 },
+    "pricing": { "type": "string", "maxLength": 256 }
+  },
+  "required": ["type"]
+}
+

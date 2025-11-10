@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ideasglass.dev/schemas/life_goal.schema.json",
+  "title": "LifeGoal",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "id": { "$ref": "#/$defs/uuid" },
+    "user_id": { "$ref": "#/$defs/uuid" },
+    "title": { "type": "string", "minLength": 1, "maxLength": 256 },
+    "vision": { "type": "string", "maxLength": 16384 },
+    "why": { "type": "string", "maxLength": 8192 },
+    "categories": { "type": "array", "items": { "type": "string", "maxLength": 64 }, "uniqueItems": true, "maxItems": 32 },
+    "horizon": { "type": "string", "enum": ["life", "decade", "year", "quarter", "month"] },
+    "status": { "type": "string", "enum": ["active", "archived", "deleted"] },
+    "start_date": { "type": "string", "format": "date" },
+    "target_date": { "type": "string", "format": "date" },
+    "success_metrics": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "name": { "type": "string", "maxLength": 128 },
+          "target_value": { "type": "number" },
+          "unit": { "type": "string", "maxLength": 32 }
+        },
+        "required": ["name"]
+      },
+      "maxItems": 16
+    },
+    "progress_percent": { "type": "number", "minimum": 0, "maximum": 100 },
+    "created_at": { "$ref": "#/$defs/iso_datetime" },
+    "updated_at": { "$ref": "#/$defs/iso_datetime" },
+    "deleted_at": { "$ref": "#/$defs/iso_datetime" }
+  },
+  "required": ["id", "user_id", "title", "horizon", "status", "created_at", "updated_at"],
+  "$defs": {
+    "uuid": { "type": "string", "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$" },
+    "iso_datetime": { "type": "string", "format": "date-time" }
+  }
+}
+

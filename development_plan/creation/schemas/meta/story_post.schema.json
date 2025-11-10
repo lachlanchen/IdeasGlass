@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ideasglass.dev/schemas/meta/story_post.schema.json",
+  "title": "StoryPostMeta",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "type": { "const": "story_post" },
+    "platform": { "type": "string", "enum": ["medium", "weixin", "blog", "other"] },
+    "category": { "type": "string", "maxLength": 64 },
+    "reading_minutes": { "type": "integer", "minimum": 1 }
+  },
+  "required": ["type"]
+}
+

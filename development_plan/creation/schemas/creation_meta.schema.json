@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ideasglass.dev/schemas/creation_meta.schema.json",
+  "title": "CreationMeta",
+  "oneOf": [
+    { "$ref": "meta/research_proposal.schema.json" },
+    { "$ref": "meta/business_plan.schema.json" },
+    { "$ref": "meta/video_project.schema.json" },
+    { "$ref": "meta/story_post.schema.json" },
+    { "$ref": "meta/novel_project.schema.json" },
+    { "$ref": "meta/script_project.schema.json" },
+    { "$ref": "meta/music_track.schema.json" },
+    { "$ref": "meta/small_file.schema.json" },
+    {
+      "type": "object",
+      "title": "Other",
+      "additionalProperties": true
+    }
+  ]
+}
+

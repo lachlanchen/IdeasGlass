@@ -1,0 +1,28 @@
+{
+  "id": "fa9a2b1c-2e5d-4d3a-9b80-1a91f2b4c2ef",
+  "user_id": "0c9d1bc1-7b1a-41fb-84f2-9e2a1b01b6a4",
+  "title": "OnlyIdeas — Monetizing Idea Capture",
+  "creation_type": "business_plan",
+  "status": "in_progress",
+  "summary": "Freemium wearable + SaaS for idea extraction and planning.",
+  "language": "en",
+  "tags": ["saas", "media"],
+  "meta": {
+    "type": "business_plan",
+    "industry": "Productivity/Media",
+    "target_market": "Creators, students, knowledge workers",
+    "business_model": "Freemium + Pro tiers",
+    "revenue_streams": ["subscription", "hardware", "consulting"],
+    "pricing": "Pro $10/mo"
+  },
+  "sections": [
+    { "title": "Executive Summary", "kind": "intro", "order_index": 0, "body": "…" },
+    { "title": "Market", "kind": "background", "order_index": 1, "body": "…" }
+  ],
+  "assets": [],
+  "idea_ids": [],
+  "goal_ids": ["24c1a8f9-9c4b-4b8a-9f4c-6f01b7512dc5"],
+  "created_at": "2025-11-10T03:02:00Z",
+  "updated_at": "2025-11-10T03:10:00Z"
+}
+
