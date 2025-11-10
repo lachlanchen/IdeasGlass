@@ -16,15 +16,15 @@ body {
 }
 
 /* Only add top padding when header is fixed (Live tab) */
-body.header-fixed { padding-top: calc(var(--header-height) + env(safe-area-inset-top, 0px)); }
+body.header-fixed { padding-top: var(--header-height); }
 
 header {
   position: relative;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  height: var(--header-height);
-  padding: 0.3rem 0.8rem;
+  min-height: var(--header-height);
+  padding: calc(0.3rem + env(safe-area-inset-top, 0px)) 0.8rem 0.3rem;
   background: linear-gradient(135deg, #ffffff 0%, #f7faff 70%);
   border-bottom: 1px solid rgba(15, 23, 42, 0.08);
   box-shadow: 0 6px 18px rgba(99, 102, 241, 0.12);
