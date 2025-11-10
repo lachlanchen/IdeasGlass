@@ -280,19 +280,42 @@
           </div>
           <div class="life-goal-detail">
             <h3 id="lgTitle" class="goal-title"></h3>
-            <h4>Prophecy</h4>
-            <p id="lgDiary" class="diary-text"></p>
-            <p id="lgVision" class="goal-outcome"></p>
-            <div class="if-row">
-              <div class="if-col"><span class="chip" id="lgHorizon">LIFE</span></div>
-              <div class="if-col"><span class="chip" id="lgProgress">0%</span></div>
+            <div class="lg-grid">
+              <div class="lg-card lg-prophecy">
+                <div class="lg-card-title">Prophecy</div>
+                <div id="lgDiary" class="diary-text lg-card-body"></div>
+              </div>
+
+              <div class="lg-card lg-identity">
+                <div class="lg-card-title">Who am I</div>
+                <div id="lgIdentity" class="identity-text lg-card-body"></div>
+              </div>
+
+              <div class="lg-card lg-vision">
+                <div class="lg-card-title">Vision</div>
+                <div id="lgVision" class="goal-outcome lg-card-body"></div>
+              </div>
+
+              <div class="lg-row">
+                <div class="lg-chip-card"><span class="chip" id="lgHorizon">LIFE</span></div>
+                <div class="lg-chip-card"><span class="chip" id="lgProgress">0%</span></div>
+              </div>
+
+              <div class="lg-card lg-why">
+                <div class="lg-card-title">Why</div>
+                <div id="lgWhy" class="cd-section-body lg-card-body"></div>
+              </div>
+
+              <div class="lg-card lg-strategy">
+                <div class="lg-card-title">Strategy</div>
+                <pre id="lgStrategy" class="cd-section-body lg-card-body"></pre>
+              </div>
+
+              <div class="lg-card lg-metrics">
+                <div class="lg-card-title">Metrics</div>
+                <ul id="lgMetrics" class="lg-card-body lg-metrics-list"></ul>
+              </div>
             </div>
-            <h4>Why</h4>
-            <p id="lgWhy" class="cd-section-body"></p>
-            <h4>Strategy</h4>
-            <pre id="lgStrategy" class="cd-section-body"></pre>
-            <h4>Metrics</h4>
-            <ul id="lgMetrics"></ul>
           </div>
         </section>
       </main>

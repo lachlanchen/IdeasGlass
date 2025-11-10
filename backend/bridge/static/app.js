@@ -343,6 +343,7 @@ async function loadLifeGoalDetail(id) {
     try { displayTitle = displayTitle.replace(/^\s*Prophecy\s+Diary\s*[—-]\s*/i, ''); } catch {}
     if (lgTitle) lgTitle.textContent = displayTitle;
     if (g.diary && typeof g.diary === 'string' && lgDiary) lgDiary.textContent = g.diary;
+    if (g.identity && typeof g.identity === 'string' && lgIdentity) lgIdentity.textContent = g.identity;
     // If the vision is very short but a diary exists, prefer the diary paragraph for a richer feel
     let vis = g.vision || '';
     try { if (vis.length < 100 && typeof g.diary === 'string' && g.diary.length > 0) vis = g.diary; } catch {}

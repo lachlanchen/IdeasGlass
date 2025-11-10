@@ -334,6 +334,7 @@ class LifeGoalOut(BaseModel):
     start_date: Optional[str] = None
     target_date: Optional[str] = None
     diary: Optional[str] = None
+    identity: Optional[str] = None
     created_at: str
     updated_at: str
 
@@ -789,6 +790,10 @@ async def init_db() -> None:
         # Ensure diary narrative column exists for life goals
         await conn.execute(
             "ALTER TABLE ig_life_goals ADD COLUMN IF NOT EXISTS diary TEXT"
+        )
+        # Ensure identity (Who am I) column exists for life goals
+        await conn.execute(
+            "ALTER TABLE ig_life_goals ADD COLUMN IF NOT EXISTS identity TEXT"
         )
         # Creations (basic)
         await conn.execute(
@@ -1369,7 +1374,7 @@ async def list_life_goals(limit: int = 3, request: Request = None):
     async with db_pool.acquire() as conn:
         rows = await conn.fetch(
             """
-            SELECT id, title, vision, why, strategy, categories, horizon, status, progress_percent, metrics, start_date, target_date, diary, created_at, updated_at
+            SELECT id, title, vision, why, strategy, categories, horizon, status, progress_percent, metrics, start_date, target_date, diary, identity, created_at, updated_at
             FROM ig_life_goals
             WHERE user_id=$1 AND status=0
             ORDER BY updated_at DESC
@@ -1395,6 +1400,7 @@ async def list_life_goals(limit: int = 3, request: Request = None):
                 start_date=(r["start_date"].isoformat() if r["start_date"] else None),
                 target_date=(r["target_date"].isoformat() if r["target_date"] else None),
                 diary=r["diary"],
+                identity=r["identity"],
                 created_at=r["created_at"].isoformat(),
                 updated_at=r["updated_at"].isoformat(),
             )
@@ -1412,7 +1418,7 @@ async def get_life_goal(life_goal_id: str, request: Request):
     async with db_pool.acquire() as conn:
         row = await conn.fetchrow(
             """
-            SELECT id, title, vision, why, strategy, categories, horizon, status, progress_percent, metrics, start_date, target_date, diary, created_at, updated_at
+            SELECT id, title, vision, why, strategy, categories, horizon, status, progress_percent, metrics, start_date, target_date, diary, identity, created_at, updated_at
             FROM ig_life_goals WHERE id=$1 AND user_id=$2
             """,
             life_goal_id,
@@ -1434,6 +1440,7 @@ async def get_life_goal(life_goal_id: str, request: Request):
         start_date=(row["start_date"].isoformat() if row["start_date"] else None),
         target_date=(row["target_date"].isoformat() if row["target_date"] else None),
         diary=row["diary"],
+        identity=row["identity"],
         created_at=row["created_at"].isoformat(),
         updated_at=row["updated_at"].isoformat(),
     )
@@ -1456,9 +1463,9 @@ async def seed_life_goal(payload: LifeGoalSeedIn, request: Request):
         await conn.execute(
             """
             INSERT INTO ig_life_goals (
-              id, user_id, title, vision, why, strategy, categories, horizon, status, progress_percent, metrics, start_date, target_date, diary, created_at, updated_at
+              id, user_id, title, vision, why, strategy, categories, horizon, status, progress_percent, metrics, start_date, target_date, diary, identity, created_at, updated_at
             ) VALUES (
-              $1,$2,$3,$4,$5,$6,$7,$8,0,$9,$10,$11,$12,$13,$14,$15
+              $1,$2,$3,$4,$5,$6,$7,$8,0,$9,$10,$11,$12,$13,$14,$15,$16
             )
             ON CONFLICT (id) DO NOTHING
             """,
@@ -1495,6 +1502,12 @@ async def seed_life_goal(payload: LifeGoalSeedIn, request: Request):
                 "There is space to learn, to play, to nap in the afternoon sun.\n\n"
                 "Tomorrow arrives gently; you greet it with curiosity.\n"
                 "This is The Art of Lazying: a happy life without unnecessary effort, and it is happening now."
+            ),
+            (
+                "I am someone who designs a kind life. I publish with ease,\n"
+                "learn with curiosity, and let simple systems carry the weight.\n"
+                "I help others by sharing what I create, and I give myself permission\n"
+                "to rest. I am calm, joyful, and steadily becoming."
             ),
             now,
             now,
