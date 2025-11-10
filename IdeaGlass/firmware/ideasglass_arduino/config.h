@@ -16,12 +16,6 @@ constexpr char kBleServiceUuid[] = "6E400001-B5A3-F393-E0A9-E50E24DCCA9E";
 constexpr char kBleTelemetryCharUuid[] = "6E400003-B5A3-F393-E0A9-E50E24DCCA9E";
 constexpr char kBleCommandCharUuid[] = "6E400002-B5A3-F393-E0A9-E50E24DCCA9E";
 constexpr char kBlePhotoCharUuid[] = "19B10005-E8F2-537E-4F6C-D104768A1214";
-// BLE pairing mode configuration
-#ifndef ENABLE_BLE_PAIRING
-#define ENABLE_BLE_PAIRING 0
-#endif
-constexpr uint32_t kBlePairingAdvertiseMs = 120000; // auto-stop adverts after 2 min
-constexpr bool kBleStopAdvertiseOnConnect = true;    // stop advertising while connected
 
 // ---------------------------------------------------------------------------
 // Pins (Seeed XIAO ESP32S3 Sense)
@@ -69,11 +63,11 @@ constexpr bool kAudioLogSuppress = true;
 // ---------------------------------------------------------------------------
 // Keep-Alive pooled HTTPS clients for audio/photo POST fallbacks
 #ifndef IG_TUNE_HTTP_KEEPALIVE
-#define IG_TUNE_HTTP_KEEPALIVE 1
+#define IG_TUNE_HTTP_KEEPALIVE 0
 #endif
 // Smoothed and cached battery ADC reading (reduces ADC/CPU usage)
 #ifndef IG_TUNE_BATTERY_FILTER
-#define IG_TUNE_BATTERY_FILTER 1
+#define IG_TUNE_BATTERY_FILTER 0
 #endif
 // Lightweight periodic counters for network/path observability
 #ifndef IG_TUNE_DEBUG_COUNTERS
@@ -81,15 +75,15 @@ constexpr bool kAudioLogSuppress = true;
 #endif
 // Preallocate a small pool of audio buffers to reduce malloc/free churn
 #ifndef IG_TUNE_PREALLOC_AUDIO
-#define IG_TUNE_PREALLOC_AUDIO 1
+#define IG_TUNE_PREALLOC_AUDIO 0
 #endif
 // When audio queue is full, drop the oldest pending packet instead of the newest
 #ifndef IG_TUNE_QUEUE_DROP_OLDEST
-#define IG_TUNE_QUEUE_DROP_OLDEST 1
+#define IG_TUNE_QUEUE_DROP_OLDEST 0
 #endif
 // Non-blocking WS reconnect with exponential backoff + jitter
 #ifndef IG_TUNE_WS_BACKOFF
-#define IG_TUNE_WS_BACKOFF 1
+#define IG_TUNE_WS_BACKOFF 0
 #endif
 
 // ---------------------------------------------------------------------------
