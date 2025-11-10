@@ -143,7 +143,7 @@ const LANG_KEY = 'ig.lang';
 const SUPPORTED_LANGS = ['en','zh-Hans','zh-Hant','ja'];
 const I18N = {
   'en': {
-    'header.subtitle': 'Live device feed',
+    'header.subtitle': 'Catch ideas as they happen',
     'nav.live': 'Live',
     'nav.ideas': 'Ideas',
     'nav.goal': 'Goal',
@@ -168,7 +168,7 @@ const I18N = {
     'goal.prophecy': 'Prophecy Diary'
   },
   'zh-Hans': {
-    'header.subtitle': '实时设备信息',
+    'header.subtitle': '随时捕捉灵感',
     'nav.live': '直播',
     'nav.ideas': '想法',
     'nav.goal': '目标',
@@ -193,7 +193,7 @@ const I18N = {
     'goal.prophecy': '预言日记'
   },
   'zh-Hant': {
-    'header.subtitle': '即時裝置資訊',
+    'header.subtitle': '隨時捕捉靈感',
     'nav.live': '直播',
     'nav.ideas': '想法',
     'nav.goal': '目標',
@@ -218,7 +218,7 @@ const I18N = {
     'goal.prophecy': '預言日記'
   },
   'ja': {
-    'header.subtitle': 'ライブデバイスフィード',
+    'header.subtitle': 'ひらめきを、その瞬間に。',
     'nav.live': 'ライブ',
     'nav.ideas': 'アイデア',
     'nav.goal': '目標',
