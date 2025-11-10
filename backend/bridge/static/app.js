@@ -616,7 +616,10 @@ function updateRecordingTimer(chunk) {
   if (progressMs !== null && targetMs > 0) {
     const clamped = Math.min(targetMs, progressMs);
     const normalized = Math.min(1, clamped / targetMs);
-    timerEl.textContent = `Recording ${formatSeconds(clamped)}s / ${formatSeconds(targetMs)}s`;
+    // Render label and values separately so we can wrap on small screens
+    const current = `${formatSeconds(clamped)}s`;
+    const total = `${formatSeconds(targetMs)}s`;
+    timerEl.innerHTML = `<span class="timer-label">Recording</span><span class="timer-values">${current} / ${total}</span>`;
     timerEl.style.setProperty("--progress", normalized.toFixed(3));
     timerEl.classList.toggle("complete", normalized >= 0.999);
     return;

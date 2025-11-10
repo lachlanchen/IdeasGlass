@@ -309,6 +309,17 @@ main {
   padding-bottom: 0.25rem;
 }
 
+/* Allow wrapping the timer values onto the next line on small screens */
+.timer .timer-label { margin-right: 0.25rem; }
+.timer .timer-values { display: inline; }
+@media (max-width: 430px) {
+  .timer .timer-values {
+    display: block;
+    margin-top: 0.1rem;
+    font-weight: 700;
+  }
+}
+
 .timer::after {
   content: "";
   position: absolute;
