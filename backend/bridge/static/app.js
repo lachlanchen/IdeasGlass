@@ -792,8 +792,8 @@ function setActiveTab(tab) {
   try {
     localStorage.setItem('ig.selectedTab', tab);
   } catch {}
-  // Fix header only for the Live tab
-  try { document.body.classList.toggle('header-fixed', tab === 'live'); } catch {}
+  // Keep header fixed for all tabs
+  try { document.body.classList.add('header-fixed'); } catch {}
   updateLoginOverlay();
   if (tab === 'ideas') {
     try { refreshIdeas(); } catch {}
