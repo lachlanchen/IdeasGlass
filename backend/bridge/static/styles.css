@@ -1303,6 +1303,8 @@ footer {
 .creation-card { display:flex; flex-direction:column; gap:0.5rem; padding:0.85rem 0.9rem; border-radius:16px; background: linear-gradient(135deg,#fff,#f8fbff); border:1px solid rgba(15,23,42,0.06); box-shadow: 0 14px 40px rgba(15,23,42,0.08); }
 .creation-top { display:flex; align-items:flex-start; justify-content: space-between; gap: 0.5rem; }
 .creation-title { margin:0; font-size:1.05rem; color:#0f172a; font-weight:800; }
+/* Center title only on the dedicated Creation detail page */
+#creationDetailView .creation-title { text-align: center; margin: 0.25rem 0 0.5rem; }
 .creation-type { font-weight:800; padding: 0.1rem 0.5rem; border-radius:999px; border:1px solid rgba(79,70,229,0.2); background:#eef2ff; color:#4338ca; }
 .creation-summary { margin:0; color:#4c5673; font-size:0.95rem; }
 .creation-meta { display:flex; align-items:center; justify-content: space-between; color:#6b7280; font-size:0.86rem; }
