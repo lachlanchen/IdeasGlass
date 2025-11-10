@@ -1231,7 +1231,7 @@ void setup()
     WiFi.mode(WIFI_MODE_STA);
     WiFi.persistent(false);
     WiFi.setAutoReconnect(true);
-    WiFi.setSleep(true);
+    WiFi.setSleep(false);
     connectToWiFi();
 
 #if ENABLE_PHOTO_CAPTURE

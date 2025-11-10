@@ -63,11 +63,11 @@ constexpr bool kAudioLogSuppress = true;
 // ---------------------------------------------------------------------------
 // Keep-Alive pooled HTTPS clients for audio/photo POST fallbacks
 #ifndef IG_TUNE_HTTP_KEEPALIVE
-#define IG_TUNE_HTTP_KEEPALIVE 0
+#define IG_TUNE_HTTP_KEEPALIVE 1
 #endif
 // Smoothed and cached battery ADC reading (reduces ADC/CPU usage)
 #ifndef IG_TUNE_BATTERY_FILTER
-#define IG_TUNE_BATTERY_FILTER 0
+#define IG_TUNE_BATTERY_FILTER 1
 #endif
 // Lightweight periodic counters for network/path observability
 #ifndef IG_TUNE_DEBUG_COUNTERS
@@ -75,15 +75,15 @@ constexpr bool kAudioLogSuppress = true;
 #endif
 // Preallocate a small pool of audio buffers to reduce malloc/free churn
 #ifndef IG_TUNE_PREALLOC_AUDIO
-#define IG_TUNE_PREALLOC_AUDIO 0
+#define IG_TUNE_PREALLOC_AUDIO 1
 #endif
 // When audio queue is full, drop the oldest pending packet instead of the newest
 #ifndef IG_TUNE_QUEUE_DROP_OLDEST
-#define IG_TUNE_QUEUE_DROP_OLDEST 0
+#define IG_TUNE_QUEUE_DROP_OLDEST 1
 #endif
 // Non-blocking WS reconnect with exponential backoff + jitter
 #ifndef IG_TUNE_WS_BACKOFF
-#define IG_TUNE_WS_BACKOFF 0
+#define IG_TUNE_WS_BACKOFF 1
 #endif
 
 // ---------------------------------------------------------------------------
