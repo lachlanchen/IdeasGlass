@@ -556,7 +556,8 @@ public:
         if (caCert) {
             _client.setCACert(caCert);
         }
-        _client.setTimeout(8000);
+        // Timeouts are in seconds on ESP32 Arduino core
+        _client.setTimeout(8);
         close();
 #if IG_TUNE_WS_BACKOFF
         _backoffMs = 0;
@@ -996,7 +997,7 @@ bool sendAudioChunkPacket(const AudioPacket &packet)
 #else
     WiFiClientSecure client;
     client.setCACert(ideas_cert);
-    client.setTimeout(6000); // keep it short for responsiveness
+    client.setTimeout(6); // keep it short for responsiveness
     if (client.connect(kServerHost, kServerPort)) {
         client.printf(
             "POST /api/v1/audio HTTP/1.1\r\n"
@@ -1254,7 +1255,7 @@ bool sendPayload(const String &message, const String &metaValue, const String *p
 #else
     WiFiClientSecure messageClient;
     messageClient.setCACert(ideas_cert);
-    messageClient.setTimeout(8000);
+    messageClient.setTimeout(8);
     if (!messageClient.connect(kServerHost, kServerPort)) {
         Serial.println("[HTTP] Connection failed");
         return false;
