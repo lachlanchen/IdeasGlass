@@ -169,11 +169,13 @@ class IgServerCallbacks : public BLEServerCallbacks {
 
 class IgCommandCallbacks : public BLECharacteristicCallbacks {
   void onWrite(BLECharacteristic *c) override {
-    std::string v = c->getValue();
-    if (v.empty()) return;
+    // getValue() returns Arduino String on some core versions; normalize
+    String v = c->getValue();
+    if (!v.length()) return;
     // Echo back any command for simple communication proof
     if (g_bleTelemetry) {
-      g_bleTelemetry->setValue((uint8_t*)v.data(), v.size());
+      const char *p = v.c_str();
+      g_bleTelemetry->setValue((uint8_t*)p, v.length());
       g_bleTelemetry->notify();
     }
   }
@@ -188,7 +190,7 @@ static void startBlePairing()
   suffix.replace(":", "");
   String devName = String(kDeviceName) + "-" + suffix;
   BLEDevice::init(devName.c_str());
-  BLEDevice::setPower(ESP_PWR_LVL_P0);
+  BLEDevice::setPower(ESP_PWR_LVL_P3);
   g_bleServer = BLEDevice::createServer();
   g_bleServer->setCallbacks(new IgServerCallbacks());
   // UART-like custom service
@@ -1352,13 +1354,7 @@ void setup()
 
 void loop()
 {
-    if (WiFi.status() != WL_CONNECTED) {
-        connectToWiFi();
-        delay(2000);
-        return;
-    }
-
-    // Long press to power off during run
+    // Long press to power off during run (always active, even while Wi‑Fi reconnects)
     int b = digitalRead(PIN_BUTTON);
     unsigned long now = millis();
     if (b == LOW && !btnPressed) {
@@ -1371,6 +1367,12 @@ void loop()
         }
     } else if (b == HIGH && btnPressed) {
         btnPressed = false;
+    }
+
+    if (WiFi.status() != WL_CONNECTED) {
+        connectToWiFi();
+        delay(2000);
+        return;
     }
 
     handleAudioStreaming();
