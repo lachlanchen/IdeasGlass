@@ -1031,6 +1031,7 @@ function setActiveTab(tab) {
   // Ensure any sub-pages/modals from other tabs are hidden when switching tabs
   try {
     // Live sub-pages
+    liveMainView?.classList.remove('hidden');
     livePhotosView?.classList.add('hidden');
     liveTranscriptsView?.classList.add('hidden');
     liveTranscriptDetailView?.classList.add('hidden');
