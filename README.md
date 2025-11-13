@@ -190,9 +190,11 @@ Quick device binding
 
 We stand on the shoulders of great open projects — thank you to:
 - OmiGlass by BasedHardware: https://github.com/BasedHardware/omi/tree/main/omiGlass  
-  - **Referral Program** — earn 20 % commissions: https://www.omi.me/?ref=LazyingArt  
-    Coupon code `LazyingArt` gives your friends 10 % off (30 % commission unlocks after 10 sales).  
-  - **Quick links**:  
+  - **Referral Program** — earn 20 % commissions (coupon `LazyingArt` gives your friends 10 % off; 30 % unlocks after 10 sales).  
+
+    <a href="https://www.omi.me/?ref=LazyingArt" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;justify-content:center;padding:0.45rem 1.1rem;border-radius:999px;background:#111827;color:#ffffff;font-weight:700;text-decoration:none;margin:0.2rem 0;">Get OmiGlass with LazyingArt</a>
+
+    **Quick links**
     - Discord: https://discord.com/invite/8MP3b9ymvx?ref=LazyingArt  
     - Seeed XIAO BLE Sense kit: https://www.seeedstudio.com/Seeed-XIAO-BLE-Sense-nRF52840-p-5253.html
 - OpenAI Whisper: https://github.com/openai/whisper
