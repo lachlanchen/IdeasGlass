@@ -189,8 +189,8 @@ Quick device binding
 ## Acknowledgements
 
 We stand on the shoulders of great open projects — thank you to:
-- OmiGlass by BasedHardware: https://www.omi.me/?ref=LazyingArt  
-  - **Referral Program** — earn 20 % commissions (coupon `LazyingArt` gives your friends 10 % off; 30 % unlocks after 10 sales).  
+- <a href="https://www.omi.me/?ref=LazyingArt" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;justify-content:center;padding:0.45rem 1rem;border-radius:999px;background:#111827;color:#ffffff;font-weight:700;text-decoration:none;">Get OmiGlass (BasedHardware)</a>  
+  - **Referral Program** — Use coupon `LazyingArt` to save 10 % (30 % commission unlocks after 10 sales).  
 
     <div style="display:flex;flex-wrap:wrap;gap:0.4rem;margin:0.3rem 0;">
       <a href="https://www.omi.me/?ref=LazyingArt" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;justify-content:center;padding:0.45rem 1.1rem;border-radius:999px;background:#111827;color:#ffffff;font-weight:700;text-decoration:none;">Get OmiGlass with LazyingArt</a>
