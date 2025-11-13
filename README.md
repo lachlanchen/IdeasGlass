@@ -189,7 +189,7 @@ Quick device binding
 ## Acknowledgements
 
 We stand on the shoulders of great open projects — thank you to:
-- OmiGlass by BasedHardware: https://github.com/BasedHardware/omi/tree/main/omiGlass  
+- OmiGlass by BasedHardware: https://www.omi.me/?ref=LazyingArt  
   - **Referral Program** — earn 20 % commissions (coupon `LazyingArt` gives your friends 10 % off; 30 % unlocks after 10 sales).  
 
     <div style="display:flex;flex-wrap:wrap;gap:0.4rem;margin:0.3rem 0;">
