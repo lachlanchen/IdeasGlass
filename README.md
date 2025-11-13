@@ -192,11 +192,11 @@ We stand on the shoulders of great open projects — thank you to:
 - OmiGlass by BasedHardware: https://github.com/BasedHardware/omi/tree/main/omiGlass  
   - **Referral Program** — earn 20 % commissions (coupon `LazyingArt` gives your friends 10 % off; 30 % unlocks after 10 sales).  
 
-    <a href="https://www.omi.me/?ref=LazyingArt" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;justify-content:center;padding:0.45rem 1.1rem;border-radius:999px;background:#111827;color:#ffffff;font-weight:700;text-decoration:none;margin:0.2rem 0;">Get OmiGlass with LazyingArt</a>
-
-    **Quick links**
-    - Discord: https://discord.com/invite/8MP3b9ymvx?ref=LazyingArt  
-    - Seeed XIAO BLE Sense kit: https://www.seeedstudio.com/Seeed-XIAO-BLE-Sense-nRF52840-p-5253.html
+    <div style="display:flex;flex-wrap:wrap;gap:0.4rem;margin:0.3rem 0;">
+      <a href="https://www.omi.me/?ref=LazyingArt" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;justify-content:center;padding:0.45rem 1.1rem;border-radius:999px;background:#111827;color:#ffffff;font-weight:700;text-decoration:none;">Get OmiGlass with LazyingArt</a>
+      <a href="https://discord.com/invite/8MP3b9ymvx?ref=LazyingArt" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;justify-content:center;padding:0.45rem 1rem;border-radius:999px;background:#2563eb;color:#ffffff;font-weight:700;text-decoration:none;">Join Omi Discord</a>
+      <a href="https://www.seeedstudio.com/Seeed-XIAO-BLE-Sense-nRF52840-p-5253.html" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;justify-content:center;padding:0.45rem 1rem;border-radius:999px;background:#059669;color:#ffffff;font-weight:700;text-decoration:none;">Buy Seeed XIAO BLE Sense</a>
+    </div>
 - OpenAI Whisper: https://github.com/openai/whisper
 - WhisperX: https://github.com/m-bain/whisperX
 - Ollama: https://github.com/ollama/ollama
