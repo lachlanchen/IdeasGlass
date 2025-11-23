@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>IdeasGlass | Capture • Understand • Create</title>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #05070f;
+      --card: #0c1220;
+      --muted: #a9b8d6;
+      --accent: #7dd3fc;
+      --accent-strong: #22d3ee;
+      --radius: 18px;
+      --shadow: 0 20px 60px rgba(0, 0, 0, 0.45);
+      --border: 1px solid rgba(255, 255, 255, 0.06);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      color: #e5e7eb;
+      background: radial-gradient(circle at 15% 20%, rgba(34, 211, 238, 0.08), transparent 28%),
+                  radial-gradient(circle at 82% 10%, rgba(124, 58, 237, 0.08), transparent 32%),
+                  linear-gradient(145deg, #05070f 0%, #0a0f1a 40%, #05070f 100%);
+    }
+    a { color: inherit; text-decoration: none; }
+    .page { max-width: 1180px; margin: 0 auto; padding: 56px 18px 90px; }
+    header { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-bottom: 32px; }
+    .logo { font-family: 'Space Grotesk', 'Inter', sans-serif; font-weight: 700; letter-spacing: -0.01em; font-size: 22px; }
+    .pill { padding: 6px 10px; border-radius: 999px; background: rgba(125, 211, 252, 0.12); color: var(--accent); font-weight: 600; font-size: 13px; display: inline-flex; gap: 6px; align-items: center; }
+    .hero { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 24px; align-items: center; margin-bottom: 28px; }
+    .hero-card { background: var(--card); border: var(--border); border-radius: var(--radius); padding: 26px; box-shadow: var(--shadow); }
+    h1 { font-family: 'Space Grotesk', 'Inter', sans-serif; margin: 10px 0 10px; font-size: 36px; letter-spacing: -0.01em; }
+    p.lead { color: var(--muted); font-size: 16px; line-height: 1.6; }
+    .buttons { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 16px; }
+    .btn { padding: 12px 16px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.08); font-weight: 700; background: linear-gradient(120deg, #7dd3fc, #22d3ee); color: #041016; box-shadow: 0 14px 30px rgba(34, 211, 238, 0.25); }
+    .btn:hover { transform: translateY(-1px); box-shadow: 0 18px 34px rgba(34, 211, 238, 0.3); }
+    .btn.ghost { background: rgba(255,255,255,0.05); color: #e5e7eb; box-shadow: none; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 18px; }
+    .card { background: var(--card); border: var(--border); border-radius: var(--radius); padding: 18px 20px; box-shadow: var(--shadow); }
+    .card h3 { margin: 8px 0 6px; font-family: 'Space Grotesk', 'Inter', sans-serif; letter-spacing: -0.01em; }
+    .muted { color: var(--muted); }
+    .flow { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; margin-top: 16px; }
+    .flow-step { position: relative; padding: 16px 16px 18px; background: rgba(255,255,255,0.02); border-radius: 14px; border: 1px solid rgba(255,255,255,0.06); }
+    .flow-step strong { display: block; margin-bottom: 6px; }
+    .flow-step:after { content: '→'; position: absolute; right: -12px; top: 50%; transform: translateY(-50%); color: var(--accent); font-weight: 700; }
+    .flow-step:last-child:after { display: none; }
+    @media (max-width: 840px) { .flow-step:after { display: none; } }
+    .img-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
+    .img-card { background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); border-radius: 12px; padding: 10px; box-shadow: var(--shadow); }
+    .img-card img { width: 100%; border-radius: 10px; display: block; }
+    .list { padding-left: 18px; margin: 8px 0 0; color: var(--muted); }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <header>
+      <div class="logo">IdeasGlass</div>
+      <div class="pill">ESP32‑S3 · FastAPI · PWA</div>
+    </header>
+
+    <section class="hero">
+      <div class="hero-card">
+        <h1>Capture. Understand. Create.</h1>
+        <p class="lead">IdeasGlass turns what you see and say into living ideas. Audio and photos stream from the glasses to a FastAPI backend, where they become drafts, goals, and polished outputs — from research proposals to videos, books, code, and music.</p>
+        <div class="buttons">
+          <a class="btn" href="https://ideas.lazying.art" target="_blank" rel="noopener">Launch App</a>
+          <a class="btn ghost" href="https://github.com/lazyingart/IdeasGlass" target="_blank" rel="noopener">View on GitHub</a>
+        </div>
+        <div class="buttons" style="margin-top:10px;">
+          <a class="btn ghost" href="../IdeaGlass/firmware/ideasglass_arduino" target="_blank" rel="noopener">Firmware</a>
+          <a class="btn ghost" href="../references" target="_blank" rel="noopener">Reference Docs</a>
+        </div>
+      </div>
+      <div class="img-grid">
+        <div class="img-card"><img src="/figs/ideas.lazying.art_main.png" alt="IdeasGlass App UI" /></div>
+        <div class="img-card"><img src="/figs/ideasglass_hardware.png" alt="IdeasGlass hardware" /></div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h3>From stream to product</h3>
+      <div class="flow">
+        <div class="flow-step"><strong>Capture</strong><span class="muted">Glasses push PCM audio + photos via WebSocket (HTTP fallback) with battery + device meta.</span></div>
+        <div class="flow-step"><strong>Understand</strong><span class="muted">Backend segments, transcribes, and tags ideas (urgency, recurrence) from daily conversations.</span></div>
+        <div class="flow-step"><strong>Plan</strong><span class="muted">Ideas become Goals with steps, Prophecy Diary alignment, and timelines.</span></div>
+        <div class="flow-step"><strong>Create</strong><span class="muted">One-click generates outputs: research proposals, business plans, videos, blogs, books, code, music.</span></div>
+      </div>
+    </section>
+
+    <section class="grid" style="margin-top:18px;">
+      <div class="card">
+        <h3>Live ingest</h3>
+        <p class="muted">Low-latency WebSocket ingest for audio and photos; automatic HTTP fallback keeps sessions alive even on flaky tunnels.</p>
+        <ul class="list">
+          <li>Battery pill and device meta in UI</li>
+          <li>Compact gallery with microrefresh</li>
+          <li>Transcript playback & language detection</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>Ideas · Goal · Creation</h3>
+        <p class="muted">Tabs to rank ideas, promote to goals, and materialize into creations. Each has detail pages, edits, and seeding.</p>
+        <ul class="list">
+          <li>Ideas: importance, urgency, evidence</li>
+          <li>Goals: outcomes, progress, Prophecy Diary</li>
+          <li>Creations: sections, assets, publish links</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>Firmware fit</h3>
+        <p class="muted">ESP32‑S3 Arduino sketch with long-press sleep, optional boot-hold, Wi‑Fi latency tuning, and pooled audio/photo queues.</p>
+        <ul class="list">
+          <li>Board: XIAO_ESP32S3 (PSRAM OPI, default_8MB)</li>
+          <li>Compile: <code>bin/arduino-cli compile --fqbn "$FQBN" ...</code></li>
+          <li>Upload: <code>bin/arduino-cli upload -p /dev/ttyACM0 --fqbn "$FQBN" ...</code></li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="card" style="margin-top:18px;">
+      <h3>Get started</h3>
+      <ol class="list">
+        <li>Clone the repo; create the <code>glass</code> Conda env; <code>pip install -r backend/bridge/requirements.txt</code>.</li>
+        <li>Set Wi‑Fi in <code>wifi_credentials.h</code>; flash firmware via Arduino IDE or <code>bin/arduino-cli</code>.</li>
+        <li>Run backend: <code>uvicorn backend.bridge.app:app --host 0.0.0.0 --port 8765 --reload</code>.</li>
+        <li>Open <code>https://ideas.lazying.art</code> (or your tunnel) to monitor Live, Ideas, Goals, Creation.</li>
+      </ol>
+      <p class="muted" style="margin-top:12px;">Legacy deep-dive docs live under <code>/references</code>.</p>
+    </section>
+  </div>
+</body>
+</html>
