@@ -194,6 +194,116 @@
 
     <div id="goalView" class="view hidden">
       <main>
+        <section class="chat-panel">
+          <div class="chat-header">
+            <h2>AI Memo Chat</h2>
+            <p class="muted">Quickly jot thoughts like a DM thread; saved locally.</p>
+          </div>
+          <div id="goalChatMessages" class="chat-feed" aria-live="polite"></div>
+          <div class="chat-input-bar">
+            <input id="goalChatInput" type="text" placeholder="Type a memo…" aria-label="Memo input" />
+            <button id="goalChatSend" type="button">Send</button>
+          </div>
+        </section>
+        <section class="goals-panel hidden-goal-legacy">
+          <div class="goals-header">
+            <h2 data-i18n="goal.plural">Goals</h2>
+            <div class="goals-actions">
+              <button id="seedGoalsBtn" type="button" class="ghost-btn">Generate Samples</button>
+            </div>
+          </div>
+          <p class="goals-sub">Ranked outcomes with progress, deadlines, and status.</p>
+          <div id="goalsGrid" class="goals-grid"></div>
+        </section>
+      </main>
+    </div>
+
+    <!-- Goal detail sub-page (push-style) -->
+    <div id="goalDetailView" class="hidden">
+      <main>
+        <section class="goals-panel hidden-goal-legacy">
+          <div class="goals-header">
+            <button id="goalDetailBack" class="ghost-btn" type="button" data-i18n="btn.back_to_goals">← Back to Goals</button>
+            <h2 data-i18n="goal.singular">Goal</h2>
+            <div class="goals-actions">
+              <button id="goalDeleteBtn" type="button" class="ghost-btn">Delete</button>
+            </div>
+          </div>
+          <div class="goal-form">
+            <label class="gf-label">Outcome</label>
+            <input id="goalOutcomeInput" class="gf-input" placeholder="Outcome" />
+            <label class="gf-label">Details</label>
+            <textarea id="goalDetailsInput" class="gf-textarea" rows="4" placeholder="Details"></textarea>
+            <div class="gf-row">
+              <div class="gf-col">
+                <label class="gf-label">Priority</label>
+                <input id="goalPriorityInput" class="gf-input" placeholder="H/M/L" />
+              </div>
+              <div class="gf-col">
+                <label class="gf-label">Status</label>
+                <input id="goalStatusInput" class="gf-input" placeholder="Not started / In progress / Done" />
+              </div>
+            </div>
+            <div class="gf-row">
+              <div class="gf-col">
+                <label class="gf-label">Progress (%)</label>
+                <input id="goalProgressInput" class="gf-input" type="number" min="0" max="100" step="1" />
+              </div>
+              <div class="gf-col">
+                <label class="gf-label">Deadline</label>
+                <input id="goalDeadlineInput" class="gf-input" type="date" />
+              </div>
+            </div>
+            <button id="goalSaveBtn" type="button">Save</button>
+            <div id="goalStatus" class="status"></div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <div id="creationView" class="view hidden">
+      <main>
+        <section class="creation-panel">
+          <div class="creation-header">
+            <h2 data-i18n="creation.plural">Creation</h2>
+            <div class="creation-actions">
+              <button id="seedCreationsBtn" type="button" class="ghost-btn">Generate Samples</button>
+              <button id="createFromIdeaBtn" type="button">Create from Idea</button>
+            </div>
+          </div>
+          <p class="creation-sub">Turn ideas into outputs: research proposals, business plans, videos, books, code, music.</p>
+          <div id="creationsGrid" class="creations-grid"></div>
+        </section>
+      </main>
+    </div>
+
+    <!-- Creation detail sub-page (push-style) -->
+    <div id="creationDetailView" class="hidden">
+      <main>
+        <section class="creation-panel">
+          <div class="creation-header">
+            <button id="creationDetailBack" class="ghost-btn" type="button">← Back to Creation</button>
+            <h2 id="creationDetailTitle">Creation</h2>
+            <span></span>
+          </div>
+          <p id="creationDetailMeta" class="creation-meta"></p>
+          <div class="creation-sections">
+            <h4>Sections</h4>
+            <ul id="creationSections"></ul>
+          </div>
+          <div class="creation-assets">
+            <h4>Assets</h4>
+            <ul id="creationAssets"></ul>
+          </div>
+          <div class="creation-publish">
+            <a id="creationOutcomeLink" href="#" target="_blank" rel="noopener">Open published output</a>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <div id="settingsView" class="view hidden">
+      <main>
         <section class="goals-panel">
           <div id="prophecyPanel" class="prophecy-card">
             <div class="prophecy-left">

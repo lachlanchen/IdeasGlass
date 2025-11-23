@@ -78,6 +78,10 @@ const goalStatusInput = document.getElementById('goalStatusInput');
 const goalProgressInput = document.getElementById('goalProgressInput');
 const goalSaveBtn = document.getElementById('goalSaveBtn');
 const goalDeleteBtn = document.getElementById('goalDeleteBtn');
+const goalChatMessagesEl = document.getElementById('goalChatMessages');
+const goalChatInput = document.getElementById('goalChatInput');
+const goalChatSend = document.getElementById('goalChatSend');
+const goalChatStorageKey = "aiMemoChatMessages";
 let currentGoalId = null;
 // Prophecy/Life goal panel + detail
 const prophecyPanel = document.getElementById('prophecyPanel');
@@ -140,6 +144,63 @@ const langPrefStatus = document.getElementById('langPrefStatus');
 const bleScanBtn = document.getElementById('bleScanBtn');
 const bleStatus = document.getElementById('bleStatus');
 const bleDeviceList = document.getElementById('bleDeviceList');
+const goalChatMessagesEl = document.getElementById("goalChatMessages");
+const goalChatInput = document.getElementById("goalChatInput");
+const goalChatSend = document.getElementById("goalChatSend");
+const goalChatStorageKey = "aiMemoChatMessages";
+
+const formatChatTime = (ts) => {
+  const d = new Date(ts);
+  return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+};
+
+let goalChatMessages = [];
+
+function loadGoalChatMessages() {
+  try {
+    const stored = localStorage.getItem(goalChatStorageKey);
+    if (stored) {
+      goalChatMessages = JSON.parse(stored);
+    } else {
+      goalChatMessages = [
+        { text: "Drop quick memos here—like a DM to yourself.", ts: Date.now(), author: "AI Memo" },
+        { text: "They stay on this device and won't block your live feed.", ts: Date.now(), author: "AI Memo" },
+      ];
+      localStorage.setItem(goalChatStorageKey, JSON.stringify(goalChatMessages));
+    }
+  } catch (err) {
+    console.error("Failed to load chat messages", err);
+    goalChatMessages = [];
+  }
+}
+
+function saveGoalChatMessages() {
+  try {
+    localStorage.setItem(goalChatStorageKey, JSON.stringify(goalChatMessages));
+  } catch (err) {
+    console.error("Failed to save chat messages", err);
+  }
+}
+
+function renderGoalChat() {
+  if (!goalChatMessagesEl) return;
+  goalChatMessagesEl.innerHTML = "";
+  goalChatMessages.forEach((msg) => {
+    const bubble = document.createElement("div");
+    bubble.className = "chat-bubble";
+    bubble.innerHTML = `<div class="chat-text">${msg.text}</div><div class="chat-meta">${msg.author || "You"} · ${formatChatTime(msg.ts)}</div>`;
+    goalChatMessagesEl.appendChild(bubble);
+  });
+  goalChatMessagesEl.scrollTop = goalChatMessagesEl.scrollHeight;
+}
+
+function addGoalChatMessage(text) {
+  const trimmed = text.trim();
+  if (!trimmed) return;
+  goalChatMessages.push({ text: trimmed, ts: Date.now(), author: "You" });
+  saveGoalChatMessages();
+  renderGoalChat();
+}
 
 // ---- i18n: language detection, persistence, and application ----
 const langSelect = document.getElementById('langSelect');
@@ -2765,4 +2826,22 @@ if (bleScanBtn) {
     setBleStatus('Unavailable on this device/browser');
   }
   bleScanBtn.addEventListener('click', requestBleDevice);
+}
+
+// ---- Goal chat (AI Memo) ----
+if (goalChatMessagesEl && goalChatInput && goalChatSend) {
+  loadGoalChatMessages();
+  renderGoalChat();
+  const handleSend = () => {
+    addGoalChatMessage(goalChatInput.value || "");
+    goalChatInput.value = "";
+    goalChatInput.focus();
+  };
+  goalChatSend.addEventListener('click', handleSend);
+  goalChatInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSend();
+    }
+  });
 }
