@@ -1,4 +1,4 @@
-# Memo Backend (alias of IdeasGlass)
+# AI Memo Backend (alias of IdeasGlass)
 
 This is a thin wrapper around the main IdeasGlass FastAPI app so you can run a second instance on a different port while sharing the same database (`ideasglass_db`) and media paths.
 
