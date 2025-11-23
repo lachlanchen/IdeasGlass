@@ -1376,13 +1376,13 @@ footer {
 }
 
 /* Chat (AI Memo Goal tab) */
-.chat-panel { position: relative; background: var(--card); border: var(--border); border-radius: 16px; box-shadow: var(--shadow-soft); padding: 14px; min-height: calc(100vh - var(--header-offset, var(--header-height, 56px)) - var(--bottom-nav-height, 70px)); display:flex; flex-direction:column; }
+.chat-panel { position: relative; background: var(--card); border: var(--border); border-radius: 16px; box-shadow: var(--shadow-soft); padding: 14px; min-height: calc(100vh - var(--header-offset, var(--header-height, 56px)) - var(--bottom-nav-height, 70px)); display:flex; flex-direction:column; padding-bottom: calc(var(--bottom-nav-height, 70px) + 120px); }
 .chat-header h2 { margin: 0 0 4px; }
-.chat-feed { flex:1; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; padding: 6px 2px calc(14px + var(--bottom-nav-height, 70px)); }
+.chat-feed { flex:1; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; padding: 6px 2px calc(var(--bottom-nav-height, 70px) + 140px); }
 .chat-bubble { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 14px; padding: 10px 12px; box-shadow: var(--shadow-soft); }
 .chat-text { font-size: 14px; line-height: 1.5; }
 .chat-meta { margin-top: 6px; font-size: 12px; color: var(--muted); }
-.chat-input-bar { position: sticky; bottom: calc(var(--bottom-nav-height, 70px) + env(safe-area-inset-bottom, 0px)); left: 0; right: 0; display: flex; gap: 8px; align-items: center; background: linear-gradient(180deg, transparent 0%, rgba(15,23,42,0.7) 35%, rgba(15,23,42,0.9) 100%); padding: 10px 0 4px; margin-top: 8px; }
+.chat-input-bar { position: fixed; left: 0; right: 0; bottom: calc(var(--bottom-nav-height, 70px) + env(safe-area-inset-bottom, 0px)); display: flex; gap: 8px; align-items: center; background: linear-gradient(180deg, rgba(15,23,42,0.85), rgba(15,23,42,0.96)); padding: 10px 14px calc(10px + env(safe-area-inset-bottom, 0px)); z-index: 950; }
 .chat-input-bar input { flex: 1; padding: 12px 14px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.12); background: rgba(255,255,255,0.08); color: #e5e7eb; }
 .chat-input-bar button { padding: 12px 16px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.12); background: linear-gradient(120deg, #38bdf8, #0ea5e9); color: #041016; font-weight: 700; box-shadow: 0 10px 24px rgba(14,165,233,0.24); }
 .hidden-goal-legacy { display: none !important; }
