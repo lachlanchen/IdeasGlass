@@ -23,6 +23,8 @@ const photoModalClose = document.getElementById("photoModalClose");
 const modalImage = document.getElementById("modalImage");
 const modalMetaPrimary = document.getElementById("modalMetaPrimary");
 const modalMetaSecondary = document.getElementById("modalMetaSecondary");
+const headerTitleEl = document.querySelector('header h1');
+const headerSubtitleEl = document.querySelector('header .subtitle');
 // Tabs
 const bottomNav = document.getElementById("bottomNav");
 const tabButtons = bottomNav ? Array.from(bottomNav.querySelectorAll('.tab-btn')) : [];
@@ -1116,6 +1118,16 @@ function setActiveTab(tab) {
   try { document.body.classList.add('header-fixed'); } catch {}
   updateHeaderOffset();
   updateLoginOverlay();
+  const titleMap = { live: 'AI Memo', ideas: 'Ideas', goal: 'Chat', creation: 'Creation', settings: 'Settings' };
+  const subtitleMap = {
+    live: 'Catch ideas as they happen',
+    ideas: 'Rank and refine your ideas',
+    goal: 'DM yourself memos',
+    creation: 'Turn ideas into outputs',
+    settings: 'Preferences',
+  };
+  if (headerTitleEl) headerTitleEl.textContent = titleMap[tab] || 'AI Memo';
+  if (headerSubtitleEl) headerSubtitleEl.textContent = subtitleMap[tab] || 'Catch ideas as they happen';
   if (tab === 'ideas') {
     try { refreshIdeas(); } catch {}
   }
