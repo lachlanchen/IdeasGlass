@@ -198,9 +198,19 @@
           <div class="chat-header">
             <h2>AI Memo Chat</h2>
             <p class="muted">Quickly jot thoughts like a DM thread; saved locally.</p>
+            <label class="toggle-row" for="chatAutoReply">
+              <span class="muted">Respond</span>
+              <input type="checkbox" id="chatAutoReply" class="switch">
+              <span class="switch-handle" aria-hidden="true"></span>
+            </label>
           </div>
           <div id="goalChatMessages" class="chat-feed" aria-live="polite"></div>
           <div class="chat-input-bar">
+            <div class="chat-actions">
+              <button id="chatAttachPhoto" type="button" aria-label="Attach photo">📷</button>
+              <button id="chatAttachVoice" type="button" aria-label="Record voice">🎤</button>
+              <button id="chatAttachFile" type="button" aria-label="Upload file">📎</button>
+            </div>
             <input id="goalChatInput" type="text" placeholder="Type a memo…" aria-label="Memo input" autocomplete="off" />
             <button id="goalChatSend" type="button">Send</button>
           </div>

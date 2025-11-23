@@ -82,6 +82,10 @@ const goalChatMessagesEl = document.getElementById('goalChatMessages');
 const goalChatInput = document.getElementById('goalChatInput');
 const goalChatSend = document.getElementById('goalChatSend');
 const goalChatStorageKey = "aiMemoChatMessages";
+const chatAutoReplyToggle = document.getElementById('chatAutoReply');
+const chatAttachPhoto = document.getElementById('chatAttachPhoto');
+const chatAttachVoice = document.getElementById('chatAttachVoice');
+const chatAttachFile = document.getElementById('chatAttachFile');
 let currentGoalId = null;
 // Prophecy/Life goal panel + detail
 const prophecyPanel = document.getElementById('prophecyPanel');
@@ -2841,3 +2845,14 @@ if (goalChatMessagesEl && goalChatInput && goalChatSend) {
     }
   });
 }
+
+if (chatAutoReplyToggle) {
+  chatAutoReplyToggle.checked = false;
+}
+
+const attachLog = (kind) => () => {
+  addGoalChatMessage(`${kind} feature coming soon.`);
+};
+chatAttachPhoto?.addEventListener('click', attachLog('Photo'));
+chatAttachVoice?.addEventListener('click', attachLog('Voice'));
+chatAttachFile?.addEventListener('click', attachLog('File'));
