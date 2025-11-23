@@ -68,10 +68,32 @@ IdeasGlass is an AI-first wearable built for people who live in streams of ideas
 
 ## Ecosystem Links
 
-- `LazyingArt` — flagship studio, launches, and hardware drops.
-- `OnlyIdeas` — research guild where community sparks become funded experiments.
-- `EchoMind` — multilingual conversational layer that powers coaching and scripting.
-- `LazyingArt Coin` — unified rewards + payout rail bridging credits and on-chain value.
+🧠 **EchoMind** — Multilingual AI companion for learning and creation.  
+[chat.lazying.art](https://chat.lazying.art)
+
+🌱 **OnlyIdeas** — Research-to-product community for bold concepts.  
+[onlyideas.art](https://onlyideas.art)
+
+💸 **LazyEarn** — Automations to turn small wins into income.  
+[earn.lazying.art](https://earn.lazying.art)
+
+📚 **LazyLearn** — Physics & chemistry tracks and notebooks.  
+[learn.lazying.art](https://learn.lazying.art)
+
+🤖 **IdeasRobot** — Agent that turns ideas into drafts, tasks, and posts.  
+[robot.lazying.art](https://robot.lazying.art)
+
+👓 **IdeasGlass** — Capture, translate, and auto‑produce highlight reels.  
+[glass.lazying.art](https://glass.lazying.art)
+
+🪙 **LazyingArt Coin** — Rewards and payouts bridging contributions and on‑chain value.  
+[coin.lazying.art](https://coin.lazying.art)
+
+🧪 **IDEAS** — Notebook of research notes and essays.  
+[ideas.onlyideas.art](https://ideas.onlyideas.art)
+
+🎨 **LazyingArt** — Studio behind OnlyIdeas, EchoMind, LazyEdit, and IdeasGlass.  
+[lazying.art](https://lazying.art)
 
 ## Support & Contact
 
