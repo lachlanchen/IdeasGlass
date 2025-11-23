@@ -69,7 +69,8 @@
           <span id="langFlag" class="lang-flag" aria-hidden="true">🇺🇸</span>
           <select id="langSelect" class="lang-select" aria-label="Language">
             <option value="en">English</option>
-            <option value="zh-Hant">中文</option>
+            <option value="zh-Hant">中文（繁體）</option>
+            <option value="zh-Hans">中文 (简体)</option>
             <option value="ja">日本語</option>
             <option value="ko">한국어</option>
             <option value="vi">Tiếng Việt</option>
@@ -113,30 +114,30 @@
 
     <section class="grid" style="margin-top:18px;">
       <div class="card">
-        <h3>Live ingest</h3>
-        <p class="muted">Low-latency WebSocket ingest for audio and photos; automatic HTTP fallback keeps sessions alive even on flaky tunnels.</p>
+        <h3 data-i18n="live_title">Live ingest</h3>
+        <p class="muted" data-i18n="live_body">Low-latency WebSocket ingest for audio and photos; automatic HTTP fallback keeps sessions alive even on flaky tunnels.</p>
         <ul class="list">
-          <li>Battery pill and device meta in UI</li>
-          <li>Compact gallery with microrefresh</li>
-          <li>Transcript playback & language detection</li>
+          <li data-i18n="live_li1">Battery pill and device meta in UI</li>
+          <li data-i18n="live_li2">Compact gallery with microrefresh</li>
+          <li data-i18n="live_li3">Transcript playback &amp; language detection</li>
         </ul>
       </div>
       <div class="card">
-        <h3>Ideas · Goal · Creation</h3>
-        <p class="muted">Tabs to rank ideas, promote to goals, and materialize into creations. Each has detail pages, edits, and seeding.</p>
+        <h3 data-i18n="ideas_title">Ideas · Goal · Creation</h3>
+        <p class="muted" data-i18n="ideas_body">Tabs to rank ideas, promote to goals, and materialize into creations. Each has detail pages, edits, and seeding.</p>
         <ul class="list">
-          <li>Ideas: importance, urgency, evidence</li>
-          <li>Goals: outcomes, progress, Prophecy Diary</li>
-          <li>Creations: sections, assets, publish links</li>
+          <li data-i18n="ideas_li1">Ideas: importance, urgency, evidence</li>
+          <li data-i18n="ideas_li2">Goals: outcomes, progress, Prophecy Diary</li>
+          <li data-i18n="ideas_li3">Creations: sections, assets, publish links</li>
         </ul>
       </div>
       <div class="card">
-        <h3>Firmware fit</h3>
-        <p class="muted">ESP32‑S3 Arduino sketch with long-press sleep, optional boot-hold, Wi‑Fi latency tuning, and pooled audio/photo queues.</p>
+        <h3 data-i18n="fw_title">Firmware fit</h3>
+        <p class="muted" data-i18n="fw_body">ESP32‑S3 Arduino sketch with long-press sleep, optional boot-hold, Wi‑Fi latency tuning, and pooled audio/photo queues.</p>
         <ul class="list">
-          <li>Board: XIAO_ESP32S3 (PSRAM OPI, default_8MB)</li>
-          <li>Compile: <code>bin/arduino-cli compile --fqbn "$FQBN" ...</code></li>
-          <li>Upload: <code>bin/arduino-cli upload -p /dev/ttyACM0 --fqbn "$FQBN" ...</code></li>
+          <li data-i18n="fw_li1">Board: XIAO_ESP32S3 (PSRAM OPI, default_8MB)</li>
+          <li data-i18n="fw_li2">Compile: <code>bin/arduino-cli compile --fqbn "$FQBN" ...</code></li>
+          <li data-i18n="fw_li3">Upload: <code>bin/arduino-cli upload -p /dev/ttyACM0 --fqbn "$FQBN" ...</code></li>
         </ul>
       </div>
     </section>
