@@ -183,7 +183,7 @@ function renderGoalChat() {
   goalChatMessagesEl.innerHTML = "";
   goalChatMessages.forEach((msg) => {
     const bubble = document.createElement("div");
-    bubble.className = "chat-bubble";
+    bubble.className = "chat-bubble" + (msg.author === "You" ? " self" : "");
     bubble.innerHTML = `<div class="chat-text">${msg.text}</div><div class="chat-meta">${msg.author || "You"} · ${formatChatTime(msg.ts)}</div>`;
     goalChatMessagesEl.appendChild(bubble);
   });
