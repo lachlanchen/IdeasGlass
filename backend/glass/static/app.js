@@ -674,7 +674,7 @@ const AUDIO_LOG_SUPPRESS = true;
 function logWave(event, details = {}) {
   if (AUDIO_LOG_SUPPRESS) return;
   // eslint-disable-next-line no-console
-  console.log(`[IdeasGlass][wave] ${event}`, details);
+  console.log(`[AI Memo][wave] ${event}`, details);
 }
 
 function updateBatteryStatus(pct, volt) {
@@ -838,7 +838,7 @@ function buildEntryElement(entry) {
   card.className = "gallery-card";
   const img = document.createElement("img");
   img.src = entry.photo_url;
-  img.alt = entry.message || "IdeasGlass photo";
+  img.alt = entry.message || "AI Memo photo";
   img.loading = "lazy";
   card.appendChild(img);
   const badge = document.createElement("div");
@@ -2518,7 +2518,7 @@ async function refreshIdeas() {
     ideasGrid.innerHTML = '';
     if (!Array.isArray(items) || items.length === 0) {
       const empty = document.createElement('p');
-      empty.textContent = 'No ideas yet. Generate samples or keep talking—IdeasGlass will surface ideas here.';
+      empty.textContent = 'No ideas yet. Generate samples or keep talking—AI Memo will surface ideas here.';
       ideasGrid.appendChild(empty);
       return;
     }
