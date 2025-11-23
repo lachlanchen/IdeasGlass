@@ -1,0 +1,1 @@
+"mcuboot":"/Users/lachlanchen/Local/LMCognition/firmware/zephyr-workspace/bootloader/mcuboot":"/Users/lachlanchen/Local/LMCognition/firmware/zephyr-workspace/bootloader/mcuboot/boot/zephyr/sysbuild"

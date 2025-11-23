@@ -1,0 +1,485 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 60;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		3B1A55F02C0D0F9B00A1AE12 /* LightMindApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B1A55E02C0D0F9B00A1AE12 /* LightMindApp.swift */; };
+		3B1A55F12C0D0F9B00A1AE12 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B1A55E12C0D0F9B00A1AE12 /* ContentView.swift */; };
+		3B1A55F22C0D0F9B00A1AE12 /* BLEManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B1A55E22C0D0F9B00A1AE12 /* BLEManager.swift */; };
+		3B1A55F32C0D0F9B00A1AE12 /* BluetoothProfile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B1A55E32C0D0F9B00A1AE12 /* BluetoothProfile.swift */; };
+		3B1A55F42C0D0F9B00A1AE12 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 3B1A55E42C0D0F9B00A1AE12 /* Assets.xcassets */; };
+		3B1A55F52C0D0F9B00A1AE12 /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 3B1A55E52C0D0F9B00A1AE12 /* Preview Assets.xcassets */; };
+		3B1A55F62C0D0F9B00A1AE12 /* AudioStreamManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B1A55E92C0D0F9B00A1AE12 /* AudioStreamManager.swift */; };
+		3B1A55F82C0D0F9B00A1AE12 /* AudioRecorder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B1A55EB2C0D0F9B00A1AE12 /* AudioRecorder.swift */; };
+		3B1A56022C0D0F9B00A1AE12 /* SegmentDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B1A56012C0D0F9B00A1AE12 /* SegmentDetailView.swift */; };
+		3B1A56042C0D0F9B00A1AE12 /* WaveformView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B1A56032C0D0F9B00A1AE12 /* WaveformView.swift */; };
+		3B1A56052C0D0F9B00A1AE12 /* AudioWAVExporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B1A56062C0D0F9B00A1AE12 /* AudioWAVExporter.swift */; };
+		3B1A560A2C0D0F9B00A1AE12 /* OpusDecodeBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B1A560B2C0D0F9B00A1AE12 /* OpusDecodeBridge.swift */; };
+		3B1A56172C0D0F9B00A1AE12 /* ConnectionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B1A56162C0D0F9B00A1AE12 /* ConnectionView.swift */; };
+		3B1A56A42C0D1AAA00A1AE12 /* FirmwareUpdateView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B1A56A32C0D1AAA00A1AE12 /* FirmwareUpdateView.swift */; };
+		AAE100000000000000000002 /* Persistence/Paths.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAE100000000000000000001 /* Persistence/Paths.swift */; };
+		AAE100000000000000000004 /* Persistence/Hashing.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAE100000000000000000003 /* Persistence/Hashing.swift */; };
+		AAE100000000000000000006 /* Persistence/Database.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAE100000000000000000005 /* Persistence/Database.swift */; };
+		AAE100000000000000000008 /* Persistence/Repositories.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAE100000000000000000007 /* Persistence/Repositories.swift */; };
+		AAE100000000000000000009 /* RecordingsListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAE10000000000000000000A /* RecordingsListView.swift */; };
+		AAE10000000000000000000B /* RootTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAE10000000000000000000C /* RootTabView.swift */; };
+		D048C6722EC97C290065F46D /* Copus in Frameworks */ = {isa = PBXBuildFile; productRef = D048C6712EC97C290065F46D /* Copus */; };
+		D048C6742EC97C290065F46D /* Opus in Frameworks */ = {isa = PBXBuildFile; productRef = D048C6732EC97C290065F46D /* Opus */; };
+		D048C6772EC97C880065F46D /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = D048C6762EC97C880065F46D /* GRDB */; };
+		D048C67C2EC97CB90065F46D /* NordicDFU in Frameworks */ = {isa = PBXBuildFile; productRef = D048C67B2EC97CB90065F46D /* NordicDFU */; };
+		D048C67F2EC97CE00065F46D /* ZIPFoundation in Frameworks */ = {isa = PBXBuildFile; productRef = D048C67E2EC97CE00065F46D /* ZIPFoundation */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		3B1A55E02C0D0F9B00A1AE12 /* LightMindApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LightMindApp.swift; sourceTree = "<group>"; };
+		3B1A55E12C0D0F9B00A1AE12 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		3B1A55E22C0D0F9B00A1AE12 /* BLEManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BLEManager.swift; sourceTree = "<group>"; };
+		3B1A55E32C0D0F9B00A1AE12 /* BluetoothProfile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BluetoothProfile.swift; sourceTree = "<group>"; };
+		3B1A55E42C0D0F9B00A1AE12 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		3B1A55E52C0D0F9B00A1AE12 /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
+		3B1A55E62C0D0F9B00A1AE12 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		3B1A55E72C0D0F9B00A1AE12 /* LightMind.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = LightMind.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		3B1A55E92C0D0F9B00A1AE12 /* AudioStreamManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioStreamManager.swift; sourceTree = "<group>"; };
+		3B1A55EB2C0D0F9B00A1AE12 /* AudioRecorder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioRecorder.swift; sourceTree = "<group>"; };
+		3B1A56012C0D0F9B00A1AE12 /* SegmentDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SegmentDetailView.swift; sourceTree = "<group>"; };
+		3B1A56032C0D0F9B00A1AE12 /* WaveformView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WaveformView.swift; sourceTree = "<group>"; };
+		3B1A56062C0D0F9B00A1AE12 /* AudioWAVExporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioWAVExporter.swift; sourceTree = "<group>"; };
+		3B1A560B2C0D0F9B00A1AE12 /* OpusDecodeBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpusDecodeBridge.swift; sourceTree = "<group>"; };
+		3B1A56162C0D0F9B00A1AE12 /* ConnectionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectionView.swift; sourceTree = "<group>"; };
+		3B1A56A32C0D1AAA00A1AE12 /* FirmwareUpdateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FirmwareUpdateView.swift; sourceTree = "<group>"; };
+		AAE100000000000000000001 /* Persistence/Paths.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Persistence/Paths.swift; sourceTree = "<group>"; };
+		AAE100000000000000000003 /* Persistence/Hashing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Persistence/Hashing.swift; sourceTree = "<group>"; };
+		AAE100000000000000000005 /* Persistence/Database.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Persistence/Database.swift; sourceTree = "<group>"; };
+		AAE100000000000000000007 /* Persistence/Repositories.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Persistence/Repositories.swift; sourceTree = "<group>"; };
+		AAE10000000000000000000A /* RecordingsListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingsListView.swift; sourceTree = "<group>"; };
+		AAE10000000000000000000C /* RootTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootTabView.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		3B1A55D52C0D0F9B00A1AE12 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				D048C6772EC97C880065F46D /* GRDB in Frameworks */,
+				D048C67C2EC97CB90065F46D /* NordicDFU in Frameworks */,
+				D048C6722EC97C290065F46D /* Copus in Frameworks */,
+				D048C6742EC97C290065F46D /* Opus in Frameworks */,
+				D048C67F2EC97CE00065F46D /* ZIPFoundation in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		3B1A55D22C0D0F9B00A1AE12 = {
+			isa = PBXGroup;
+			children = (
+				3B1A55E82C0D0F9B00A1AE12 /* LightMindApp */,
+				3B1A55D32C0D0F9B00A1AE12 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		3B1A55D32C0D0F9B00A1AE12 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				3B1A55E72C0D0F9B00A1AE12 /* LightMind.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		3B1A55E82C0D0F9B00A1AE12 /* LightMindApp */ = {
+			isa = PBXGroup;
+			children = (
+				3B1A55E02C0D0F9B00A1AE12 /* LightMindApp.swift */,
+				3B1A55E12C0D0F9B00A1AE12 /* ContentView.swift */,
+				3B1A55E22C0D0F9B00A1AE12 /* BLEManager.swift */,
+				3B1A55E92C0D0F9B00A1AE12 /* AudioStreamManager.swift */,
+				3B1A55EB2C0D0F9B00A1AE12 /* AudioRecorder.swift */,
+				3B1A55E32C0D0F9B00A1AE12 /* BluetoothProfile.swift */,
+				3B1A56032C0D0F9B00A1AE12 /* WaveformView.swift */,
+				3B1A56012C0D0F9B00A1AE12 /* SegmentDetailView.swift */,
+				AAE10000000000000000000A /* RecordingsListView.swift */,
+				AAE10000000000000000000C /* RootTabView.swift */,
+				3B1A56062C0D0F9B00A1AE12 /* AudioWAVExporter.swift */,
+				3B1A560B2C0D0F9B00A1AE12 /* OpusDecodeBridge.swift */,
+				3B1A56162C0D0F9B00A1AE12 /* ConnectionView.swift */,
+				3B1A56A32C0D1AAA00A1AE12 /* FirmwareUpdateView.swift */,
+				AAE100000000000000000005 /* Persistence/Database.swift */,
+				AAE100000000000000000001 /* Persistence/Paths.swift */,
+				AAE100000000000000000003 /* Persistence/Hashing.swift */,
+				AAE100000000000000000007 /* Persistence/Repositories.swift */,
+				3B1A55E42C0D0F9B00A1AE12 /* Assets.xcassets */,
+				3B1A55EA2C0D0F9B00A1AE12 /* Preview Content */,
+				3B1A55E62C0D0F9B00A1AE12 /* Info.plist */,
+			);
+			path = LightMindApp;
+			sourceTree = "<group>";
+		};
+		3B1A55EA2C0D0F9B00A1AE12 /* Preview Content */ = {
+			isa = PBXGroup;
+			children = (
+				3B1A55E52C0D0F9B00A1AE12 /* Preview Assets.xcassets */,
+			);
+			path = "Preview Content";
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		3B1A55D12C0D0F9B00A1AE12 /* LightMind */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 3B1A55DA2C0D0F9B00A1AE12 /* Build configuration list for PBXNativeTarget "LightMind" */;
+			buildPhases = (
+				3B1A55D42C0D0F9B00A1AE12 /* Sources */,
+				3B1A55D52C0D0F9B00A1AE12 /* Frameworks */,
+				3B1A55D62C0D0F9B00A1AE12 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = LightMind;
+			packageProductDependencies = (
+				D048C6712EC97C290065F46D /* Copus */,
+				D048C6732EC97C290065F46D /* Opus */,
+				D048C6762EC97C880065F46D /* GRDB */,
+				D048C67B2EC97CB90065F46D /* NordicDFU */,
+				D048C67E2EC97CE00065F46D /* ZIPFoundation */,
+			);
+			productName = LightMind;
+			productReference = 3B1A55E72C0D0F9B00A1AE12 /* LightMind.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		3B1A55D02C0D0F9B00A1AE12 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 1500;
+				LastUpgradeCheck = 1500;
+				TargetAttributes = {
+					3B1A55D12C0D0F9B00A1AE12 = {
+						CreatedOnToolsVersion = 15.0;
+					};
+				};
+			};
+			buildConfigurationList = 3B1A55D92C0D0F9B00A1AE12 /* Build configuration list for PBXProject "LightMind" */;
+			compatibilityVersion = "Xcode 15.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = 3B1A55D22C0D0F9B00A1AE12;
+			packageReferences = (
+				D048C6702EC97C290065F46D /* XCRemoteSwiftPackageReference "swift-opus" */,
+				D048C6752EC97C880065F46D /* XCRemoteSwiftPackageReference "GRDB" */,
+				D048C67A2EC97CB90065F46D /* XCRemoteSwiftPackageReference "IOS-DFU-Library" */,
+				D048C67D2EC97CE00065F46D /* XCRemoteSwiftPackageReference "ZIPFoundation" */,
+			);
+			productRefGroup = 3B1A55D32C0D0F9B00A1AE12 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				3B1A55D12C0D0F9B00A1AE12 /* LightMind */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		3B1A55D62C0D0F9B00A1AE12 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				3B1A55F52C0D0F9B00A1AE12 /* Preview Assets.xcassets in Resources */,
+				3B1A55F42C0D0F9B00A1AE12 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		3B1A55D42C0D0F9B00A1AE12 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				3B1A55F82C0D0F9B00A1AE12 /* AudioRecorder.swift in Sources */,
+				3B1A55F62C0D0F9B00A1AE12 /* AudioStreamManager.swift in Sources */,
+				3B1A55F22C0D0F9B00A1AE12 /* BLEManager.swift in Sources */,
+				3B1A55F32C0D0F9B00A1AE12 /* BluetoothProfile.swift in Sources */,
+				3B1A55F12C0D0F9B00A1AE12 /* ContentView.swift in Sources */,
+				3B1A55F02C0D0F9B00A1AE12 /* LightMindApp.swift in Sources */,
+				3B1A56022C0D0F9B00A1AE12 /* SegmentDetailView.swift in Sources */,
+				AAE100000000000000000009 /* RecordingsListView.swift in Sources */,
+				AAE10000000000000000000B /* RootTabView.swift in Sources */,
+				3B1A56042C0D0F9B00A1AE12 /* WaveformView.swift in Sources */,
+				3B1A56052C0D0F9B00A1AE12 /* AudioWAVExporter.swift in Sources */,
+				3B1A560A2C0D0F9B00A1AE12 /* OpusDecodeBridge.swift in Sources */,
+				3B1A56172C0D0F9B00A1AE12 /* ConnectionView.swift in Sources */,
+				3B1A56A42C0D1AAA00A1AE12 /* FirmwareUpdateView.swift in Sources */,
+				AAE100000000000000000002 /* Persistence/Paths.swift in Sources */,
+				AAE100000000000000000004 /* Persistence/Hashing.swift in Sources */,
+				AAE100000000000000000006 /* Persistence/Database.swift in Sources */,
+				AAE100000000000000000008 /* Persistence/Repositories.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		3B1A55D72C0D0F9B00A1AE12 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CODE_SIGN_STYLE = Automatic;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		3B1A55D82C0D0F9B00A1AE12 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CODE_SIGN_STYLE = Automatic;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		3B1A55DB2C0D0F9B00A1AE12 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = NO;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 6B5WT8WDU2;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = LightMindApp/Info.plist;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.lmcognition.LightMind;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		3B1A55DC2C0D0F9B00A1AE12 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = NO;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 6B5WT8WDU2;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = LightMindApp/Info.plist;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.lmcognition.LightMind;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		3B1A55D92C0D0F9B00A1AE12 /* Build configuration list for PBXProject "LightMind" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				3B1A55D72C0D0F9B00A1AE12 /* Debug */,
+				3B1A55D82C0D0F9B00A1AE12 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		3B1A55DA2C0D0F9B00A1AE12 /* Build configuration list for PBXNativeTarget "LightMind" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				3B1A55DB2C0D0F9B00A1AE12 /* Debug */,
+				3B1A55DC2C0D0F9B00A1AE12 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		D048C6702EC97C290065F46D /* XCRemoteSwiftPackageReference "swift-opus" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/alta/swift-opus.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.0.2;
+			};
+		};
+		D048C6752EC97C880065F46D /* XCRemoteSwiftPackageReference "GRDB" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/groue/GRDB.swift";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 6.0.0;
+			};
+		};
+		D048C67A2EC97CB90065F46D /* XCRemoteSwiftPackageReference "IOS-DFU-Library" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/NordicSemiconductor/IOS-DFU-Library";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 4.16.0;
+			};
+		};
+		D048C67D2EC97CE00065F46D /* XCRemoteSwiftPackageReference "ZIPFoundation" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/weichsel/ZIPFoundation";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.9.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		D048C6712EC97C290065F46D /* Copus */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = D048C6702EC97C290065F46D /* XCRemoteSwiftPackageReference "swift-opus" */;
+			productName = Copus;
+		};
+		D048C6732EC97C290065F46D /* Opus */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = D048C6702EC97C290065F46D /* XCRemoteSwiftPackageReference "swift-opus" */;
+			productName = Opus;
+		};
+		D048C6762EC97C880065F46D /* GRDB */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = D048C6752EC97C880065F46D /* XCRemoteSwiftPackageReference "GRDB" */;
+			productName = GRDB;
+		};
+		D048C67B2EC97CB90065F46D /* NordicDFU */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = D048C67A2EC97CB90065F46D /* XCRemoteSwiftPackageReference "IOS-DFU-Library" */;
+			productName = NordicDFU;
+		};
+		D048C67E2EC97CE00065F46D /* ZIPFoundation */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = D048C67D2EC97CE00065F46D /* XCRemoteSwiftPackageReference "ZIPFoundation" */;
+			productName = ZIPFoundation;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = 3B1A55D02C0D0F9B00A1AE12 /* Project object */;
+}
