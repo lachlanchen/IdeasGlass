@@ -144,10 +144,6 @@ const langPrefStatus = document.getElementById('langPrefStatus');
 const bleScanBtn = document.getElementById('bleScanBtn');
 const bleStatus = document.getElementById('bleStatus');
 const bleDeviceList = document.getElementById('bleDeviceList');
-const goalChatMessagesEl = document.getElementById("goalChatMessages");
-const goalChatInput = document.getElementById("goalChatInput");
-const goalChatSend = document.getElementById("goalChatSend");
-const goalChatStorageKey = "aiMemoChatMessages";
 
 const formatChatTime = (ts) => {
   const d = new Date(ts);
@@ -2769,7 +2765,7 @@ async function requestBleDevice() {
     const UART_UUID = '6e400001-b5a3-f393-e0a9-e50e24dcca9e';
     const CMD_UUID  = '6e400002-b5a3-f393-e0a9-e50e24dcca9e';
     const TLM_UUID  = '6e400003-b5a3-f393-e0a9-e50e24dcca9e';
-    const filters = [{ namePrefix: 'IdeasGlass' }];
+    const filters = [{ namePrefix: 'AI Memo' }];
     let device = null;
     try {
       device = await navigator.bluetooth.requestDevice({ filters, optionalServices: [UART_UUID, 0x180A] });
