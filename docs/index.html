@@ -93,7 +93,7 @@
         <div class="buttons" style="margin-top:10px;">
           <a class="btn ghost" href="../IdeaGlass/firmware/ideasglass_arduino" target="_blank" rel="noopener" data-i18n="btn_firmware">Firmware</a>
           <a class="btn ghost" href="../references" target="_blank" rel="noopener" data-i18n="btn_docs">Reference Docs</a>
-          <a class="btn ghost" href="https://coin.lazying.art" target="_blank" rel="noopener" title="将 LAC 添加到 MetaMask — 导入 LazyingArtCoin 代币，在 MetaMask 中查看余额和转账记录。">添加到 MetaMask</a>
+          <a class="btn ghost" href="https://coin.lazying.art" target="_blank" rel="noopener" data-i18n="btn_metamask" title="将 LAC 添加到 MetaMask — 导入 LazyingArtCoin 代币，在 MetaMask 中查看余额和转账记录。">添加到 MetaMask</a>
         </div>
       </div>
       <div class="img-grid">
@@ -254,10 +254,15 @@
           ecos_body: 'Quick links to sibling sites that IdeasGlass pairs with.'
         },
         'zh-Hans': {
-          document_title: 'IdeasGlass | 315248 4673340c34354f402c5b',
-          pill_text: 'ESP321981663 f FastAPI f PWA',
-          hero_title: '3152484673340c 34354f402c5b',
-          hero_lead: '4b732d 0c732f310c73'
+          document_title: 'IdeasGlass | 捕捉 · 理解 · 创造',
+          pill_text: 'ESP32‑S3 · FastAPI · PWA',
+          hero_title: '捕捉 · 理解 · 创造',
+          hero_lead: 'IdeasGlass 将你看到和说出的内容变成“活的想法”。眼镜把音频和照片实时传到 FastAPI 后端，在那里变成草稿、目标和作品——从研究计划到视频、书籍、代码和音乐。',
+          btn_launch: '打开应用',
+          btn_repo: '查看 GitHub',
+          btn_firmware: '固件',
+          btn_docs: '参考文档',
+          btn_metamask: '添加到 MetaMask'
         }
       };
 
@@ -286,7 +291,8 @@
         const langs = navigator.languages || [navigator.language || 'en'];
         for (const raw of langs) {
           const l = (raw || '').toLowerCase();
-          if (l.startsWith('zh-tw') || l.startsWith('zh-hk') || l.startsWith('zh-mo') || l.startsWith('zh')) return 'zh-Hant';
+          if (l.startsWith('zh-tw') || l.startsWith('zh-hk') || l.startsWith('zh-mo')) return 'zh-Hant';
+          if (l.startsWith('zh')) return 'zh-Hans';
           if (l.startsWith('ja')) return 'ja';
           if (l.startsWith('ko')) return 'ko';
           if (l.startsWith('vi')) return 'vi';
