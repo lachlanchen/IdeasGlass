@@ -145,7 +145,7 @@ Prereqs
 - Optional: PostgreSQL (for persistent photos/segments/transcripts)
 
 Install dependencies
-- `cd backend/bridge && python -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt`
+- `cd backend/glass && python -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt`
 
 Configure environment (safe examples)
 - If you use Postgres, set `DATABASE_URL` in your shell (or a local `.env` that you do NOT commit):
@@ -157,11 +157,11 @@ Run the backend (two options)
 - Direct with uvicorn:
   - ``
     IDEASGLASS_WHISPER_MODEL=base IDEASGLASS_WHISPER_DEVICE=cuda \
-    uvicorn backend.bridge.app:app --host 0.0.0.0 --port 8765 --proxy-headers --forwarded-allow-ips="*" --reload
+    uvicorn backend.glass.app:app --host 0.0.0.0 --port 8765 --proxy-headers --forwarded-allow-ips="*" --reload
     ``
 - Via helper with argparse:
   - ``
-    python backend/bridge/serve.py --whisper-model base --whisper-device cuda --reload
+    python backend/glass/serve.py --whisper-model base --whisper-device cuda --reload
     ``
 
 Open the dashboard
@@ -188,13 +188,13 @@ Choose a Whisper model
 
 Prefetch models (optional)
 - ``
-  python backend/bridge/tools/prefetch_whisper_models.py --models tiny,base,small,medium,large-v3 --device cuda --fp16 1
+  python backend/glass/tools/prefetch_whisper_models.py --models tiny,base,small,medium,large-v3 --device cuda --fp16 1
   ``
 
 Login & bind your device
 - Register or login from Settings in the dashboard.
 - Bind your device ID in the “Bind device” field. Only your bound devices will stream to your account.
-- To generate a device ID + QR: `python backend/bridge/tools/generate_device_id.py --out logs/device-id.png`
+- To generate a device ID + QR: `python backend/glass/tools/generate_device_id.py --out logs/device-id.png`
 
 ## Developer Docs
 
@@ -204,7 +204,7 @@ Login & bind your device
 - [Bridge & Arduino HTTPS Client](docs/ideasglass_bridge.md)
 
 Quick device binding
-- Generate ID (in conda "glass"): `python backend/bridge/tools/generate_device_id.py`
+- Generate ID (in conda "glass"): `python backend/glass/tools/generate_device_id.py`
 - Set it in firmware: `IdeaGlass/firmware/ideasglass_arduino/IdeasGlassClient/IdeasGlassClient.ino` (`kDeviceId`)
 - Run backend and open `http://localhost:8765`, register/login, then bind the device ID in the Account panel
 

@@ -1,16 +1,16 @@
 # Repository Guidelines
 
 ## Project Structure & Module Organization
-- `backend/bridge/` — FastAPI app (`app.py`), static dashboard assets, audio-processing scripts, and requirements. Audio segments land under `audio_segments/`.
+- `backend/glass/` — FastAPI app (`app.py`), static dashboard assets, audio-processing scripts, and requirements. Audio segments land under `audio_segments/`.
 - `IdeaGlass/firmware/ideasglass_arduino/` — ESP32 firmware streaming PCM chunks to the backend.
 - `docs/` — Technical write-ups (`ideasglass_bridge.md`) describing deployment details.
-- Root-level `README.md` plus supporting directories (`app/`, `private/`, etc.) hold ancillary experiments; focus your contributions on `backend/bridge/` unless otherwise requested.
+- Root-level `README.md` plus supporting directories (`app/`, `private/`, etc.) hold ancillary experiments; focus your contributions on `backend/glass/` unless otherwise requested.
 
 ## Build, Test, and Development Commands
-- **Install deps:** `cd backend/bridge && python -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt`.
-- **Run backend:** `uvicorn backend.bridge.app:app --host 0.0.0.0 --port 8765 --reload`.
+- **Install deps:** `cd backend/glass && python -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt`.
+- **Run backend:** `uvicorn backend.glass.app:app --host 0.0.0.0 --port 8765 --reload`.
 - **Firmware build:** open the Arduino sketch in `IdeaGlass/.../IdeasGlassClient.ino` and flash with PSRAM enabled.
-- **Static checks:** `python -m compileall backend/bridge/app.py` is used to confirm syntax before committing.
+- **Static checks:** `python -m compileall backend/glass/app.py` is used to confirm syntax before committing.
 
 ## Coding Style & Naming Conventions
 - Python code uses 4-space indentation, type hints, and descriptive helper names (`whisper_stream_manager`, `flush_idle_segments`). Follow FastAPI conventions for route handlers and schemas (Pydantic models in PascalCase).

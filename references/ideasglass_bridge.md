@@ -7,7 +7,7 @@ description: End-to-end setup for the FastAPI backend, PWA, , and Arduino HTTPS 
 
 This guide documents the exact steps we used to relay Arduino data (text + photos) to a public HTTPS endpoint (`https://localhost:8765`), persist it in Postgres, and display it in a light-themed PWA installable on Android/iOS/Desktop. The stack consists of:
 
-- `backend/bridge` — FastAPI + WebSocket server with a PWA front-end
+- `backend/glass` — FastAPI + WebSocket server with a PWA front-end
 - `ngrok` — exposes the local server over `localhost:8765`
 - `IdeaGlass/firmware/ideasglass_arduino/IdeasGlassClient/` — ESP32 sketch that posts JSON payloads over TLS
 
@@ -19,7 +19,7 @@ This guide documents the exact steps we used to relay Arduino data (text + photo
    ```
 2. **Install requirements (already done but harmless to repeat):**
    ```bash
-   pip install -r backend/bridge/requirements.txt
+   pip install -r backend/glass/requirements.txt
    ```
 3. **Export your Postgres connection (runs migrations automatically):**
    ```bash
@@ -27,7 +27,7 @@ This guide documents the exact steps we used to relay Arduino data (text + photo
    ```
 4. **Launch uvicorn on an unused port (8765 chosen to avoid collisions):**
    ```bash
-   uvicorn backend.bridge.app:app \
+   uvicorn backend.glass.app:app \
      --host 0.0.0.0 \
      --port 8765 \
      --proxy-headers \
@@ -72,8 +72,8 @@ The firmware now keeps a persistent TLS WebSocket open to the bridge so audio ca
   - When a segment is sealed we apply a second-stage gain (`IDEASGLASS_SEGMENT_GAIN_TARGET`, defaults to the per-chunk target) before emitting the WAV so every clip lands at a consistent loudness.
   - A background openai-whisper worker performs rolling transcription every few seconds (default 3 s) so you see live text appear beneath the waveform. Tweak `IDEASGLASS_WHISPER_MODEL`, `IDEASGLASS_WHISPER_DEVICE`, `IDEASGLASS_TRANSCRIBE`, and `IDEASGLASS_TRANSCRIPT_INTERVAL_MS` to suit your hardware. Final transcripts are cached and replayed via `history_audio_transcripts`.
   - `/healthz` reports `segment_target_ms`, and every chunk broadcast includes `segment_duration_ms` + `active_segment_id`, letting the UI show exact recorder progress.
-  - PCM buffers stream straight to `backend/bridge/audio_segments/in_progress/` during capture, then promote to `audio_segments/<segment>.wav` (with the Postgres row pointing at the file).
-  - Photo uploads hit `/api/v1/messages`; when Postgres is unavailable, the backend writes the decoded image to `backend/bridge/static/photos/` and serves it at `/static/photos/<photo-id>.jpg`, so the dashboard continues to display images without a database.
+  - PCM buffers stream straight to `backend/glass/audio_segments/in_progress/` during capture, then promote to `audio_segments/<segment>.wav` (with the Postgres row pointing at the file).
+  - Photo uploads hit `/api/v1/messages`; when Postgres is unavailable, the backend writes the decoded image to `backend/glass/static/photos/` and serves it at `/static/photos/<photo-id>.jpg`, so the dashboard continues to display images without a database.
 - **PWA**
   - The waveform still uses 72 neon bars with the speaking glow, but the timer now shows `Recording X.X s / 15.0 s` with a progress bar that fills as the backend reports `segment_duration_ms`.
   - The “Last chunk” label includes RMS plus the current segment’s elapsed time; the list of recordings updates immediately because clips finalize as soon as they cross the target duration (no more waiting for silence).
@@ -191,7 +191,7 @@ Relevant files:
 
 1) Backend
 
-- `uvicorn backend.bridge.app:app --host 0.0.0.0 --port 8765 --proxy-headers --forwarded-allow-ips="*"`
+- `uvicorn backend.glass.app:app --host 0.0.0.0 --port 8765 --proxy-headers --forwarded-allow-ips="*"`
 - `curl http://localhost:8765/healthz` returns 200.
 - Logs show `/ws/stream` and, when device connects, `/ws/audio-ingest`.
 

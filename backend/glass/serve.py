@@ -29,7 +29,7 @@ def main() -> int:
     os.environ["IDEASGLASS_WHISPER_FP16"] = "1" if int(args.whisper_fp16) == 1 else "0"
 
     uvicorn.run(
-        "backend.bridge.app:app",
+        "backend.glass.app:app",
         host=args.host,
         port=args.port,
         reload=args.reload,

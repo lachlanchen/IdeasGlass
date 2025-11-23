@@ -69,8 +69,8 @@ Use the built‑in logger to capture firmware logs with timestamps and tags:
 
 ```bash
 pip install pyserial
-python backend/bridge/tools/serial_logger.py --list
-python backend/bridge/tools/serial_logger.py --port /dev/ttyACM0 --baud 115200 --out logs/ideasglass-serial
+python backend/glass/tools/serial_logger.py --list
+python backend/glass/tools/serial_logger.py --port /dev/ttyACM0 --baud 115200 --out logs/ideasglass-serial
 ```
 
 - Output files: `logs/ideasglass-serial/*.log` (text), `*.jsonl` (structured).
@@ -83,7 +83,7 @@ python backend/bridge/tools/serial_logger.py --port /dev/ttyACM0 --baud 115200 -
 Quick 3‑minute capture (non‑interactive):
 
 ```bash
-timeout 185s python backend/bridge/tools/serial_logger.py --port /dev/ttyACM0 --baud 115200 --out logs/ideasglass-serial || true
+timeout 185s python backend/glass/tools/serial_logger.py --port /dev/ttyACM0 --baud 115200 --out logs/ideasglass-serial || true
 ```
 
 ## 5) Backend DB correlation (optional)
@@ -143,7 +143,7 @@ export PATH="$PWD/bin:$PATH" && \
 FQBN=esp32:esp32:XIAO_ESP32S3:PSRAM=opi,USBMode=hwcdc,CDCOnBoot=default,UploadSpeed=921600 && \
 arduino-cli compile --fqbn "$FQBN" "IdeaGlass/firmware/ideasglass_arduino/IdeasGlassClient" && \
 arduino-cli upload -p /dev/ttyACM0 --fqbn "$FQBN" "IdeaGlass/firmware/ideasglass_arduino/IdeasGlassClient" && \
-timeout 185s python backend/bridge/tools/serial_logger.py --port /dev/ttyACM0 --baud 115200 --out logs/ideasglass-serial || true
+timeout 185s python backend/glass/tools/serial_logger.py --port /dev/ttyACM0 --baud 115200 --out logs/ideasglass-serial || true
 ```
 
 ## 8) Troubleshooting

@@ -11,21 +11,21 @@ Minimal HTTPS backend + PWA dashboard for receiving Arduino telemetry and printi
 - Background audio segmentation: chunks stream to disk immediately, and deterministic ~15 s WAV files (default overlap 2 s) are emitted continuously with per-clip gain (`ig_audio_segments`)
 - Streaming openai-whisper transcripts broadcast every few seconds (defaults 3 s/6 s/15 s) so the waveform shows “typing” updates while recording; backend VAD skips pure-silence windows, and final updates arrive when the 15 s segment seals. Final transcripts are persisted in Postgres (`ig_audio_transcripts`) and exposed via `GET /api/v1/audio/segments/{segment_id}/transcript` for the dashboard popup.
 - PWA front-end installable on Android/iOS/Desktop with a polished neon waveform, live SILENCE/SPEAKING badge, lazy-loading feed, a recorder progress bar, and a “Recent recordings” panel with download links
-- Optional Postgres persistence (`DATABASE_URL`) for metadata (`ig_messages`), photos (`ig_photos`), audio chunks (`ig_audio_chunks`), and WAV segments (`ig_audio_segments`). Without Postgres, uploaded photos are written to `backend/bridge/static/photos/` and served directly.
+- Optional Postgres persistence (`DATABASE_URL`) for metadata (`ig_messages`), photos (`ig_photos`), audio chunks (`ig_audio_chunks`), and WAV segments (`ig_audio_segments`). Without Postgres, uploaded photos are written to `backend/glass/static/photos/` and served directly.
 - Automatic cuDNN path detection so CUDA-based Whisper streaming works even when cuDNN is installed via pip
 
 ## Quickstart
 
 1. **Install dependencies**
    ```bash
-   cd backend/bridge
+   cd backend/glass
    python -m venv .venv && source .venv/bin/activate
    pip install -r requirements.txt
    ```
 2. **Run the server**
    ```bash
    export DATABASE_URL="postgresql://lachlan@localhost/ideasglass_db"
-   uvicorn backend.bridge.app:app \
+   uvicorn backend.glass.app:app \
      --host 0.0.0.0 \
      --port 8765 \
      --proxy-headers \
@@ -80,7 +80,7 @@ Each device streams with a fixed `device_id`. Bind a device to a user account to
 1. Generate a device ID (optional QR)
    ```bash
    # in conda "glass" env
-   python backend/bridge/tools/generate_device_id.py --out logs/device-id.png
+   python backend/glass/tools/generate_device_id.py --out logs/device-id.png
    # output example: ideasglass-abc123def456
    ```
 2. Flash the ID into firmware
@@ -120,7 +120,7 @@ curl -X POST http://localhost:8765/api/v1/devices/rename \
 ## Folder structure
 
 ```
-backend/bridge/
+backend/glass/
 ├── app.py                # FastAPI app + websocket broadcaster
 ├── requirements.txt
 ├── README.md
@@ -135,6 +135,6 @@ backend/bridge/
 
 Happy building!
 - **Audio gain controls** – the backend normalizes each chunk toward `IDEASGLASS_GAIN_TARGET` (default `0.032` RMS) but clamps amplification to `IDEASGLASS_GAIN_MAX` (`1.8`). Silence below `IDEASGLASS_GAIN_MIN_RMS` (`0.008`) stays untouched. Speech detection now requires `IDEASGLASS_SPEECH_RMS` (`0.03`) and will only fall back to RMS when the WebRTC VAD can’t run, using the margin `IDEASGLASS_SPEECH_MARGIN` (`0.005`). Tune these env vars if you need louder or quieter recordings.
-- **Streaming segments** – partial PCM is appended to `backend/bridge/audio_segments/in_progress/` as chunks arrive. Completed segments are promoted to `.wav` files under `backend/bridge/audio_segments/` and exposed via `/api/v1/audio/segments`.
+- **Streaming segments** – partial PCM is appended to `backend/glass/audio_segments/in_progress/` as chunks arrive. Completed segments are promoted to `.wav` files under `backend/glass/audio_segments/` and exposed via `/api/v1/audio/segments`.
 - **Segment windows** – clip length/overlap/final gain are controlled via `IDEASGLASS_SEGMENT_TARGET_MS` (default 15000 ms), `IDEASGLASS_SEGMENT_OVERLAP_MS` (default 2000 ms), and `IDEASGLASS_SEGMENT_GAIN_TARGET` (defaults to the chunk gain target). `/healthz` reports the active target so the recorder progress bar in the PWA stays aligned with the backend.
 - **Transcription** – set `IDEASGLASS_TRANSCRIBE=1` (default) with `openai-whisper` installed. Tweak `IDEASGLASS_WHISPER_MODEL`, `IDEASGLASS_WHISPER_DEVICE`, `IDEASGLASS_TRANSCRIPT_INTERVAL_MS`, and `IDEASGLASS_TRANSCRIPT_THRESHOLDS_MS` (comma-separated millisecond values, default `3000,6000,15000`) to control latency; disable via `IDEASGLASS_TRANSCRIBE=0` if GPU resources are tight.

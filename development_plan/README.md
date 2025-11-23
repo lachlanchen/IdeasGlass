@@ -3,8 +3,8 @@ IdeasGlass Development Plan — Current App Snapshot (Nov 2025)
 This document summarizes what is implemented in the current app and how it aligns with the planning folders under development_plan/.
 
 Scope overview
-- Backend: FastAPI app in backend/bridge/app.py with REST + WebSocket, Postgres persistence, and static PWA.
-- Frontend: Single‑page PWA (backend/bridge/static) with tabs: Live, Ideas, Goal, Creation, Settings.
+- Backend: FastAPI app in backend/glass/app.py with REST + WebSocket, Postgres persistence, and static PWA.
+- Frontend: Single‑page PWA (backend/glass/static) with tabs: Live, Ideas, Goal, Creation, Settings.
 - Firmware: ESP32‑S3 client (IdeaGlass/firmware) streaming audio/photos, documented separately.
 
 Implemented features (high‑level)

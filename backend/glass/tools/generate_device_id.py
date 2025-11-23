@@ -4,9 +4,9 @@ Generate a stable device ID and an optional QR code PNG.
 
 Usage:
   source ~/miniconda3/bin/activate glass
-  python backend/bridge/tools/generate_device_id.py                # prints ID
-  python backend/bridge/tools/generate_device_id.py --out device.png
-  python backend/bridge/tools/generate_device_id.py --id my-device-123 --out my.png
+  python backend/glass/tools/generate_device_id.py                # prints ID
+  python backend/glass/tools/generate_device_id.py --out device.png
+  python backend/glass/tools/generate_device_id.py --id my-device-123 --out my.png
 
 The QR encodes the literal device ID string.
 """
