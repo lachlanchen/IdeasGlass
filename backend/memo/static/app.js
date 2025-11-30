@@ -92,6 +92,7 @@ const memoSuggestUrl = "/api/v1/memo/suggest";
 const memoCandidatesUrl = "/api/v1/memo/candidates";
 const memoSavedUrl = "/api/v1/memo/saved";
 const memoConfirmUrl = "/api/v1/memo/confirm";
+const memoDiscardUrl = "/api/v1/memo/discard";
 let currentGoalId = null;
 // Prophecy/Life goal panel + detail
 const prophecyPanel = document.getElementById('prophecyPanel');
@@ -230,7 +231,7 @@ function renderMemoCandidates() {
     const card = document.createElement("div");
     card.className = "memo-card";
     const disableConfirm = !m.id;
-    card.innerHTML = `<h4>${(m.type || '').toUpperCase()}</h4><div class="memo-meta">Urgency ${m.urgency} · Importance ${m.importance}</div><p class="memo-content">${m.content}</p><div class="memo-actions"><button data-idx="${idx}" class="memo-confirm solid" ${disableConfirm ? 'disabled' : ''}>Confirm</button></div>`;
+    card.innerHTML = `<h4>${(m.type || '').toUpperCase()}</h4><div class="memo-meta">Urgency ${m.urgency} · Importance ${m.importance}</div><p class="memo-content">${m.content}</p><div class="memo-actions"><button data-idx="${idx}" class="memo-confirm solid" ${disableConfirm ? 'disabled' : ''}>Confirm</button><button data-idx="${idx}" class="memo-discard">Discard</button></div>`;
     memoCandidatesEl.appendChild(card);
   });
   memoCandidatesEl.querySelectorAll(".memo-confirm").forEach((btn) => {
@@ -238,6 +239,17 @@ function renderMemoCandidates() {
       const i = parseInt(btn.getAttribute("data-idx"), 10);
       if (memoCandidates[i] && memoCandidates[i].id) {
         confirmMemo(memoCandidates[i].id);
+      }
+    });
+  });
+  memoCandidatesEl.querySelectorAll(".memo-discard").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const i = parseInt(btn.getAttribute("data-idx"), 10);
+      if (memoCandidates[i] && memoCandidates[i].id) {
+        discardMemo(memoCandidates[i].id);
+      } else {
+        memoCandidates.splice(i, 1);
+        renderMemoCandidates();
       }
     });
   });
@@ -275,7 +287,13 @@ async function loadMemoLists() {
       fetch(memoCandidatesUrl).then(r => r.ok ? r.json() : []),
       fetch(memoSavedUrl).then(r => r.ok ? r.json() : []),
     ]);
-    memoCandidates = cand || [];
+    const uniq = new Set();
+    memoCandidates = (cand || []).filter((m) => {
+      const key = (m.content || "").trim().toLowerCase();
+      if (!key || uniq.has(key)) return false;
+      uniq.add(key);
+      return true;
+    });
     memoSaved = saved || [];
     memoCandidates.forEach((m) => { if (m.content) seenMemoTexts.add(m.content); });
     renderMemoCandidates();
@@ -299,6 +317,21 @@ async function confirmMemo(id) {
     renderMemoSaved();
   } catch (e) {
     console.warn("Confirm memo failed", e);
+  }
+}
+
+async function discardMemo(id) {
+  try {
+    const res = await fetch(memoDiscardUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id }),
+    });
+    if (!res.ok) return;
+    memoCandidates = await res.json();
+    renderMemoCandidates();
+  } catch (e) {
+    console.warn("Discard memo failed", e);
   }
 }
 

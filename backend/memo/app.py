@@ -251,13 +251,13 @@ class AuthOut(BaseModel):
 
 
 class MemoItem(BaseModel):
+    id: Optional[str] = None
     type: str
     datetime: Optional[str] = None
     urgency: Optional[str] = None
     importance: Optional[str] = None
     content: str
-    id: Optional[str] = None
-    status: Optional[int] = None  # 0=candidate,1=saved
+    status: Optional[int] = None  # 0=candidate,1=saved,2=discarded
     created_at: Optional[str] = None
 
 
@@ -2199,6 +2199,22 @@ async def confirm_memo(payload: MemoConfirmIn, request: Request):
                 uid,
             )
     return await list_memo_saved(request)
+
+
+@app.post("/api/v1/memo/discard", response_model=List[MemoItem])
+async def discard_memo(payload: MemoConfirmIn, request: Request):
+    """Discard a candidate memo (status -> 2) and return remaining candidates."""
+    uid = await _current_user_id(request)
+    if not uid:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    if db_pool:
+        async with db_pool.acquire() as conn:
+            await conn.execute(
+                "UPDATE ig_memos SET status=2 WHERE id=$1 AND user_id=$2",
+                payload.id,
+                uid,
+            )
+    return await list_memo_candidates(request)
 
 
 @app.post("/api/v1/devices/bind")
