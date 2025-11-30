@@ -89,6 +89,9 @@ const chatAttachPhoto = document.getElementById('chatAttachPhoto');
 const chatAttachVoice = document.getElementById('chatAttachVoice');
 const chatAttachFile = document.getElementById('chatAttachFile');
 const memoSuggestUrl = "/api/v1/memo/suggest";
+const memoCandidatesUrl = "/api/v1/memo/candidates";
+const memoSavedUrl = "/api/v1/memo/saved";
+const memoConfirmUrl = "/api/v1/memo/confirm";
 let currentGoalId = null;
 // Prophecy/Life goal panel + detail
 const prophecyPanel = document.getElementById('prophecyPanel');
@@ -238,7 +241,7 @@ function renderMemoCandidates() {
   memoCandidates.forEach((m, idx) => {
     const card = document.createElement("div");
     card.className = "memo-card";
-    card.innerHTML = `<h4>${m.type.toUpperCase()}</h4><div class="memo-meta">Urgency ${m.urgency} · Importance ${m.importance}</div><p class="memo-content">${m.content}</p><div class="memo-actions"><button data-idx="${idx}" class="memo-confirm">Confirm</button></div>`;
+    card.innerHTML = `<h4>${m.type.toUpperCase()}</h4><div class="memo-meta">Urgency ${m.urgency} · Importance ${m.importance}</div><p class="memo-content">${m.content}</p><div class="memo-actions"><button data-idx="${idx}" class="memo-confirm solid">Confirm</button></div>`;
     memoCandidatesEl.appendChild(card);
   });
   memoCandidatesEl.querySelectorAll(".memo-confirm").forEach((btn) => {
@@ -286,6 +289,39 @@ function addCandidateFromMessage(msgText) {
   };
   console.log("[AI Memo] Candidates JSON (new)", payload);
   renderMemoCandidates();
+}
+
+async function loadMemoLists() {
+  try {
+    const [cand, saved] = await Promise.all([
+      fetch(memoCandidatesUrl).then(r => r.ok ? r.json() : []),
+      fetch(memoSavedUrl).then(r => r.ok ? r.json() : []),
+    ]);
+    memoCandidates = cand || [];
+    memoSaved = saved || [];
+    memoCandidates.forEach((m) => { if (m.content) seenMemoTexts.add(m.content); });
+    renderMemoCandidates();
+    renderMemoSaved();
+  } catch (e) {
+    console.warn("Failed to load memo lists", e);
+  }
+}
+
+async function confirmMemo(id) {
+  try {
+    const res = await fetch(memoConfirmUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id }),
+    });
+    if (!res.ok) return;
+    memoSaved = await res.json();
+    memoCandidates = memoCandidates.filter((m) => m.id !== id);
+    renderMemoCandidates();
+    renderMemoSaved();
+  } catch (e) {
+    console.warn("Confirm memo failed", e);
+  }
 }
 
 // ---- i18n: language detection, persistence, and application ----

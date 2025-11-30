@@ -1411,5 +1411,6 @@ footer {
 .memo-card .memo-meta { font-size:12px; color:#6b7280; display:flex; gap:10px; flex-wrap:wrap; }
 .memo-card .memo-content { margin:0; color:#1f2937; white-space:pre-wrap; }
 .memo-card .memo-actions { display:flex; gap:8px; margin-top:6px; }
-.memo-card button { padding:8px 10px; border-radius:10px; border:1px solid rgba(15,23,42,0.12); background:#f8fafc; }
+.memo-card button { padding:8px 10px; border-radius:10px; border:1px solid rgba(15,23,42,0.12); background:#f8fafc; color:#0f172a; }
+.memo-card button.solid { background: linear-gradient(120deg, #38bdf8, #10b981); border-color: rgba(16,185,129,0.4); color:#0f172a; box-shadow: 0 8px 18px rgba(16,185,129,0.18); }
 .hidden-goal-legacy { display: none !important; }

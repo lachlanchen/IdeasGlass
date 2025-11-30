@@ -256,6 +256,9 @@ class MemoItem(BaseModel):
     urgency: Optional[str] = None
     importance: Optional[str] = None
     content: str
+    id: Optional[str] = None
+    status: Optional[int] = None  # 0=candidate,1=saved
+    created_at: Optional[str] = None
 
 
 class MemoSuggestIn(BaseModel):
@@ -1042,6 +1045,24 @@ async def init_db() -> None:
             );
             """
         )
+        await conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS ig_memos (
+                id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                memo_type TEXT NOT NULL,
+                datetime TEXT,
+                urgency TEXT,
+                importance TEXT,
+                content TEXT NOT NULL,
+                status SMALLINT NOT NULL DEFAULT 0, -- 0=candidate,1=saved
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            );
+            """
+        )
+        await conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_ig_memos_user_status ON ig_memos(user_id, status, created_at DESC)"
+        )
 
 
 @app.on_event("startup")
@@ -1151,7 +1172,56 @@ async def suggest_memo(body: MemoSuggestIn, request: Request) -> MemoSuggestOut:
         except Exception as e2:
             errors.append(str(e2))
             raise HTTPException(status_code=500, detail="LLM memo generation failed; " + "; ".join(errors))
-    return MemoSuggestOut(if_response=body.if_response, response="", memo=items)
+    # persist candidates
+    if db_pool:
+        async with db_pool.acquire() as conn:
+            for m in items:
+                content = (m.content or "").strip()
+                if not content:
+                    continue
+                exists = await conn.fetchval(
+                    "SELECT 1 FROM ig_memos WHERE user_id=$1 AND status=0 AND content=$2 LIMIT 1",
+                    uid,
+                    content,
+                )
+                if exists:
+                    continue
+                mid = str(uuid.uuid4())
+                await conn.execute(
+                    """
+                    INSERT INTO ig_memos(id, user_id, memo_type, datetime, urgency, importance, content, status)
+                    VALUES($1,$2,$3,$4,$5,$6,$7,0)
+                    """,
+                    mid,
+                    uid,
+                    m.type or "idea",
+                    m.datetime,
+                    m.urgency or "medium",
+                    m.importance or "medium",
+                    content,
+                )
+    # fetch latest candidates
+    db_items: List[MemoItem] = []
+    if db_pool:
+        async with db_pool.acquire() as conn:
+            rows = await conn.fetch(
+                "SELECT id, memo_type, datetime, urgency, importance, content, status, created_at FROM ig_memos WHERE user_id=$1 AND status=0 ORDER BY created_at DESC LIMIT 50",
+                uid,
+            )
+            for r in rows:
+                db_items.append(
+                    MemoItem(
+                        id=r["id"],
+                        type=r["memo_type"],
+                        datetime=r["datetime"],
+                        urgency=r["urgency"],
+                        importance=r["importance"],
+                        content=r["content"],
+                        status=r["status"],
+                        created_at=r["created_at"].isoformat() if r["created_at"] else None,
+                    )
+                )
+    return MemoSuggestOut(if_response=body.if_response, response="", memo=db_items or items)
 
 
 @app.post("/api/v1/auth/logout")
@@ -2054,6 +2124,81 @@ async def list_devices(request: Request):
         raise HTTPException(status_code=401, detail="Unauthorized")
     devices = await _bound_devices(uid)
     return {"devices": devices}
+
+
+@app.get("/api/v1/memo/candidates", response_model=List[MemoItem])
+async def list_memo_candidates(request: Request):
+    uid = await _current_user_id(request)
+    if not uid:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    out: List[MemoItem] = []
+    if db_pool:
+        async with db_pool.acquire() as conn:
+            rows = await conn.fetch(
+                "SELECT id, memo_type, datetime, urgency, importance, content, status, created_at FROM ig_memos WHERE user_id=$1 AND status=0 ORDER BY created_at DESC LIMIT 100",
+                uid,
+            )
+            for r in rows:
+                out.append(
+                    MemoItem(
+                        id=r["id"],
+                        type=r["memo_type"],
+                        datetime=r["datetime"],
+                        urgency=r["urgency"],
+                        importance=r["importance"],
+                        content=r["content"],
+                        status=r["status"],
+                        created_at=r["created_at"].isoformat() if r["created_at"] else None,
+                    )
+                )
+    return out
+
+
+@app.get("/api/v1/memo/saved", response_model=List[MemoItem])
+async def list_memo_saved(request: Request):
+    uid = await _current_user_id(request)
+    if not uid:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    out: List[MemoItem] = []
+    if db_pool:
+        async with db_pool.acquire() as conn:
+            rows = await conn.fetch(
+                "SELECT id, memo_type, datetime, urgency, importance, content, status, created_at FROM ig_memos WHERE user_id=$1 AND status=1 ORDER BY created_at DESC LIMIT 100",
+                uid,
+            )
+            for r in rows:
+                out.append(
+                    MemoItem(
+                        id=r["id"],
+                        type=r["memo_type"],
+                        datetime=r["datetime"],
+                        urgency=r["urgency"],
+                        importance=r["importance"],
+                        content=r["content"],
+                        status=r["status"],
+                        created_at=r["created_at"].isoformat() if r["created_at"] else None,
+                    )
+                )
+    return out
+
+
+class MemoConfirmIn(BaseModel):
+    id: str
+
+
+@app.post("/api/v1/memo/confirm", response_model=List[MemoItem])
+async def confirm_memo(payload: MemoConfirmIn, request: Request):
+    uid = await _current_user_id(request)
+    if not uid:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    if db_pool:
+        async with db_pool.acquire() as conn:
+            await conn.execute(
+                "UPDATE ig_memos SET status=1 WHERE id=$1 AND user_id=$2",
+                payload.id,
+                uid,
+            )
+    return await list_memo_saved(request)
 
 
 @app.post("/api/v1/devices/bind")
