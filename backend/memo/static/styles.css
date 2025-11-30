@@ -1414,6 +1414,14 @@ footer {
 .memo-card .memo-actions { display:flex; gap:8px; margin-top:6px; }
 .memo-card button { padding:8px 10px; border-radius:10px; border:1px solid rgba(15,23,42,0.12); background:#f8fafc; color:#0f172a; }
 .memo-card button.solid { background: linear-gradient(120deg, #38bdf8, #10b981); border-color: rgba(16,185,129,0.4); color:#0f172a; box-shadow: 0 8px 18px rgba(16,185,129,0.18); }
+.memo-saved-panel { background:#f8fafc; }
+.memo-saved-grids { display:grid; grid-template-columns:repeat(auto-fit, minmax(240px,1fr)); gap:12px; }
+.memo-saved-column { background:#fff; border:1px solid rgba(15,23,42,0.06); border-radius:14px; padding:12px; box-shadow:0 14px 30px rgba(15,23,42,0.05); }
+.memo-saved-column h3 { margin:0 0 8px; font-size:15px; }
+.memo-saved-plan { border-top:4px solid #38bdf8; }
+.memo-saved-agenda { border-top:4px solid #f97316; }
+.memo-saved-task { border-top:4px solid #22c55e; }
+.memo-saved-idea { border-top:4px solid #a855f7; }
 .memo-detail-panel { background:#fff; border:1px solid rgba(15,23,42,0.08); border-radius:16px; padding:16px; box-shadow:0 18px 40px rgba(15,23,42,0.08); margin-top:10px; }
 .memo-edit-form { display:flex; flex-direction:column; gap:12px; }
 .memo-edit-form label { display:flex; flex-direction:column; gap:6px; font-weight:600; color:#0f172a; }

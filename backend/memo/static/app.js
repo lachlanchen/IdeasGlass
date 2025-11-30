@@ -170,7 +170,10 @@ const bleScanBtn = document.getElementById('bleScanBtn');
 const bleStatus = document.getElementById('bleStatus');
 const bleDeviceList = document.getElementById('bleDeviceList');
 const memoCandidatesEl = document.getElementById('memoCandidates');
-const memoSavedEl = document.getElementById('memoSaved');
+const memoSavedPlansEl = document.getElementById('memoSavedPlans');
+const memoSavedAgendaEl = document.getElementById('memoSavedAgenda');
+const memoSavedTasksEl = document.getElementById('memoSavedTasks');
+const memoSavedIdeasEl = document.getElementById('memoSavedIdeas');
 
 const formatChatTime = (ts) => {
   const d = new Date(ts);
@@ -333,19 +336,31 @@ function renderMemoCandidates() {
 }
 
 function renderMemoSaved() {
-  if (!memoSavedEl) return;
-  memoSavedEl.innerHTML = "";
+  if (!memoSavedPlansEl || !memoSavedAgendaEl || !memoSavedTasksEl || !memoSavedIdeasEl) return;
+  memoSavedPlansEl.innerHTML = "";
+  memoSavedAgendaEl.innerHTML = "";
+  memoSavedTasksEl.innerHTML = "";
+  memoSavedIdeasEl.innerHTML = "";
+  const targetMap = {
+    plan: memoSavedPlansEl,
+    agenda: memoSavedAgendaEl,
+    task: memoSavedTasksEl,
+    idea: memoSavedIdeasEl,
+  };
   memoSaved.forEach((m) => {
     const card = document.createElement("div");
     card.className = "memo-card";
     card.innerHTML = `<h4>${m.type.toUpperCase()}</h4><div class="memo-meta">${m.datetime || "Anytime"} · Urgency ${m.urgency} · Importance ${m.importance}</div><p class="memo-content">${m.content}</p><div class="memo-actions"><button data-id="${m.id}" class="memo-edit">Edit</button></div>`;
-    memoSavedEl.appendChild(card);
+    const bucket = targetMap[(m.type || "").toLowerCase()] || memoSavedTasksEl;
+    bucket.appendChild(card);
   });
-  memoSavedEl.querySelectorAll(".memo-edit").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const id = btn.getAttribute("data-id");
-      const mem = memoSaved.find((x) => x.id === id);
-      if (mem) openMemoDetail(mem);
+  [memoSavedPlansEl, memoSavedAgendaEl, memoSavedTasksEl, memoSavedIdeasEl].forEach((bucket) => {
+    bucket.querySelectorAll(".memo-edit").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const id = btn.getAttribute("data-id");
+        const mem = memoSaved.find((x) => x.id === id);
+        if (mem) openMemoDetail(mem);
+      });
     });
   });
 }
