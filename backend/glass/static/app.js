@@ -1128,6 +1128,11 @@ function setActiveTab(tab) {
   };
   if (headerTitleEl) headerTitleEl.textContent = titleMap[tab] || 'AI Memo';
   if (headerSubtitleEl) headerSubtitleEl.textContent = subtitleMap[tab] || 'Catch ideas as they happen';
+  const showBattery = tab === 'live';
+  const showToggle = tab === 'goal';
+  if (batteryStatusEl) batteryStatusEl.style.display = showBattery ? 'inline-flex' : 'none';
+  const headerToggle = document.querySelector('.header-toggle');
+  if (headerToggle) headerToggle.style.display = showToggle ? 'inline-flex' : 'none';
   if (tab === 'ideas') {
     try { refreshIdeas(); } catch {}
   }

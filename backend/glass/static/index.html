@@ -17,6 +17,11 @@
       </div>
       <div class="header-actions">
         <span id="batteryStatus" class="battery-pill" title="Battery">🔋 --%</span>
+        <label class="toggle-row header-toggle" for="chatAutoReply">
+          <span class="muted">Respond</span>
+          <input type="checkbox" id="chatAutoReply" class="switch">
+          <span class="switch-handle" aria-hidden="true"></span>
+        </label>
         <select id="langSelect" class="lang-select" aria-label="Language">
           <option value="en">English</option>
           <option value="zh-Hant">繁體中文</option>
@@ -195,14 +200,9 @@
     <div id="goalView" class="view hidden">
       <main>
         <section class="chat-panel">
-          <div class="chat-header">
+          <div class="chat-header" hidden>
             <h2>AI Memo Chat</h2>
             <p class="muted">Quickly jot thoughts like a DM thread; saved locally.</p>
-            <label class="toggle-row" for="chatAutoReply">
-              <span class="muted">Respond</span>
-              <input type="checkbox" id="chatAutoReply" class="switch">
-              <span class="switch-handle" aria-hidden="true"></span>
-            </label>
           </div>
           <div id="goalChatMessages" class="chat-feed" aria-live="polite"></div>
           <div class="chat-input-bar">
