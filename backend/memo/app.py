@@ -1,8 +1,3436 @@
-"""
-AI Memo backend entrypoint: thin alias to the IdeasGlass FastAPI app.
+#from
+from __future__ import annotations
 
-Runs the same application (shared database, media paths, and static assets) but
-lets you bind it on a different port/host for parallel access.
-"""
+import asyncio
+from concurrent.futures import ThreadPoolExecutor
+import base64
+import json
+import os
+import uuid
+from array import array
+from collections import deque
+from dataclasses import dataclass, field
+from datetime import datetime, timezone, timedelta
+from io import BytesIO
+from pathlib import Path
+import site
+import ctypes
+from typing import Any, Coroutine, Dict, List, Optional, Tuple
+import wave
+import math
+import numpy as np
 
-from backend.glass.app import app  # re-export
+import asyncpg
+from fastapi import (
+    FastAPI,
+    HTTPException,
+    WebSocket,
+    WebSocketDisconnect,
+    Request,
+)
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse, Response
+from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel, Field, ValidationError, EmailStr
+import webrtcvad
+def _inject_cudnn_library_path() -> None:
+    if os.name != "posix":
+        return
+    search_roots: List[str] = []
+    try:
+        search_roots.extend(site.getsitepackages())
+    except Exception:
+        pass
+    try:
+        user_site = site.getusersitepackages()
+        if user_site:
+            search_roots.append(user_site)
+    except Exception:
+        pass
+    if not search_roots:
+        return
+    candidate_paths: List[str] = []
+    for root in search_roots:
+        cudnn_dir = Path(root) / "nvidia" / "cudnn" / "lib"
+        if cudnn_dir.exists() and cudnn_dir.is_dir():
+            candidate_paths.append(str(cudnn_dir))
+    if not candidate_paths:
+        return
+    existing = os.environ.get("LD_LIBRARY_PATH", "")
+    updated_parts: List[str] = []
+    for path in candidate_paths:
+        if path and path not in existing:
+            updated_parts.append(path)
+    if not updated_parts:
+        return
+    if existing:
+        updated_parts.append(existing)
+    os.environ["LD_LIBRARY_PATH"] = ":".join(updated_parts)
+    # Proactively load cuDNN libs so the dynamic linker sees them even if LD_LIBRARY_PATH was read earlier.
+    for base_path in candidate_paths:
+        libdir = Path(base_path)
+        for lib_name in (
+            "libcudnn.so.9",
+            "libcudnn_adv.so.9",
+            "libcudnn_ops.so.9",
+            "libcudnn_cnn.so.9",
+            "libcudnn_graph.so.9",
+            "libcudnn_heuristic.so.9",
+            "libcudnn_engines_precompiled.so.9",
+            "libcudnn_engines_runtime_compiled.so.9",
+        ):
+            lib_path = libdir / lib_name
+            if not lib_path.exists():
+                continue
+            try:
+                ctypes.CDLL(str(lib_path))
+            except OSError as exc:
+                print(f"[Transcription] Warning: failed to preload {lib_path}: {exc}")
+
+
+_inject_cudnn_library_path()
+
+try:
+    import torch
+except Exception:  # pragma: no cover - optional dependency
+    torch = None
+
+try:
+    import whisper  # type: ignore
+except Exception:  # pragma: no cover - optional dependency
+    whisper = None
+
+BASE_DIR = Path(__file__).parent
+STATIC_DIR = BASE_DIR / "static"
+AUDIO_SEGMENTS_DIR = BASE_DIR / "audio_segments"
+AUDIO_SEGMENTS_WORK_DIR = AUDIO_SEGMENTS_DIR / "in_progress"
+AUDIO_SEGMENT_URL_PREFIX = "/api/v1/audio/segments"
+PHOTO_STORAGE_DIR = STATIC_DIR / "photos"
+PHOTO_STORAGE_URL_PREFIX = "/static/photos"
+FALLBACK_RMS_THRESHOLD = float(os.getenv("IDEASGLASS_VAD_FALLBACK", "0.02"))
+SEGMENT_TARGET_MS = int(os.getenv("IDEASGLASS_SEGMENT_TARGET_MS", "15000"))
+SEGMENT_MAX_MS = int(os.getenv("IDEASGLASS_SEGMENT_MAX_MS", "18000"))
+MIN_SEGMENT_MS = int(os.getenv("IDEASGLASS_SEGMENT_MIN_MS", "5000"))
+SILENCE_HANGOVER_MS = int(os.getenv("IDEASGLASS_VAD_HANGOVER_MS", "1200"))
+SILENCE_FORCE_FLUSH_MS = int(os.getenv("IDEASGLASS_VAD_FORCE_MS", "5000"))
+SEGMENT_IDLE_FLUSH_MS = int(os.getenv("IDEASGLASS_SEGMENT_IDLE_FLUSH_MS", "5000"))
+VAD_FRAME_MS = 30
+VAD_AGGRESSIVENESS = int(os.getenv("IDEASGLASS_VAD_LEVEL", "2"))
+AUDIO_GAIN_TARGET_RMS = float(os.getenv("IDEASGLASS_GAIN_TARGET", "0.032"))
+AUDIO_GAIN_MAX = float(os.getenv("IDEASGLASS_GAIN_MAX", "1.8"))
+AUDIO_GAIN_MIN_RMS = float(os.getenv("IDEASGLASS_GAIN_MIN_RMS", "0.008"))
+SPEECH_RMS_THRESHOLD = float(os.getenv("IDEASGLASS_SPEECH_RMS", "0.03"))
+AUDIO_GAIN_FALSE_POSITIVE_MARGIN = float(os.getenv("IDEASGLASS_SPEECH_MARGIN", "0.005"))
+TRANSCRIPTION_ENABLED = os.getenv("IDEASGLASS_TRANSCRIBE", "1").lower() not in {"0", "false"}
+WHISPER_DEVICE_DEFAULT = "cuda" if torch and torch.cuda.is_available() else "cpu"
+WHISPER_DEVICE = os.getenv("IDEASGLASS_WHISPER_DEVICE", WHISPER_DEVICE_DEFAULT)
+WHISPER_MODEL_NAME = os.getenv("IDEASGLASS_WHISPER_MODEL", "base")
+WHISPER_FP16 = os.getenv("IDEASGLASS_WHISPER_FP16", "1").lower() not in {"0", "false"}
+WHISPER_STREAM_INTERVAL_MS = int(os.getenv("IDEASGLASS_TRANSCRIPT_INTERVAL_MS", "3000"))
+WHISPER_STREAM_THRESHOLDS = os.getenv("IDEASGLASS_TRANSCRIPT_THRESHOLDS_MS", "3000,6000,15000")
+if TRANSCRIPTION_ENABLED and not whisper:
+    TRANSCRIPTION_ENABLED = False
+    print("[Transcription] openai-whisper not available; disabling automatic transcription.")
+SEGMENT_GAIN_TARGET_RMS = float(
+    os.getenv("IDEASGLASS_SEGMENT_GAIN_TARGET", str(AUDIO_GAIN_TARGET_RMS))
+)
+
+# App-level preferences (runtime defaults)
+SUPPORTED_LANGS = ["en", "zh-Hans", "zh-Hant", "ja"]
+MAIN_LANGUAGE: str = os.getenv("IDEASGLASS_MAIN_LANGUAGE", "en")
+SYNC_UI_LANG: bool = os.getenv("IDEASGLASS_SYNC_UI_LANG", "1").lower() not in {"0", "false", "no"}
+
+
+def _parse_thresholds(raw: str) -> List[int]:
+    values: List[int] = []
+    for part in raw.split(","):
+        part = part.strip()
+        if not part:
+            continue
+        try:
+            ms = int(part)
+        except ValueError:
+            continue
+        if ms <= 0:
+            continue
+        values.append(ms)
+    if not values:
+        values = [WHISPER_STREAM_INTERVAL_MS, SEGMENT_TARGET_MS]
+    values = sorted(set(values))
+    if values[-1] < SEGMENT_TARGET_MS:
+        values.append(SEGMENT_TARGET_MS)
+    return values
+
+
+WHISPER_THRESHOLD_VALUES = _parse_thresholds(WHISPER_STREAM_THRESHOLDS)
+
+
+class MessageIn(BaseModel):
+    device_id: str = Field(min_length=1, max_length=128)
+    message: str = Field(min_length=1, max_length=4096)
+    meta: Dict[str, str] | None = None
+    photo_base64: Optional[str] = Field(default=None, description="JPEG payload encoded as Base64")
+    photo_mime: Optional[str] = Field(default="image/jpeg")
+
+
+class MessageOut(BaseModel):
+    id: str
+    device_id: str
+    message: str
+    meta: Dict[str, str] | None
+    received_at: str
+    photo_url: Optional[str] = None
+
+
+class AudioChunkIn(BaseModel):
+    device_id: str = Field(min_length=1, max_length=128)
+    sample_rate: int = Field(default=16000, ge=8000, le=48000)
+    bits_per_sample: int = Field(default=16, ge=8, le=32)
+    duration_ms: int = Field(default=250, ge=10, le=10000)
+    rms: float = Field(ge=0.0)
+    audio_base64: str = Field(min_length=1)
+    mime: str = Field(default="audio/pcm")
+
+
+class AudioChunkOut(BaseModel):
+    id: str
+    device_id: str
+    sample_rate: int
+    bits_per_sample: int
+    duration_ms: int
+    rms: float
+    created_at: str
+    audio_url: Optional[str] = None
+    speech_detected: bool = False
+    segment_duration_ms: Optional[int] = None
+    active_segment_id: Optional[str] = None
+
+
+class AudioSegmentOut(BaseModel):
+    id: str
+    device_id: str
+    sample_rate: int
+    bits_per_sample: int
+    duration_ms: int
+    rms: float
+    started_at: str
+    ended_at: str
+    file_path: Optional[str] = None
+    file_url: Optional[str] = None
+
+
+class TranscriptChunk(BaseModel):
+    speaker: str
+    text: str
+    start: float
+    end: float
+
+
+class AudioTranscriptOut(BaseModel):
+    segment_id: str
+    device_id: str
+    started_at: str
+    ended_at: str
+    chunks: List[TranscriptChunk]
+    is_final: bool = False
+    language: Optional[str] = None
+
+
+class RegisterIn(BaseModel):
+    email: EmailStr
+    password: str = Field(min_length=8, max_length=128)
+
+
+class AuthOut(BaseModel):
+    user_id: str
+    email: str
+
+
+class LoginIn(BaseModel):
+    email: EmailStr
+    password: str
+
+
+class DeviceBindIn(BaseModel):
+    device_id: str
+
+
+class MeOut(BaseModel):
+    user_id: str
+    email: str
+    devices: List[str]
+
+
+class SettingsOut(BaseModel):
+    segment_target_ms: int
+    main_language: Optional[str] = None
+    sync_ui_lang: bool = False
+
+
+class SettingsIn(BaseModel):
+    segment_target_ms: Optional[int] = Field(default=None, ge=MIN_SEGMENT_MS, le=SEGMENT_MAX_MS)
+    main_language: Optional[str] = None
+    sync_ui_lang: Optional[bool] = None
+
+
+# ---- Ideas models ----
+class IdeaOut(BaseModel):
+    id: str
+    title: str
+    summary: Optional[str] = None
+    language: Optional[str] = None
+    tags: Optional[List[str]] = None
+    occurrence_count: int = 0
+    urgency: float = 0.0
+    recency_score: float = 0.0
+    importance_score: float = 0.0
+    evidence_count: int = 0
+    latest_occurrence_at: Optional[str] = None
+    created_at: str
+    updated_at: str
+    status: int = 0
+
+
+class IdeaSeedIn(BaseModel):
+    overwrite: bool = False
+
+
+class IdeaUpdateIn(BaseModel):
+    title: Optional[str] = None
+    summary: Optional[str] = None
+    language: Optional[str] = None
+    tags: Optional[List[str]] = None
+    status: Optional[int] = Field(default=None, ge=0, le=2)  # 0 active, 1 archived, 2 deleted
+
+
+# ---- Goals models ----
+class GoalOut(BaseModel):
+    id: str
+    title: str
+    outcome: Optional[str] = None
+    deadline: Optional[str] = None
+    priority: int = 0
+    status: int = 0
+    progress_percent: float = 0.0
+    created_at: str
+    updated_at: str
+
+
+class GoalSeedIn(BaseModel):
+    overwrite: bool = False
+
+
+class GoalUpdateIn(BaseModel):
+    title: Optional[str] = None
+    outcome: Optional[str] = None
+    deadline: Optional[str] = None  # ISO string
+    priority: Optional[int] = Field(default=None, ge=0, le=5)
+    status: Optional[int] = Field(default=None, ge=0, le=4)
+    progress_percent: Optional[float] = Field(default=None, ge=0, le=100)
+
+
+class LifeGoalOut(BaseModel):
+    id: str
+    title: str
+    vision: Optional[str] = None
+    why: Optional[str] = None
+    strategy: Optional[str] = None
+    categories: Optional[List[str]] = None
+    horizon: int = 0
+    status: int = 0
+    progress_percent: float = 0.0
+    metrics: Optional[List[dict]] = None
+    start_date: Optional[str] = None
+    target_date: Optional[str] = None
+    diary: Optional[str] = None
+    identity: Optional[str] = None
+    created_at: str
+    updated_at: str
+
+
+class LifeGoalSeedIn(BaseModel):
+    overwrite: bool = False
+
+
+# ---- Creations models ----
+CREATION_TYPES = {
+    "research_proposal": 0,
+    "business_plan": 1,
+    "video_project": 2,
+    "story_post": 3,
+    "novel_project": 4,
+    "script_project": 5,
+    "music_track": 6,
+    "small_file": 7,
+    "other": 8,
+}
+CREATION_TYPES_INV = {v: k for k, v in CREATION_TYPES.items()}
+
+
+class CreationOut(BaseModel):
+    id: str
+    title: str
+    creation_type: str
+    status: int
+    summary: Optional[str] = None
+    language: Optional[str] = None
+    outcome_url: Optional[str] = None
+    created_at: str
+    updated_at: str
+
+
+class CreationSeedIn(BaseModel):
+    overwrite: bool = False
+
+
+class CreationFromIdeaIn(BaseModel):
+    idea_id: str
+    creation_type: str
+    title: Optional[str] = None
+    summary: Optional[str] = None
+
+
+ASSET_TYPES = {
+    0: "image",
+    1: "audio",
+    2: "video",
+    3: "document",
+    4: "other",
+}
+
+
+class CreationSectionOut(BaseModel):
+    id: str
+    title: str
+    kind: Optional[int] = None
+    order_index: int
+    body: Optional[str] = None
+    language: Optional[str] = None
+
+
+class CreationAssetOut(BaseModel):
+    id: str
+    asset_type: str
+    url: str
+    mime_type: Optional[str] = None
+    caption: Optional[str] = None
+    created_at: str
+
+
+class CreationDetailOut(CreationOut):
+    tags: Optional[List[str]] = None
+    meta: Optional[dict] = None
+    sections: List[CreationSectionOut] = []
+    assets: List[CreationAssetOut] = []
+
+
+@dataclass
+class AudioSegmentBuffer:
+    device_id: str
+    sample_rate: int
+    bits_per_sample: int
+    started_at: datetime
+    segment_id: str = field(default_factory=lambda: str(uuid.uuid4()))
+    buffer: bytearray = field(default_factory=bytearray)
+    duration_ms: int = 0
+    rms_accumulator: float = 0.0
+    rms_count: int = 0
+    last_chunk_at: Optional[datetime] = None
+    last_voice_at: Optional[datetime] = None
+    temp_path: Optional[Path] = None
+
+
+@dataclass
+class AudioSegmentRecord:
+    id: str
+    device_id: str
+    sample_rate: int
+    bits_per_sample: int
+    duration_ms: int
+    rms: float
+    started_at: datetime
+    ended_at: datetime
+    file_path: Optional[str] = None
+
+
+@dataclass
+class SegmentAppendResult:
+    segment_id: Optional[str] = None
+    duration_ms: Optional[int] = None
+
+
+class ConnectionManager:
+    def __init__(self) -> None:
+        self._connections: List[WebSocket] = []
+        self._allowed: Dict[WebSocket, Optional[set[str]]] = {}
+        self._lock = asyncio.Lock()
+
+    async def connect(self, websocket: WebSocket, allowed_devices: Optional[set[str]] = None) -> None:
+        await websocket.accept()
+        async with self._lock:
+            self._connections.append(websocket)
+            self._allowed[websocket] = allowed_devices
+
+    async def disconnect(self, websocket: WebSocket) -> None:
+        async with self._lock:
+            if websocket in self._connections:
+                self._connections.remove(websocket)
+            self._allowed.pop(websocket, None)
+
+    async def broadcast(self, data: dict) -> None:
+        async with self._lock:
+            targets = list(self._connections)
+        for ws in targets:
+            try:
+                await ws.send_json(data)
+            except Exception:
+                await self.disconnect(ws)
+
+    async def broadcast_device(self, data: dict, device_id: Optional[str]) -> None:
+        async with self._lock:
+            targets = list(self._connections)
+            allowed = {ws: self._allowed.get(ws) for ws in targets}
+        for ws in targets:
+            allow = allowed.get(ws)
+            if allow is not None and device_id is not None and device_id not in allow:
+                continue
+            try:
+                await ws.send_json(data)
+            except Exception:
+                await self.disconnect(ws)
+
+
+app = FastAPI(title="IdeasGlass Bridge")
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+manager = ConnectionManager()
+message_store: deque[MessageOut] = deque(maxlen=200)
+audio_store: deque[AudioChunkOut] = deque(maxlen=200)
+audio_segment_store: deque[AudioSegmentOut] = deque(maxlen=50)
+audio_transcript_store: deque[AudioTranscriptOut] = deque(maxlen=20)
+DATABASE_URL = os.getenv("DATABASE_URL")
+db_pool: asyncpg.pool.Pool | None = None
+vad_detector = webrtcvad.Vad(max(0, min(3, VAD_AGGRESSIVENESS)))
+segment_states: Dict[str, List[AudioSegmentBuffer]] = {}
+segment_lock = asyncio.Lock()
+segment_cleanup_task: asyncio.Task | None = None
+SUPPORTED_VAD_RATES = {8000, 16000, 32000, 48000}
+SEGMENT_OVERLAP_MS = int(os.getenv("IDEASGLASS_SEGMENT_OVERLAP_MS", "2000"))
+SEGMENT_LOOKBACK_MS = max(0, min(SEGMENT_OVERLAP_MS, SEGMENT_TARGET_MS // 2))
+
+# Runtime config update helper
+def _apply_segment_target_ms(ms: int) -> None:
+    global SEGMENT_TARGET_MS, SEGMENT_LOOKBACK_MS, WHISPER_THRESHOLD_VALUES
+    ms = int(max(MIN_SEGMENT_MS, min(ms, SEGMENT_MAX_MS)))
+    SEGMENT_TARGET_MS = ms
+    # Recompute lookback and transcript thresholds to align with new window
+    SEGMENT_LOOKBACK_MS = max(0, min(SEGMENT_OVERLAP_MS, SEGMENT_TARGET_MS // 2))
+    try:
+        WHISPER_THRESHOLD_VALUES = _parse_thresholds(WHISPER_STREAM_THRESHOLDS)
+        if whisper_stream_manager:
+            whisper_stream_manager.thresholds_ms = WHISPER_THRESHOLD_VALUES
+    except Exception:
+        pass
+
+# Simple HMAC session + PBKDF2 password helpers
+import hmac
+import hashlib
+
+SESSION_COOKIE = "ig_session"
+SESSION_TTL_SECONDS = int(os.getenv("IDEASGLASS_SESSION_TTL", "604800"))  # 7 days
+SECRET = os.getenv("IDEASGLASS_SECRET", "dev-secret-change-me").encode()
+
+
+def _b64u(data: bytes) -> str:
+    import base64 as _b64
+    return _b64.urlsafe_b64encode(data).rstrip(b"=").decode()
+
+
+def _b64u_decode(s: str) -> bytes:
+    import base64 as _b64
+    pad = "=" * (-len(s) % 4)
+    return _b64.urlsafe_b64decode((s + pad).encode())
+
+
+def _hash_password(password: str, salt: bytes) -> str:
+    dk = hashlib.pbkdf2_hmac("sha256", password.encode(), salt, 120_000)
+    return _b64u(dk)
+
+
+def _new_salt() -> bytes:
+    return os.urandom(16)
+
+
+def _issue_session(user_id: str) -> str:
+    payload = {
+        "uid": user_id,
+        "exp": int(datetime.now(tz=timezone.utc).timestamp()) + SESSION_TTL_SECONDS,
+    }
+    raw = json.dumps(payload, separators=(",", ":")).encode()
+    sig = hmac.new(SECRET, raw, hashlib.sha256).digest()
+    return f"{_b64u(raw)}.{_b64u(sig)}"
+
+
+def _verify_session(token: str) -> Optional[str]:
+    try:
+        raw_b64, sig_b64 = token.split(".", 1)
+        raw = _b64u_decode(raw_b64)
+        sig = _b64u_decode(sig_b64)
+        exp_sig = hmac.new(SECRET, raw, hashlib.sha256).digest()
+        if not hmac.compare_digest(sig, exp_sig):
+            return None
+        payload = json.loads(raw.decode())
+        if int(payload.get("exp", 0)) < int(datetime.now(tz=timezone.utc).timestamp()):
+            return None
+        return str(payload.get("uid"))
+    except Exception:
+        return None
+
+
+async def _current_user_id(request: Request) -> Optional[str]:
+    token = request.cookies.get(SESSION_COOKIE)
+    if not token:
+        return None
+    return _verify_session(token)
+
+
+async def _bound_devices(user_id: str) -> List[str]:
+    if not db_pool:
+        return []
+    async with db_pool.acquire() as conn:
+        rows = await conn.fetch(
+            "SELECT device_id FROM ig_device_bindings WHERE user_id=$1",
+            user_id,
+        )
+    return [r["device_id"] for r in rows]
+
+
+async def init_db() -> None:
+    if not db_pool:
+        return
+    async with db_pool.acquire() as conn:
+        await conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS ig_messages (
+                id TEXT PRIMARY KEY,
+                device_id TEXT NOT NULL,
+                message TEXT NOT NULL,
+                meta JSONB,
+                received_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            );
+            """
+        )
+        await conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS ig_photos (
+                id TEXT PRIMARY KEY,
+                message_id TEXT REFERENCES ig_messages(id) ON DELETE CASCADE,
+                mime_type TEXT NOT NULL,
+                data BYTEA NOT NULL,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            );
+            """
+        )
+        await conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS ig_audio_chunks (
+                id TEXT PRIMARY KEY,
+                device_id TEXT NOT NULL,
+                sample_rate INT NOT NULL,
+                bits_per_sample INT NOT NULL,
+                duration_ms INT NOT NULL,
+                rms REAL NOT NULL,
+                data BYTEA NOT NULL,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                speech BOOLEAN NOT NULL DEFAULT FALSE
+            );
+            """
+        )
+        await conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS ig_audio_segments (
+                id TEXT PRIMARY KEY,
+                device_id TEXT NOT NULL,
+                sample_rate INT NOT NULL,
+                bits_per_sample INT NOT NULL,
+                duration_ms INT NOT NULL,
+                rms REAL NOT NULL,
+                data BYTEA NOT NULL,
+                started_at TIMESTAMPTZ NOT NULL,
+                ended_at TIMESTAMPTZ NOT NULL,
+                file_path TEXT,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            );
+            """
+        )
+        await conn.execute(
+            "ALTER TABLE ig_audio_chunks ADD COLUMN IF NOT EXISTS speech BOOLEAN NOT NULL DEFAULT FALSE;"
+        )
+        await conn.execute(
+            "ALTER TABLE ig_audio_segments ADD COLUMN IF NOT EXISTS file_path TEXT;"
+        )
+        await conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS ig_audio_transcripts (
+                segment_id TEXT PRIMARY KEY,
+                device_id TEXT NOT NULL,
+                transcript JSONB NOT NULL,
+                started_at TIMESTAMPTZ NOT NULL,
+                ended_at TIMESTAMPTZ NOT NULL,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            );
+            """
+        )
+        # Users and device bindings
+        await conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS ig_users (
+                id TEXT PRIMARY KEY,
+                email TEXT UNIQUE NOT NULL,
+                password_salt TEXT NOT NULL,
+                password_hash TEXT NOT NULL,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            );
+            """
+        )
+        await conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS ig_device_bindings (
+                user_id TEXT NOT NULL REFERENCES ig_users(id) ON DELETE CASCADE,
+                device_id TEXT NOT NULL,
+                bound_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                PRIMARY KEY (user_id, device_id)
+            );
+            """
+        )
+        # App settings (single row key->JSON), stores e.g. {"segment_target_ms": 15000}
+        await conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS ig_settings (
+                key TEXT PRIMARY KEY,
+                value JSONB NOT NULL,
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            );
+            """
+        )
+        # Ideas (basic)
+        await conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS ig_ideas (
+                id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                title TEXT NOT NULL,
+                summary TEXT,
+                language TEXT,
+                tags JSONB,
+                occurrence_count INT NOT NULL DEFAULT 0,
+                urgency REAL NOT NULL DEFAULT 0,
+                recency_score REAL NOT NULL DEFAULT 0,
+                importance_score REAL NOT NULL DEFAULT 0,
+                evidence_count INT NOT NULL DEFAULT 0,
+                latest_occurrence_at TIMESTAMPTZ,
+                status INT NOT NULL DEFAULT 0,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            );
+            """
+        )
+        await conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_ig_ideas_user_status ON ig_ideas(user_id, status)"
+        )
+        await conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_ig_ideas_sort ON ig_ideas(user_id, status, importance_score DESC, latest_occurrence_at DESC)"
+        )
+        # Goals (basic)
+        await conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS ig_goals (
+                id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                title TEXT NOT NULL,
+                outcome TEXT,
+                deadline TIMESTAMPTZ,
+                priority SMALLINT DEFAULT 0,
+                status SMALLINT NOT NULL DEFAULT 0,
+                progress_percent NUMERIC(5,2) DEFAULT 0,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            );
+            """
+        )
+        await conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_ig_goals_user_status ON ig_goals(user_id, status)"
+        )
+        await conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_ig_goals_deadline ON ig_goals(user_id, deadline)"
+        )
+        # Life goals (Prophecy Diary)
+        await conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS ig_life_goals (
+                id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                title TEXT NOT NULL,
+                vision TEXT,
+                why TEXT,
+                strategy TEXT,
+                categories JSONB,
+                horizon SMALLINT NOT NULL DEFAULT 0,
+                status SMALLINT NOT NULL DEFAULT 0,
+                progress_percent NUMERIC(5,2) DEFAULT 0,
+                metrics JSONB,
+                start_date DATE,
+                target_date DATE,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                deleted_at TIMESTAMPTZ
+            );
+            """
+        )
+        await conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_ig_life_goals_user_status ON ig_life_goals(user_id, status)"
+        )
+        # Ensure diary narrative column exists for life goals
+        await conn.execute(
+            "ALTER TABLE ig_life_goals ADD COLUMN IF NOT EXISTS diary TEXT"
+        )
+        # Ensure identity (Who am I) column exists for life goals
+        await conn.execute(
+            "ALTER TABLE ig_life_goals ADD COLUMN IF NOT EXISTS identity TEXT"
+        )
+        # Creations (basic)
+        await conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS ig_creations (
+                id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                title TEXT NOT NULL,
+                creation_type SMALLINT NOT NULL,
+                status SMALLINT NOT NULL DEFAULT 0, -- 0=draft,1=in_progress,2=review,3=published,4=archived
+                summary TEXT,
+                language TEXT,
+                tags JSONB,
+                meta JSONB,
+                outcome_url TEXT,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            );
+            """
+        )
+        await conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_ig_creations_user_type ON ig_creations(user_id, creation_type, status)"
+        )
+        await conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_ig_creations_user_status ON ig_creations(user_id, status)"
+        )
+        await conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS ig_creation_sections (
+                id TEXT PRIMARY KEY,
+                creation_id TEXT NOT NULL REFERENCES ig_creations(id) ON DELETE CASCADE,
+                title TEXT NOT NULL,
+                kind SMALLINT NOT NULL DEFAULT 10,
+                order_index INT NOT NULL DEFAULT 0,
+                body TEXT,
+                language TEXT,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            );
+            """
+        )
+        await conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_ig_creation_sections_order ON ig_creation_sections(creation_id, order_index)"
+        )
+        await conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS ig_creation_assets (
+                id TEXT PRIMARY KEY,
+                creation_id TEXT NOT NULL REFERENCES ig_creations(id) ON DELETE CASCADE,
+                asset_type SMALLINT NOT NULL,
+                url TEXT NOT NULL,
+                mime_type TEXT,
+                caption TEXT,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            );
+            """
+        )
+        await conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_ig_creation_assets_creation ON ig_creation_assets(creation_id)"
+        )
+        await conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS ig_creation_ideas (
+                creation_id TEXT NOT NULL REFERENCES ig_creations(id) ON DELETE CASCADE,
+                idea_id TEXT NOT NULL,
+                PRIMARY KEY (creation_id, idea_id)
+            );
+            """
+        )
+
+
+@app.on_event("startup")
+async def startup_event():
+    global db_pool, segment_cleanup_task
+    AUDIO_SEGMENTS_DIR.mkdir(parents=True, exist_ok=True)
+    AUDIO_SEGMENTS_WORK_DIR.mkdir(parents=True, exist_ok=True)
+    PHOTO_STORAGE_DIR.mkdir(parents=True, exist_ok=True)
+    # Be generous in threading for blocking work offloaded via asyncio.to_thread
+    try:
+        cpu = os.cpu_count() or 4
+        default_workers = max(32, cpu * 8)
+        max_workers = int(os.getenv("IDEASGLASS_THREADPOOL_WORKERS", str(default_workers)))
+        loop = asyncio.get_running_loop()
+        loop.set_default_executor(ThreadPoolExecutor(max_workers=max_workers))
+        print(f"[ThreadPool] Default executor workers set to {max_workers}")
+    except Exception as exc:
+        print(f"[ThreadPool] Failed to set default executor: {exc}")
+    if not DATABASE_URL:
+        print("[DB] DATABASE_URL not set; running in in-memory mode.")
+    else:
+        try:
+            db_pool = await asyncpg.create_pool(DATABASE_URL, min_size=1, max_size=5)
+            await init_db()
+            print("[DB] Connected to Postgres and ensured tables exist.")
+            # Load persisted app settings (e.g., segment_target_ms)
+            try:
+                async with db_pool.acquire() as conn:
+                    row = await conn.fetchrow("SELECT value FROM ig_settings WHERE key='app'")
+                if row and isinstance(row["value"], (dict,)):
+                    cfg = row["value"]
+                    seg = int(cfg.get("segment_target_ms") or 0)
+                    if seg:
+                        _apply_segment_target_ms(seg)
+                        print(f"[Settings] segment_target_ms loaded: {SEGMENT_TARGET_MS} ms")
+                    ml = cfg.get("main_language")
+                    if isinstance(ml, str) and ml in SUPPORTED_LANGS:
+                        global MAIN_LANGUAGE
+                        MAIN_LANGUAGE = ml
+                    sl = cfg.get("sync_ui_lang")
+                    if isinstance(sl, bool):
+                        global SYNC_UI_LANG
+                        SYNC_UI_LANG = sl
+                    print(f"[Settings] main_language={MAIN_LANGUAGE} sync_ui_lang={SYNC_UI_LANG}")
+            except Exception as exc:
+                print(f"[Settings] Failed to load settings: {exc}")
+        except Exception as exc:
+            print(f"[DB] Failed to initialize Postgres: {exc}")
+            db_pool = None
+
+
+@app.post("/api/v1/auth/register", response_model=AuthOut)
+async def register(payload: RegisterIn, response: Response):
+    if not db_pool:
+        raise HTTPException(status_code=503, detail="Auth requires DATABASE_URL")
+    user_id = str(uuid.uuid4())
+    salt = _new_salt()
+    pwd_hash = _hash_password(payload.password, salt)
+    try:
+        async with db_pool.acquire() as conn:
+            await conn.execute(
+                "INSERT INTO ig_users (id, email, password_salt, password_hash) VALUES ($1,$2,$3,$4)",
+                user_id,
+                payload.email.lower().strip(),
+                _b64u(salt),
+                pwd_hash,
+            )
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail="Email already registered") from exc
+    token = _issue_session(user_id)
+    response.set_cookie(SESSION_COOKIE, token, httponly=True, samesite="lax", max_age=SESSION_TTL_SECONDS, path="/")
+    return AuthOut(user_id=user_id, email=payload.email)
+
+
+@app.post("/api/v1/auth/login", response_model=AuthOut)
+async def login(payload: LoginIn, response: Response):
+    if not db_pool:
+        raise HTTPException(status_code=503, detail="Auth requires DATABASE_URL")
+    async with db_pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT id, password_salt, password_hash, email FROM ig_users WHERE email=$1",
+            payload.email.lower().strip(),
+        )
+    if not row:
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+    salt = _b64u_decode(row["password_salt"]) if isinstance(row["password_salt"], str) else row["password_salt"]
+    if _hash_password(payload.password, salt) != row["password_hash"]:
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+    token = _issue_session(row["id"])
+    response.set_cookie(SESSION_COOKIE, token, httponly=True, samesite="lax", max_age=SESSION_TTL_SECONDS, path="/")
+    return AuthOut(user_id=row["id"], email=row["email"])
+
+
+@app.post("/api/v1/auth/logout")
+async def logout(response: Response):
+    response.delete_cookie(SESSION_COOKIE, path="/")
+    return {"ok": True}
+
+
+@app.get("/api/v1/auth/me", response_model=MeOut)
+async def auth_me(request: Request):
+    uid = await _current_user_id(request)
+    if not uid:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    if not db_pool:
+        raise HTTPException(status_code=503, detail="Requires DATABASE_URL")
+    async with db_pool.acquire() as conn:
+        row = await conn.fetchrow("SELECT id, email FROM ig_users WHERE id=$1", uid)
+    if not row:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    devices = await _bound_devices(uid)
+    return MeOut(user_id=row["id"], email=row["email"], devices=devices)
+
+
+@app.get("/api/v1/settings", response_model=SettingsOut)
+async def get_settings():
+    # Return current runtime values (persisted if DB present)
+    return SettingsOut(
+        segment_target_ms=SEGMENT_TARGET_MS,
+        main_language=MAIN_LANGUAGE,
+        sync_ui_lang=SYNC_UI_LANG,
+    )
+
+
+@app.post("/api/v1/settings", response_model=SettingsOut)
+async def update_settings(payload: SettingsIn, request: Request):
+    uid = await _current_user_id(request)
+    if not uid:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    # For now, any authenticated user can update app-level recording length
+    new_ms = int(payload.segment_target_ms) if payload.segment_target_ms is not None else SEGMENT_TARGET_MS
+    _apply_segment_target_ms(new_ms)
+    # Update languages
+    global MAIN_LANGUAGE, SYNC_UI_LANG
+    if isinstance(payload.main_language, str) and payload.main_language in SUPPORTED_LANGS:
+        MAIN_LANGUAGE = payload.main_language
+    if isinstance(payload.sync_ui_lang, bool):
+        SYNC_UI_LANG = payload.sync_ui_lang
+    # Persist if DB is available
+    if db_pool:
+        try:
+            async with db_pool.acquire() as conn:
+                await conn.execute(
+                    """
+                    INSERT INTO ig_settings (key, value, updated_at)
+                    VALUES ('app', $1, NOW())
+                    ON CONFLICT (key) DO UPDATE SET value=$1, updated_at=NOW()
+                    """,
+                    json.dumps({
+                        "segment_target_ms": SEGMENT_TARGET_MS,
+                        "main_language": MAIN_LANGUAGE,
+                        "sync_ui_lang": SYNC_UI_LANG,
+                    }),
+                )
+        except Exception as exc:
+            print(f"[Settings] Persist failed: {exc}")
+    return SettingsOut(
+        segment_target_ms=SEGMENT_TARGET_MS,
+        main_language=MAIN_LANGUAGE,
+        sync_ui_lang=SYNC_UI_LANG,
+    )
+
+
+@app.get("/api/v1/ideas", response_model=List[IdeaOut])
+async def list_ideas(limit: int = 50, request: Request = None):
+    uid = await _current_user_id(request)
+    if not uid:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    if not db_pool:
+        raise HTTPException(status_code=503, detail="Requires DATABASE_URL")
+    limit = max(1, min(200, int(limit)))
+    async with db_pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT id, title, summary, language, tags, occurrence_count, urgency,
+                   recency_score, importance_score, evidence_count, latest_occurrence_at,
+                   created_at, updated_at, status
+            FROM ig_ideas
+            WHERE user_id=$1 AND status=0
+            ORDER BY importance_score DESC NULLS LAST, latest_occurrence_at DESC NULLS LAST, created_at DESC
+            LIMIT $2
+            """,
+            uid,
+            limit,
+        )
+    ideas: List[IdeaOut] = []
+    for r in rows:
+        tags = r["tags"] if isinstance(r["tags"], list) else None
+        latest = r["latest_occurrence_at"].isoformat() if r["latest_occurrence_at"] else None
+        ideas.append(
+            IdeaOut(
+                id=r["id"],
+                title=r["title"],
+                summary=r["summary"],
+                language=r["language"],
+                tags=tags,
+                occurrence_count=int(r["occurrence_count"] or 0),
+                urgency=float(r["urgency"] or 0),
+                recency_score=float(r["recency_score"] or 0),
+                importance_score=float(r["importance_score"] or 0),
+                evidence_count=int(r["evidence_count"] or 0),
+                latest_occurrence_at=latest,
+                created_at=r["created_at"].isoformat(),
+                updated_at=r["updated_at"].isoformat(),
+                status=int(r["status"] or 0),
+            )
+        )
+    return ideas
+
+
+@app.post("/api/v1/ideas/seed")
+async def seed_ideas(payload: IdeaSeedIn, request: Request):
+    """Insert sample ideas for the current user. Safe to call multiple times.
+
+    When overwrite=true, existing ideas with same title under this user are replaced.
+    """
+    uid = await _current_user_id(request)
+    if not uid:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    if not db_pool:
+        raise HTTPException(status_code=503, detail="Requires DATABASE_URL")
+
+    # Sample topics grounded in recent Weixin group themes
+    now = datetime.now(tz=timezone.utc)
+    samples = [
+        {
+            "title": "写作 + 外语：每周 Medium 图文",
+            "summary": "将日常对话洞察整理为图文，发布在 Medium/博客。",
+            "language": "zh",
+            "tags": ["writing", "medium", "journal"],
+            "occurrence_count": 7,
+            "urgency": 0.6,
+            "recency_score": 0.5,
+        },
+        {
+            "title": "商业计划书：OnlyIdeas 创业路径",
+            "summary": "为 OnlyIdeas 制定商业计划，梳理收入模型与定价。",
+            "language": "zh",
+            "tags": ["business", "pricing", "saas"],
+            "occurrence_count": 5,
+            "urgency": 0.7,
+            "recency_score": 0.4,
+        },
+        {
+            "title": "视频自媒体剪辑：AI 日记周更短视频",
+            "summary": "从每周 AI 日记中生成 60s 竖屏短视频，发布到 TikTok/小红书。",
+            "language": "zh",
+            "tags": ["video", "shorts", "ai"],
+            "occurrence_count": 6,
+            "urgency": 0.5,
+            "recency_score": 0.6,
+        },
+        {
+            "title": "预言日记（Prophecy Diary）",
+            "summary": "把‘我将要做’的承诺写入日记，记录信心与兑现情况。",
+            "language": "zh",
+            "tags": ["prophecy", "diary", "commitment"],
+            "occurrence_count": 4,
+            "urgency": 0.4,
+            "recency_score": 0.7,
+        },
+        {
+            "title": "本地视频翻译 LazyEdit",
+            "summary": "把本地视频快速生成翻译字幕与剪辑草稿。",
+            "language": "zh",
+            "tags": ["video", "translate", "tooling"],
+            "occurrence_count": 3,
+            "urgency": 0.5,
+            "recency_score": 0.45,
+        },
+    ]
+
+    def _score(o: int, u: float, r: float) -> float:
+        try:
+            # smooth occurrence -> 0..1
+            import math
+            occ = 1 - math.exp(-max(0, o) / 4.0)
+            return min(1.0, 0.5 * occ + 0.3 * max(0.0, min(1.0, u)) + 0.2 * max(0.0, min(1.0, r)))
+        except Exception:
+            return 0.0
+
+    async with db_pool.acquire() as conn:
+        async with conn.transaction():
+            for s in samples:
+                imp = _score(s["occurrence_count"], s["urgency"], s["recency_score"])
+                idea_id = str(uuid.uuid4())
+                # optional overwrite by title
+                if payload.overwrite:
+                    await conn.execute(
+                        "DELETE FROM ig_ideas WHERE user_id=$1 AND title=$2",
+                        uid,
+                        s["title"],
+                    )
+                await conn.execute(
+                    """
+                    INSERT INTO ig_ideas (
+                        id, user_id, title, summary, language, tags,
+                        occurrence_count, urgency, recency_score, importance_score,
+                        evidence_count, latest_occurrence_at, status, created_at, updated_at
+                    ) VALUES (
+                        $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,0,$13,$14
+                    )
+                    ON CONFLICT (id) DO NOTHING
+                    """,
+                    idea_id,
+                    uid,
+                    s["title"],
+                    s["summary"],
+                    s["language"],
+                    json.dumps(s.get("tags") or []),
+                    s["occurrence_count"],
+                    s["urgency"],
+                    s["recency_score"],
+                    imp,
+                    int(max(1, s["occurrence_count"] // 2)),
+                    now,
+                    now,
+                    now,
+                )
+    return {"ok": True, "count": len(samples)}
+
+
+@app.get("/api/v1/goals", response_model=List[GoalOut])
+async def list_goals(limit: int = 50, request: Request = None):
+    uid = await _current_user_id(request)
+    if not uid:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    if not db_pool:
+        raise HTTPException(status_code=503, detail="Requires DATABASE_URL")
+    limit = max(1, min(200, int(limit)))
+    async with db_pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT id, title, outcome, deadline, priority, status, progress_percent, created_at, updated_at
+            FROM ig_goals
+            WHERE user_id=$1 AND (status IN (0,1,2))
+            ORDER BY status ASC, deadline ASC NULLS LAST, priority DESC, updated_at DESC
+            LIMIT $2
+            """,
+            uid,
+            limit,
+        )
+    out: List[GoalOut] = []
+    for r in rows:
+        out.append(
+            GoalOut(
+                id=r["id"],
+                title=r["title"],
+                outcome=r["outcome"],
+                deadline=(r["deadline"].isoformat() if r["deadline"] else None),
+                priority=int(r["priority"] or 0),
+                status=int(r["status"] or 0),
+                progress_percent=float(r["progress_percent"] or 0),
+                created_at=r["created_at"].isoformat(),
+                updated_at=r["updated_at"].isoformat(),
+            )
+        )
+    return out
+
+
+@app.post("/api/v1/goals/seed")
+async def seed_goals(payload: GoalSeedIn, request: Request):
+    uid = await _current_user_id(request)
+    if not uid:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    if not db_pool:
+        raise HTTPException(status_code=503, detail="Requires DATABASE_URL")
+
+    now = datetime.now(tz=timezone.utc)
+    def d(days: int) -> datetime:
+        return now + timedelta(days=days)
+
+    samples = [
+        {
+            "title": "本月发布 4 篇 Medium 文章",
+            "outcome": "文章上线并交叉发布短视频",
+            "deadline": d(20),
+            "priority": 3,
+            "status": 1,
+            "progress_percent": 25.0,
+        },
+        {
+            "title": "OnlyIdeas 商业计划书 v1",
+            "outcome": "整理市场、定价与收入模型",
+            "deadline": d(14),
+            "priority": 2,
+            "status": 1,
+            "progress_percent": 40.0,
+        },
+        {
+            "title": "AI 日记周更短视频（4 支）",
+            "outcome": "每周 1 支 60s 竖屏剪辑",
+            "deadline": d(28),
+            "priority": 3,
+            "status": 0,
+            "progress_percent": 0.0,
+        },
+    ]
+
+    async with db_pool.acquire() as conn:
+        async with conn.transaction():
+            for g in samples:
+                if payload.overwrite:
+                    await conn.execute(
+                        "DELETE FROM ig_goals WHERE user_id=$1 AND title=$2",
+                        uid,
+                        g["title"],
+                    )
+                await conn.execute(
+                    """
+                    INSERT INTO ig_goals (
+                        id, user_id, title, outcome, deadline, priority, status, progress_percent, created_at, updated_at
+                    ) VALUES (
+                        $1,$2,$3,$4,$5,$6,$7,$8,$9,$10
+                    )
+                    ON CONFLICT (id) DO NOTHING
+                    """,
+                    str(uuid.uuid4()),
+                    uid,
+                    g["title"],
+                    g["outcome"],
+                    g["deadline"],
+                    g["priority"],
+                    g["status"],
+                    g["progress_percent"],
+                    now,
+                    now,
+                )
+    return {"ok": True, "count": len(samples)}
+
+
+@app.get("/api/v1/goals/{goal_id}", response_model=GoalOut)
+async def get_goal(goal_id: str, request: Request):
+    uid = await _current_user_id(request)
+    if not uid:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    if not db_pool:
+        raise HTTPException(status_code=503, detail="Requires DATABASE_URL")
+    async with db_pool.acquire() as conn:
+        row = await conn.fetchrow(
+            """
+            SELECT id, title, outcome, deadline, priority, status, progress_percent, created_at, updated_at
+            FROM ig_goals WHERE id=$1 AND user_id=$2
+            """,
+            goal_id,
+            uid,
+        )
+    if not row:
+        raise HTTPException(status_code=404, detail="Not Found")
+    return GoalOut(
+        id=row["id"],
+        title=row["title"],
+        outcome=row["outcome"],
+        deadline=(row["deadline"].isoformat() if row["deadline"] else None),
+        priority=int(row["priority"] or 0),
+        status=int(row["status"] or 0),
+        progress_percent=float(row["progress_percent"] or 0),
+        created_at=row["created_at"].isoformat(),
+        updated_at=row["updated_at"].isoformat(),
+    )
+
+
+@app.patch("/api/v1/goals/{goal_id}", response_model=GoalOut)
+async def update_goal(goal_id: str, payload: GoalUpdateIn, request: Request):
+    uid = await _current_user_id(request)
+    if not uid:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    if not db_pool:
+        raise HTTPException(status_code=503, detail="Requires DATABASE_URL")
+    fields: Dict[str, Any] = {}
+    if payload.title is not None:
+        fields["title"] = payload.title
+    if payload.outcome is not None:
+        fields["outcome"] = payload.outcome
+    if payload.priority is not None:
+        fields["priority"] = int(payload.priority)
+    if payload.status is not None:
+        fields["status"] = int(payload.status)
+    if payload.progress_percent is not None:
+        fields["progress_percent"] = float(payload.progress_percent)
+    if payload.deadline is not None:
+        # Parse ISO string; normalize to UTC if naive
+        try:
+            dl = datetime.fromisoformat(payload.deadline)
+            if dl.tzinfo is None:
+                dl = dl.replace(tzinfo=timezone.utc)
+            fields["deadline"] = dl
+        except Exception:
+            raise HTTPException(status_code=400, detail="Invalid deadline format")
+    if not fields:
+        return await get_goal(goal_id, request)
+    sets = []
+    values = []
+    idx = 1
+    for k, v in fields.items():
+        sets.append(f"{k}=${idx}")
+        values.append(v)
+        idx += 1
+    sets.append(f"updated_at=${idx}")
+    values.append(datetime.now(tz=timezone.utc))
+    idx += 1
+    values.append(goal_id)
+    values.append(uid)
+    async with db_pool.acquire() as conn:
+        res = await conn.execute(
+            f"UPDATE ig_goals SET {', '.join(sets)} WHERE id=${idx} AND user_id=${idx+1}",
+            *values,
+        )
+        if not res or not res.startswith("UPDATE"):
+            raise HTTPException(status_code=404, detail="Not Found")
+    return await get_goal(goal_id, request)
+
+
+@app.delete("/api/v1/goals/{goal_id}")
+async def delete_goal(goal_id: str, request: Request):
+    uid = await _current_user_id(request)
+    if not uid:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    if not db_pool:
+        raise HTTPException(status_code=503, detail="Requires DATABASE_URL")
+    async with db_pool.acquire() as conn:
+        res = await conn.execute("DELETE FROM ig_goals WHERE id=$1 AND user_id=$2", goal_id, uid)
+    if not res or not res.startswith("DELETE"):
+        raise HTTPException(status_code=404, detail="Not Found")
+    return {"ok": True}
+
+
+@app.get("/api/v1/life-goals", response_model=List[LifeGoalOut])
+async def list_life_goals(limit: int = 3, request: Request = None):
+    uid = await _current_user_id(request)
+    if not uid:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    if not db_pool:
+        raise HTTPException(status_code=503, detail="Requires DATABASE_URL")
+    limit = max(1, min(10, int(limit)))
+    async with db_pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT id, title, vision, why, strategy, categories, horizon, status, progress_percent, metrics, start_date, target_date, diary, identity, created_at, updated_at
+            FROM ig_life_goals
+            WHERE user_id=$1 AND status=0
+            ORDER BY updated_at DESC
+            LIMIT $2
+            """,
+            uid,
+            limit,
+        )
+    out: List[LifeGoalOut] = []
+    for r in rows:
+        out.append(
+            LifeGoalOut(
+                id=r["id"],
+                title=r["title"],
+                vision=r["vision"],
+                why=r["why"],
+                strategy=r["strategy"],
+                categories=(r["categories"] if isinstance(r["categories"], list) else None),
+                horizon=int(r["horizon"] or 0),
+                status=int(r["status"] or 0),
+                progress_percent=float(r["progress_percent"] or 0),
+                metrics=(r["metrics"] if isinstance(r["metrics"], list) else None),
+                start_date=(r["start_date"].isoformat() if r["start_date"] else None),
+                target_date=(r["target_date"].isoformat() if r["target_date"] else None),
+                diary=r["diary"],
+                identity=r["identity"],
+                created_at=r["created_at"].isoformat(),
+                updated_at=r["updated_at"].isoformat(),
+            )
+        )
+    return out
+
+
+@app.get("/api/v1/life-goals/{life_goal_id}", response_model=LifeGoalOut)
+async def get_life_goal(life_goal_id: str, request: Request):
+    uid = await _current_user_id(request)
+    if not uid:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    if not db_pool:
+        raise HTTPException(status_code=503, detail="Requires DATABASE_URL")
+    async with db_pool.acquire() as conn:
+        row = await conn.fetchrow(
+            """
+            SELECT id, title, vision, why, strategy, categories, horizon, status, progress_percent, metrics, start_date, target_date, diary, identity, created_at, updated_at
+            FROM ig_life_goals WHERE id=$1 AND user_id=$2
+            """,
+            life_goal_id,
+            uid,
+        )
+    if not row:
+        raise HTTPException(status_code=404, detail="Not Found")
+    return LifeGoalOut(
+        id=row["id"],
+        title=row["title"],
+        vision=row["vision"],
+        why=row["why"],
+        strategy=row["strategy"],
+        categories=(row["categories"] if isinstance(row["categories"], list) else None),
+        horizon=int(row["horizon"] or 0),
+        status=int(row["status"] or 0),
+        progress_percent=float(row["progress_percent"] or 0),
+        metrics=(row["metrics"] if isinstance(row["metrics"], list) else None),
+        start_date=(row["start_date"].isoformat() if row["start_date"] else None),
+        target_date=(row["target_date"].isoformat() if row["target_date"] else None),
+        diary=row["diary"],
+        identity=row["identity"],
+        created_at=row["created_at"].isoformat(),
+        updated_at=row["updated_at"].isoformat(),
+    )
+
+
+@app.post("/api/v1/life-goals/seed")
+async def seed_life_goal(payload: LifeGoalSeedIn, request: Request):
+    uid = await _current_user_id(request)
+    if not uid:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    if not db_pool:
+        raise HTTPException(status_code=503, detail="Requires DATABASE_URL")
+    now = datetime.now(tz=timezone.utc)
+    lg_id = str(uuid.uuid4())
+    title = "Prophecy Diary — The Art of Lazying"
+    if payload.overwrite:
+        async with db_pool.acquire() as conn:
+            await conn.execute("DELETE FROM ig_life_goals WHERE user_id=$1 AND title=$2", uid, title)
+    async with db_pool.acquire() as conn:
+        await conn.execute(
+            """
+            INSERT INTO ig_life_goals (
+              id, user_id, title, vision, why, strategy, categories, horizon, status, progress_percent, metrics, start_date, target_date, diary, identity, created_at, updated_at
+            ) VALUES (
+              $1,$2,$3,$4,$5,$6,$7,$8,0,$9,$10,$11,$12,$13,$14,$15,$16
+            )
+            ON CONFLICT (id) DO NOTHING
+            """,
+            lg_id,
+            uid,
+            title,
+            (
+                "A life that feels light and kind — where effort is placed only where it matters,\n"
+                "and everything else flows. Each day begins rested, guided by small, joyful habits,\n"
+                "and supported by tools and systems that carry you forward while you breathe.\n\n"
+                "You publish from a calm place, and your creations keep helping others even when you rest.\n"
+                "Learning and play fit easily into your days. This is a sustainable rhythm you trust."
+            ),
+            "Reduce burnout, maximize creativity and joy; focus on what matters.",
+            "Automate and delegate; compound small, enjoyable habits; build assets (content, tools) that work while you rest; design systems that default to ease.",
+            json.dumps(["life","career","wellbeing"]),
+            0,
+            12.0,
+            json.dumps([
+                {"name":"Days feeling rested","target_value":25,"unit":"/month"},
+                {"name":"Passive income","target_value":5000,"unit":"USD/mo"}
+            ]),
+            None,
+            None,
+            (
+                "It is a quiet morning in the not‑too‑distant future. \n"
+                "You wake up without an alarm; the house has already taken care of the small things —"
+                " the air is fresh, sunlight warms the room, and your thoughts are unburdened.\n\n"
+                "You make tea and smile: another piece of your gentle system has carried you forward while you rested.\n"
+                "Ideas you recorded yesterday have become notes, notes became drafts, and drafts turned into assets that move while you breathe.\n\n"
+                "Work is light now. You choose one meaningful thing each day, and that is enough.\n"
+                "Opportunities come because you share what you love; income flows from creations that keep serving others.\n\n"
+                "Friends say you seem calmer. You feel it too — the steady joy of a life designed to be kind.\n"
+                "There is space to learn, to play, to nap in the afternoon sun.\n\n"
+                "Tomorrow arrives gently; you greet it with curiosity.\n"
+                "This is The Art of Lazying: a happy life without unnecessary effort, and it is happening now."
+            ),
+            (
+                "I am someone who designs a kind life. I publish with ease,\n"
+                "learn with curiosity, and let simple systems carry the weight.\n"
+                "I help others by sharing what I create, and I give myself permission\n"
+                "to rest. I am calm, joyful, and steadily becoming."
+            ),
+            now,
+            now,
+        )
+    return {"ok": True, "id": lg_id}
+
+
+@app.get("/api/v1/ideas/{idea_id}", response_model=IdeaOut)
+async def get_idea(idea_id: str, request: Request):
+    uid = await _current_user_id(request)
+    if not uid:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    if not db_pool:
+        raise HTTPException(status_code=503, detail="Requires DATABASE_URL")
+    async with db_pool.acquire() as conn:
+        row = await conn.fetchrow(
+            """
+            SELECT id, title, summary, language, tags, occurrence_count, urgency, recency_score,
+                   importance_score, evidence_count, latest_occurrence_at, created_at, updated_at, status
+            FROM ig_ideas WHERE id=$1 AND user_id=$2
+            """,
+            idea_id,
+            uid,
+        )
+    if not row:
+        raise HTTPException(status_code=404, detail="Not Found")
+    tags = row["tags"] if isinstance(row["tags"], list) else None
+    latest = row["latest_occurrence_at"].isoformat() if row["latest_occurrence_at"] else None
+    return IdeaOut(
+        id=row["id"],
+        title=row["title"],
+        summary=row["summary"],
+        language=row["language"],
+        tags=tags,
+        occurrence_count=int(row["occurrence_count"] or 0),
+        urgency=float(row["urgency"] or 0),
+        recency_score=float(row["recency_score"] or 0),
+        importance_score=float(row["importance_score"] or 0),
+        evidence_count=int(row["evidence_count"] or 0),
+        latest_occurrence_at=latest,
+        created_at=row["created_at"].isoformat(),
+        updated_at=row["updated_at"].isoformat(),
+        status=int(row["status"] or 0),
+    )
+
+
+@app.patch("/api/v1/ideas/{idea_id}", response_model=IdeaOut)
+async def update_idea(idea_id: str, payload: IdeaUpdateIn, request: Request):
+    uid = await _current_user_id(request)
+    if not uid:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    if not db_pool:
+        raise HTTPException(status_code=503, detail="Requires DATABASE_URL")
+    fields = {}
+    if payload.title is not None:
+        fields["title"] = payload.title
+    if payload.summary is not None:
+        fields["summary"] = payload.summary
+    if payload.language is not None:
+        fields["language"] = payload.language
+    if payload.tags is not None:
+        fields["tags"] = payload.tags
+    if payload.status is not None:
+        fields["status"] = int(payload.status)
+    if not fields:
+        # Nothing to update; return current
+        return await get_idea(idea_id, request)
+    sets = []
+    values = []
+    idx = 1
+    for k, v in fields.items():
+        sets.append(f"{k}=${idx}")
+        if k == "tags":
+            values.append(json.dumps(v or []))
+        else:
+            values.append(v)
+        idx += 1
+    sets.append(f"updated_at=${idx}")
+    values.append(datetime.now(tz=timezone.utc))
+    idx += 1
+    # WHERE args
+    values.append(idea_id)
+    values.append(uid)
+    async with db_pool.acquire() as conn:
+        res = await conn.execute(
+            f"UPDATE ig_ideas SET {', '.join(sets)} WHERE id=${idx} AND user_id=${idx+1}",
+            *values,
+        )
+        if not res or not res.startswith("UPDATE"):
+            raise HTTPException(status_code=404, detail="Not Found")
+    return await get_idea(idea_id, request)
+
+
+@app.delete("/api/v1/ideas/{idea_id}")
+async def delete_idea(idea_id: str, request: Request):
+    uid = await _current_user_id(request)
+    if not uid:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    if not db_pool:
+        raise HTTPException(status_code=503, detail="Requires DATABASE_URL")
+    async with db_pool.acquire() as conn:
+        res = await conn.execute(
+            "UPDATE ig_ideas SET status=2, updated_at=NOW() WHERE id=$1 AND user_id=$2",
+            idea_id,
+            uid,
+        )
+    if not res or not res.startswith("UPDATE"):
+        raise HTTPException(status_code=404, detail="Not Found")
+    return {"ok": True}
+
+
+@app.get("/api/v1/creations", response_model=List[CreationOut])
+async def list_creations(limit: int = 50, request: Request = None):
+    uid = await _current_user_id(request)
+    if not uid:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    if not db_pool:
+        raise HTTPException(status_code=503, detail="Requires DATABASE_URL")
+    limit = max(1, min(200, int(limit)))
+    async with db_pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT id, title, creation_type, status, summary, language, outcome_url, created_at, updated_at
+            FROM ig_creations
+            WHERE user_id=$1 AND status IN (0,1,2,3)
+            ORDER BY updated_at DESC
+            LIMIT $2
+            """,
+            uid,
+            limit,
+        )
+    out: List[CreationOut] = []
+    for r in rows:
+        out.append(
+            CreationOut(
+                id=r["id"],
+                title=r["title"],
+                creation_type=CREATION_TYPES_INV.get(int(r["creation_type"] or 8), "other"),
+                status=int(r["status"] or 0),
+                summary=r["summary"],
+                language=r["language"],
+                outcome_url=r["outcome_url"],
+                created_at=r["created_at"].isoformat(),
+                updated_at=r["updated_at"].isoformat(),
+            )
+        )
+    return out
+
+
+@app.post("/api/v1/creations/seed")
+async def seed_creations(payload: CreationSeedIn, request: Request):
+    uid = await _current_user_id(request)
+    if not uid:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    if not db_pool:
+        raise HTTPException(status_code=503, detail="Requires DATABASE_URL")
+    now = datetime.now(tz=timezone.utc)
+    samples = [
+        {"title": "OnlyIdeas — 商业计划书", "type": "business_plan", "status": 1, "summary": "定价与收入模型初稿"},
+        {"title": "Multimodal Wearable AI — Proposal", "type": "research_proposal", "status": 0, "summary": "Abstract+Intro"},
+        {"title": "AI Journal Week 1 Clip", "type": "video_project", "status": 0, "summary": "60s vertical"},
+        {"title": "A Week with IdeasGlass", "type": "story_post", "status": 0, "summary": "Medium draft"}
+    ]
+    async with db_pool.acquire() as conn:
+        async with conn.transaction():
+            for s in samples:
+                if payload.overwrite:
+                    await conn.execute("DELETE FROM ig_creations WHERE user_id=$1 AND title=$2", uid, s["title"])
+                await conn.execute(
+                    """
+                    INSERT INTO ig_creations (
+                        id, user_id, title, creation_type, status, summary, created_at, updated_at
+                    ) VALUES (
+                        $1,$2,$3,$4,$5,$6,$7,$8
+                    ) ON CONFLICT (id) DO NOTHING
+                    """,
+                    str(uuid.uuid4()),
+                    uid,
+                    s["title"],
+                    CREATION_TYPES.get(s["type"], 8),
+                    s["status"],
+                    s.get("summary"),
+                    now,
+                    now,
+                )
+    return {"ok": True, "count": len(samples)}
+
+
+@app.post("/api/v1/creations/from-idea", response_model=CreationOut)
+async def create_from_idea(payload: CreationFromIdeaIn, request: Request):
+    uid = await _current_user_id(request)
+    if not uid:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    if not db_pool:
+        raise HTTPException(status_code=503, detail="Requires DATABASE_URL")
+    ctype = CREATION_TYPES.get(payload.creation_type, None)
+    if ctype is None:
+        raise HTTPException(status_code=400, detail="Invalid creation_type")
+    now = datetime.now(tz=timezone.utc)
+    cid = str(uuid.uuid4())
+    async with db_pool.acquire() as conn:
+        async with conn.transaction():
+            await conn.execute(
+                """
+                INSERT INTO ig_creations (id, user_id, title, creation_type, status, summary, created_at, updated_at)
+                VALUES ($1,$2,$3,$4,0,$5,$6,$7)
+                """,
+                cid,
+                uid,
+                payload.title or "New Creation",
+                ctype,
+                payload.summary,
+                now,
+                now,
+            )
+            # link to idea
+            await conn.execute(
+                "INSERT INTO ig_creation_ideas (creation_id, idea_id) VALUES ($1,$2) ON CONFLICT DO NOTHING",
+                cid,
+                payload.idea_id,
+            )
+        row = await conn.fetchrow(
+            "SELECT id, title, creation_type, status, summary, language, outcome_url, created_at, updated_at FROM ig_creations WHERE id=$1",
+            cid,
+        )
+    return CreationOut(
+        id=row["id"],
+        title=row["title"],
+        creation_type=CREATION_TYPES_INV.get(int(row["creation_type"] or 8), "other"),
+        status=int(row["status"] or 0),
+        summary=row["summary"],
+        language=row.get("language") if isinstance(row, dict) else row["language"],
+        outcome_url=row["outcome_url"],
+        created_at=row["created_at"].isoformat(),
+        updated_at=row["updated_at"].isoformat(),
+    )
+
+
+@app.get("/api/v1/creations/{creation_id}", response_model=CreationDetailOut)
+async def get_creation(creation_id: str, request: Request):
+    uid = await _current_user_id(request)
+    if not uid:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    if not db_pool:
+        raise HTTPException(status_code=503, detail="Requires DATABASE_URL")
+    async with db_pool.acquire() as conn:
+        row = await conn.fetchrow(
+            """
+            SELECT id, title, creation_type, status, summary, language, tags, meta, outcome_url, created_at, updated_at
+            FROM ig_creations WHERE id=$1 AND user_id=$2
+            """,
+            creation_id,
+            uid,
+        )
+        if not row:
+            raise HTTPException(status_code=404, detail="Not Found")
+        # Sections
+        sec_rows = await conn.fetch(
+            """
+            SELECT id, title, kind, order_index, body, language, created_at, updated_at
+            FROM ig_creation_sections WHERE creation_id=$1 ORDER BY order_index ASC, created_at ASC
+            """,
+            creation_id,
+        )
+        # Assets
+        asset_rows = await conn.fetch(
+            """
+            SELECT id, asset_type, url, mime_type, caption, created_at
+            FROM ig_creation_assets WHERE creation_id=$1 ORDER BY created_at ASC
+            """,
+            creation_id,
+        )
+    sections: List[CreationSectionOut] = []
+    for s in sec_rows:
+        sections.append(
+            CreationSectionOut(
+                id=s["id"],
+                title=s["title"],
+                kind=(int(s["kind"]) if s["kind"] is not None else None),
+                order_index=int(s["order_index"] or 0),
+                body=s["body"],
+                language=s["language"],
+            )
+        )
+    assets: List[CreationAssetOut] = []
+    for a in asset_rows:
+        atype = ASSET_TYPES.get(int(a["asset_type"] or 4), "other")
+        assets.append(
+            CreationAssetOut(
+                id=a["id"],
+                asset_type=atype,
+                url=a["url"],
+                mime_type=a["mime_type"],
+                caption=a["caption"],
+                created_at=a["created_at"].isoformat(),
+            )
+        )
+    return CreationDetailOut(
+        id=row["id"],
+        title=row["title"],
+        creation_type=CREATION_TYPES_INV.get(int(row["creation_type"] or 8), "other"),
+        status=int(row["status"] or 0),
+        summary=row["summary"],
+        language=row["language"],
+        outcome_url=row["outcome_url"],
+        created_at=row["created_at"].isoformat(),
+        updated_at=row["updated_at"].isoformat(),
+        tags=(row["tags"] if isinstance(row["tags"], list) else None),
+        meta=(row["meta"] if isinstance(row["meta"], dict) else None),
+        sections=sections,
+        assets=assets,
+    )
+
+
+@app.get("/api/v1/devices")
+async def list_devices(request: Request):
+    uid = await _current_user_id(request)
+    if not uid:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    devices = await _bound_devices(uid)
+    return {"devices": devices}
+
+
+@app.post("/api/v1/devices/bind")
+async def bind_device(payload: DeviceBindIn, request: Request):
+    uid = await _current_user_id(request)
+    if not uid:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    if not db_pool:
+        raise HTTPException(status_code=503, detail="Device binding requires DATABASE_URL")
+    async with db_pool.acquire() as conn:
+        await conn.execute(
+            "INSERT INTO ig_device_bindings (user_id, device_id) VALUES ($1,$2) ON CONFLICT DO NOTHING",
+            uid,
+            payload.device_id,
+        )
+    return {"ok": True}
+
+
+class DeviceRenameIn(BaseModel):
+    from_id: str
+    to_id: str
+
+
+@app.post("/api/v1/devices/rename")
+async def rename_device(payload: DeviceRenameIn, request: Request):
+    uid = await _current_user_id(request)
+    if not uid:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    if not db_pool:
+        raise HTTPException(status_code=503, detail="Requires DATABASE_URL")
+    # Only allow if 'to_id' is bound to the user
+    devices = await _bound_devices(uid)
+    if payload.to_id not in devices:
+        raise HTTPException(status_code=403, detail="Forbidden")
+    async with db_pool.acquire() as conn:
+        async with conn.transaction():
+            for table, col in (
+                ("ig_messages", "device_id"),
+                ("ig_audio_chunks", "device_id"),
+                ("ig_audio_segments", "device_id"),
+                ("ig_audio_transcripts", "device_id"),
+            ):
+                await conn.execute(
+                    f"UPDATE {table} SET {col}=$1 WHERE {col}=$2",
+                    payload.to_id,
+                    payload.from_id,
+                )
+    return {"ok": True}
+    if not segment_cleanup_task:
+        segment_cleanup_task = asyncio.create_task(segment_housekeeper())
+
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    global db_pool, segment_cleanup_task
+    await flush_idle_segments(force=True)
+    if db_pool:
+        await db_pool.close()
+        db_pool = None
+    if segment_cleanup_task:
+        segment_cleanup_task.cancel()
+        try:
+            await segment_cleanup_task
+        except asyncio.CancelledError:
+            pass
+        segment_cleanup_task = None
+
+
+def _make_entry(payload: MessageIn) -> MessageOut:
+    now = datetime.now(tz=timezone.utc)
+    entry = MessageOut(
+        id=str(uuid.uuid4()),
+        device_id=payload.device_id,
+        message=payload.message,
+        meta=payload.meta or {},
+        received_at=now.isoformat(),
+    )
+    return entry
+
+
+async def persist_entry(
+    entry: MessageOut,
+    photo_bytes: Optional[bytes],
+    photo_mime: Optional[str],
+    photo_id: Optional[str],
+) -> None:
+    if not db_pool:
+        return
+    dt = datetime.fromisoformat(entry.received_at)
+    async with db_pool.acquire() as conn:
+        await conn.execute(
+            """
+            INSERT INTO ig_messages (id, device_id, message, meta, received_at)
+            VALUES ($1,$2,$3,$4,$5)
+            ON CONFLICT (id) DO NOTHING;
+            """,
+            entry.id,
+            entry.device_id,
+            entry.message,
+            json.dumps(entry.meta or {}),
+            dt,
+        )
+        if photo_bytes and photo_id:
+            await conn.execute(
+                """
+                INSERT INTO ig_photos (id, message_id, mime_type, data)
+                VALUES ($1,$2,$3,$4)
+                ON CONFLICT (id) DO NOTHING;
+                """,
+                photo_id,
+                entry.id,
+                photo_mime or "image/jpeg",
+                photo_bytes,
+            )
+
+
+async def fetch_messages(limit: int = 100, before: Optional[datetime] = None, device_ids: Optional[List[str]] = None) -> List[MessageOut]:
+    if not db_pool:
+        data = list(message_store)
+        if before:
+            data = [
+                m for m in data if datetime.fromisoformat(m.received_at) < before
+            ]
+        if device_ids:
+            allowed = set(device_ids)
+            data = [m for m in data if m.device_id in allowed]
+        data.sort(
+            key=lambda m: datetime.fromisoformat(m.received_at),
+            reverse=True,
+        )
+        return data[:limit]
+    async with db_pool.acquire() as conn:
+        if device_ids:
+            rows = await conn.fetch(
+                """
+                SELECT m.id,
+                       m.device_id,
+                       m.message,
+                       m.meta,
+                       m.received_at,
+                       p.id as photo_id
+                FROM ig_messages m
+                LEFT JOIN ig_photos p ON p.message_id = m.id
+                WHERE ($2::timestamptz IS NULL OR m.received_at < $2)
+                  AND m.device_id = ANY($3::text[])
+                ORDER BY m.received_at DESC
+                LIMIT $1;
+                """,
+                limit,
+                before,
+                device_ids,
+            )
+        else:
+            rows = await conn.fetch(
+                """
+                SELECT m.id,
+                       m.device_id,
+                       m.message,
+                       m.meta,
+                       m.received_at,
+                       p.id as photo_id
+                FROM ig_messages m
+                LEFT JOIN ig_photos p ON p.message_id = m.id
+                WHERE ($2::timestamptz IS NULL OR m.received_at < $2)
+                ORDER BY m.received_at DESC
+                LIMIT $1;
+                """,
+                limit,
+                before,
+            )
+    entries: List[MessageOut] = []
+    for row in rows:
+        meta_payload = row["meta"]
+        if isinstance(meta_payload, str):
+            try:
+                meta_payload = json.loads(meta_payload)
+            except Exception:
+                meta_payload = {}
+        entries.append(
+            MessageOut(
+                id=row["id"],
+                device_id=row["device_id"],
+                message=row["message"],
+                meta=meta_payload or {},
+                received_at=row["received_at"].isoformat(),
+                photo_url=f"/api/v1/photos/{row['photo_id']}" if row["photo_id"] else None,
+            )
+        )
+    return entries
+
+
+async def persist_audio_chunk(
+    chunk: AudioChunkOut,
+    raw_bytes: bytes,
+) -> None:
+    if not db_pool:
+        return
+    dt = datetime.fromisoformat(chunk.created_at)
+    async with db_pool.acquire() as conn:
+        await conn.execute(
+            """
+            INSERT INTO ig_audio_chunks (
+                id, device_id, sample_rate, bits_per_sample,
+                duration_ms, rms, data, created_at, speech
+            ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+            ON CONFLICT (id) DO NOTHING;
+            """,
+            chunk.id,
+            chunk.device_id,
+            chunk.sample_rate,
+            chunk.bits_per_sample,
+            chunk.duration_ms,
+            chunk.rms,
+            raw_bytes,
+            dt,
+            chunk.speech_detected,
+        )
+
+
+async def fetch_audio_chunks(limit: int = 60, before: Optional[datetime] = None, device_ids: Optional[List[str]] = None) -> List[AudioChunkOut]:
+    if not db_pool:
+        data = list(audio_store)
+        if before:
+            data = [
+                c for c in data if datetime.fromisoformat(c.created_at) < before
+            ]
+        if device_ids:
+            allowed = set(device_ids)
+            data = [c for c in data if c.device_id in allowed]
+        return data[:limit]
+    async with db_pool.acquire() as conn:
+        if device_ids:
+            rows = await conn.fetch(
+                """
+                SELECT id,
+                       device_id,
+                       sample_rate,
+                       bits_per_sample,
+                       duration_ms,
+                       rms,
+                       created_at,
+                       speech
+                FROM ig_audio_chunks
+                WHERE ($2::timestamptz IS NULL OR created_at < $2)
+                  AND device_id = ANY($3::text[])
+                ORDER BY created_at DESC
+                LIMIT $1;
+                """,
+                limit,
+                before,
+                device_ids,
+            )
+        else:
+            rows = await conn.fetch(
+                """
+                SELECT id,
+                       device_id,
+                       sample_rate,
+                       bits_per_sample,
+                       duration_ms,
+                       rms,
+                       created_at,
+                       speech
+                FROM ig_audio_chunks
+                WHERE ($2::timestamptz IS NULL OR created_at < $2)
+                ORDER BY created_at DESC
+                LIMIT $1;
+                """,
+                limit,
+                before,
+            )
+    chunks: List[AudioChunkOut] = []
+    for row in rows:
+        chunks.append(
+            AudioChunkOut(
+                id=row["id"],
+                device_id=row["device_id"],
+                sample_rate=row["sample_rate"],
+                bits_per_sample=row["bits_per_sample"],
+                duration_ms=row["duration_ms"],
+                rms=row["rms"],
+                created_at=row["created_at"].isoformat(),
+                audio_url=f"/api/v1/audio/{row['id']}",
+                speech_detected=row.get("speech") or False,
+            )
+        )
+    return chunks
+
+
+async def fetch_audio_segments(limit: int = 20, before: Optional[datetime] = None, device_ids: Optional[List[str]] = None) -> List[AudioSegmentOut]:
+    if not db_pool:
+        data = list(audio_segment_store)
+        if before:
+            data = [
+                seg for seg in data if datetime.fromisoformat(seg.ended_at) < before
+            ]
+        if device_ids:
+            allowed = set(device_ids)
+            data = [seg for seg in data if seg.device_id in allowed]
+        return data[:limit]
+    async with db_pool.acquire() as conn:
+        if device_ids:
+            rows = await conn.fetch(
+                """
+                SELECT id,
+                       device_id,
+                       sample_rate,
+                       bits_per_sample,
+                       duration_ms,
+                       rms,
+                       started_at,
+                       ended_at,
+                       file_path
+                FROM ig_audio_segments
+                WHERE ($2::timestamptz IS NULL OR ended_at < $2)
+                  AND device_id = ANY($3::text[])
+                ORDER BY ended_at DESC
+                LIMIT $1;
+                """,
+                limit,
+                before,
+                device_ids,
+            )
+        else:
+            rows = await conn.fetch(
+                """
+                SELECT id,
+                       device_id,
+                       sample_rate,
+                       bits_per_sample,
+                       duration_ms,
+                       rms,
+                       started_at,
+                       ended_at,
+                       file_path
+                FROM ig_audio_segments
+                WHERE ($2::timestamptz IS NULL OR ended_at < $2)
+                ORDER BY ended_at DESC
+                LIMIT $1;
+                """,
+                limit,
+                before,
+            )
+    return [row_to_segment_out(row) for row in rows]
+
+
+async def fetch_audio_transcripts(limit: int = 20, before: Optional[datetime] = None, device_ids: Optional[List[str]] = None) -> List[AudioTranscriptOut]:
+    if not db_pool:
+        data = list(audio_transcript_store)
+        if before:
+            data = [
+                seg
+                for seg in data
+                if datetime.fromisoformat(seg.ended_at) < before
+            ]
+        if device_ids:
+            allowed = set(device_ids)
+            data = [seg for seg in data if seg.device_id in allowed]
+        data.sort(
+            key=lambda seg: datetime.fromisoformat(seg.ended_at),
+            reverse=True,
+        )
+        return data[:limit]
+    async with db_pool.acquire() as conn:
+        if device_ids:
+            rows = await conn.fetch(
+                """
+                SELECT segment_id, device_id, transcript, started_at, ended_at
+                FROM ig_audio_transcripts
+                WHERE ($2::timestamptz IS NULL OR ended_at < $2)
+                  AND device_id = ANY($3::text[])
+                ORDER BY ended_at DESC
+                LIMIT $1;
+                """,
+                limit,
+                before,
+                device_ids,
+            )
+        else:
+            rows = await conn.fetch(
+                """
+                SELECT segment_id, device_id, transcript, started_at, ended_at
+                FROM ig_audio_transcripts
+                WHERE ($2::timestamptz IS NULL OR ended_at < $2)
+                ORDER BY ended_at DESC
+                LIMIT $1;
+                """,
+                limit,
+                before,
+            )
+    results: List[AudioTranscriptOut] = []
+    for row in rows:
+        payload = row["transcript"]
+        if isinstance(payload, str):
+            try:
+                payload = json.loads(payload)
+            except json.JSONDecodeError:
+                payload = {}
+        elif payload is None:
+            payload = {}
+        results.append(
+            AudioTranscriptOut(
+                segment_id=row["segment_id"],
+                device_id=row["device_id"],
+                started_at=row["started_at"].isoformat(),
+                ended_at=row["ended_at"].isoformat(),
+                chunks=payload.get("chunks", []),
+                is_final=payload.get("is_final", True),
+            )
+        )
+    return results
+
+
+def pcm_to_wav(raw_bytes: bytes, sample_rate: int, bits_per_sample: int) -> bytes:
+    buffer = BytesIO()
+    with wave.open(buffer, "wb") as wav_file:
+        wav_file.setnchannels(1)
+        wav_file.setsampwidth(bits_per_sample // 8)
+        wav_file.setframerate(sample_rate)
+        wav_file.writeframes(raw_bytes)
+    return buffer.getvalue()
+
+
+def detect_speech(
+    raw_audio: bytes,
+    sample_rate: int,
+    bits_per_sample: int,
+    fallback_rms: float,
+) -> bool:
+    if fallback_rms < SPEECH_RMS_THRESHOLD:
+        return False
+    if bits_per_sample == 16 and sample_rate in SUPPORTED_VAD_RATES:
+        frame_bytes = int(sample_rate * (VAD_FRAME_MS / 1000.0)) * 2
+        if frame_bytes > 0 and len(raw_audio) >= frame_bytes:
+            saw_frame = False
+            for offset in range(0, len(raw_audio) - frame_bytes + 1, frame_bytes):
+                frame = raw_audio[offset : offset + frame_bytes]
+                saw_frame = True
+                if vad_detector.is_speech(frame, sample_rate):
+                    return True
+            if saw_frame:
+                return False
+    return fallback_rms >= (
+        SPEECH_RMS_THRESHOLD + AUDIO_GAIN_FALSE_POSITIVE_MARGIN
+    )
+
+
+def process_pcm_chunk(raw_audio: bytes) -> tuple[bytes, float]:
+    if not raw_audio:
+        return raw_audio, 0.0
+    samples = array("h")
+    samples.frombytes(raw_audio)
+    length = len(samples)
+    if length == 0:
+        return raw_audio, 0.0
+    sum_sq = 0.0
+    for sample in samples:
+        sum_sq += (sample / 32768.0) ** 2
+    orig_rms = math.sqrt(sum_sq / length)
+    final_rms = orig_rms
+    if orig_rms >= AUDIO_GAIN_MIN_RMS and orig_rms < AUDIO_GAIN_TARGET_RMS:
+        gain = min(AUDIO_GAIN_MAX, AUDIO_GAIN_TARGET_RMS / max(orig_rms, 1e-6))
+        if abs(gain - 1.0) > 1e-3:
+            sum_sq_out = 0.0
+            for idx, sample in enumerate(samples):
+                amplified = int(sample * gain)
+                if amplified > 32767:
+                    amplified = 32767
+                elif amplified < -32768:
+                    amplified = -32768
+                samples[idx] = amplified
+                sum_sq_out += (amplified / 32768.0) ** 2
+            final_rms = math.sqrt(sum_sq_out / length)
+    else:
+        final_rms = orig_rms
+    return samples.tobytes(), final_rms
+
+
+def _bytes_per_ms(sample_rate: int, bits_per_sample: int) -> float:
+    bytes_per_sample = max(1, bits_per_sample // 8)
+    return (sample_rate * bytes_per_sample) / 1000.0
+
+
+def _ms_to_bytes(duration_ms: int, sample_rate: int, bits_per_sample: int) -> int:
+    return int(duration_ms * _bytes_per_ms(sample_rate, bits_per_sample))
+
+
+def _bytes_to_ms(byte_count: int, sample_rate: int, bits_per_sample: int) -> int:
+    bytes_per_ms = _bytes_per_ms(sample_rate, bits_per_sample)
+    if bytes_per_ms <= 0:
+        return 0
+    return int(round(byte_count / bytes_per_ms))
+
+
+def compute_rms_from_pcm(raw_audio: bytes, bits_per_sample: int) -> float:
+    if bits_per_sample != 16 or not raw_audio:
+        return 0.0
+    samples = array("h")
+    samples.frombytes(raw_audio)
+    if not samples:
+        return 0.0
+    sum_sq = 0.0
+    for sample in samples:
+        sum_sq += (sample / 32768.0) ** 2
+    return math.sqrt(sum_sq / len(samples))
+
+
+def enhance_segment_pcm(
+    raw_audio: bytes,
+    sample_rate: int,
+    bits_per_sample: int,
+) -> tuple[bytes, float]:
+    if bits_per_sample != 16 or not raw_audio:
+        return raw_audio, compute_rms_from_pcm(raw_audio, bits_per_sample)
+    samples = array("h")
+    samples.frombytes(raw_audio)
+    if not samples:
+        return raw_audio, 0.0
+    sum_sq = 0.0
+    for sample in samples:
+        sum_sq += (sample / 32768.0) ** 2
+    orig_rms = math.sqrt(sum_sq / len(samples))
+    target = max(SEGMENT_GAIN_TARGET_RMS, AUDIO_GAIN_TARGET_RMS)
+    if orig_rms >= target or orig_rms <= 1e-6:
+        return raw_audio, orig_rms
+    gain = min(AUDIO_GAIN_MAX, target / orig_rms)
+    if abs(gain - 1.0) <= 1e-3:
+        return raw_audio, orig_rms
+    sum_sq_out = 0.0
+    for idx, sample in enumerate(samples):
+        amplified = int(sample * gain)
+        if amplified > 32767:
+            amplified = 32767
+        elif amplified < -32768:
+            amplified = -32768
+        samples[idx] = amplified
+        sum_sq_out += (amplified / 32768.0) ** 2
+    final_rms = math.sqrt(sum_sq_out / len(samples))
+    return samples.tobytes(), final_rms
+
+
+def _start_segment_state(
+    device_id: str,
+    sample_rate: int,
+    bits_per_sample: int,
+    started_at: datetime,
+) -> AudioSegmentBuffer:
+    state = AudioSegmentBuffer(
+        device_id=device_id,
+        sample_rate=sample_rate,
+        bits_per_sample=bits_per_sample,
+        started_at=started_at,
+    )
+    temp_path = AUDIO_SEGMENTS_WORK_DIR / f"{state.segment_id}.raw"
+    temp_path.parent.mkdir(parents=True, exist_ok=True)
+    if temp_path.exists():
+        temp_path.unlink()
+    state.temp_path = temp_path
+    return state
+
+
+def _extract_overlap_payload(state: AudioSegmentBuffer) -> bytes:
+    if not state.buffer or SEGMENT_LOOKBACK_MS <= 0:
+        return b""
+    overlap_bytes = _ms_to_bytes(SEGMENT_LOOKBACK_MS, state.sample_rate, state.bits_per_sample)
+    if overlap_bytes <= 0:
+        return b""
+    return bytes(state.buffer[-overlap_bytes:])
+
+
+def _photo_extension(mime: Optional[str]) -> str:
+    if not mime:
+        return ".jpg"
+    lowered = mime.lower()
+    if "png" in lowered:
+        return ".png"
+    if "webp" in lowered:
+        return ".webp"
+    if "bmp" in lowered:
+        return ".bmp"
+    return ".jpg"
+
+
+async def save_photo_to_disk(photo_id: str, photo_bytes: bytes, mime: Optional[str]) -> str:
+    ext = _photo_extension(mime)
+    filename = f"{photo_id}{ext}"
+    # Organize photos by UTC date/hour: YYYY/MM/DD/HH
+    now = datetime.now(tz=timezone.utc)
+    subdir = Path(now.strftime("%Y/%m/%d/%H"))
+    target_dir = PHOTO_STORAGE_DIR / subdir
+    target_dir.mkdir(parents=True, exist_ok=True)
+    disk_path = target_dir / filename
+    await asyncio.to_thread(disk_path.write_bytes, photo_bytes)
+    return f"{PHOTO_STORAGE_URL_PREFIX}/{subdir.as_posix()}/{filename}"
+
+
+async def persist_transcript_record(transcript: AudioTranscriptOut) -> None:
+    if not db_pool:
+        return
+    payload = transcript.model_dump()
+    async with db_pool.acquire() as conn:
+        await conn.execute(
+            """
+            INSERT INTO ig_audio_transcripts (segment_id, device_id, transcript, started_at, ended_at)
+            VALUES ($1,$2,$3::jsonb,$4,$5)
+            ON CONFLICT (segment_id) DO UPDATE SET transcript = EXCLUDED.transcript,
+                started_at = EXCLUDED.started_at,
+                ended_at = EXCLUDED.ended_at;
+            """,
+            transcript.segment_id,
+            transcript.device_id,
+            json.dumps(payload),
+            datetime.fromisoformat(transcript.started_at),
+            datetime.fromisoformat(transcript.ended_at),
+        )
+
+
+async def fetch_transcript_by_segment(segment_id: str) -> AudioTranscriptOut | None:
+    if not db_pool:
+        for entry in audio_transcript_store:
+            if entry.segment_id == segment_id:
+                return entry
+        return None
+    async with db_pool.acquire() as conn:
+        row = await conn.fetchrow(
+            """
+            SELECT segment_id, device_id, transcript, started_at, ended_at
+            FROM ig_audio_transcripts
+            WHERE segment_id=$1
+            """,
+            segment_id,
+        )
+    if not row:
+        for entry in audio_transcript_store:
+            if entry.segment_id == segment_id:
+                return entry
+        return None
+    payload = row["transcript"]
+    if isinstance(payload, str):
+        try:
+            payload = json.loads(payload)
+        except json.JSONDecodeError:
+            payload = {}
+    elif payload is None:
+        payload = {}
+    return AudioTranscriptOut(
+        segment_id=row["segment_id"],
+        device_id=row["device_id"],
+        started_at=row["started_at"].isoformat(),
+        ended_at=row["ended_at"].isoformat(),
+        chunks=payload.get("chunks", []),
+        is_final=payload.get("is_final", True),
+        language=payload.get("language"),
+    )
+
+
+@dataclass
+class WhisperStreamState:
+    device_id: str
+    segment_id: str
+    sample_rate: int
+    bits_per_sample: int
+    started_at: datetime
+    buffer: bytearray = field(default_factory=bytearray)
+    last_emit_ms: int = 0
+    last_chunks: List[TranscriptChunk] = field(default_factory=list)
+    threshold_index: int = 0
+    active: bool = False
+    has_voice_since_emit: bool = False
+
+
+class WhisperStreamManager:
+    def __init__(
+        self,
+        device: str,
+        model_name: str,
+        fp16: bool,
+        interval_ms: int,
+        history_store: deque,
+        ws_manager: ConnectionManager,
+    ) -> None:
+        self.device = device
+        self.model_name = model_name
+        self.fp16 = fp16 and device.startswith("cuda")
+        self.interval_ms = max(500, interval_ms)
+        self.thresholds_ms = WHISPER_THRESHOLD_VALUES
+        self.history_store = history_store
+        self.ws_manager = ws_manager
+        self.streams: Dict[str, WhisperStreamState] = {}
+        self.model = None
+        self.lock = asyncio.Lock()
+
+    def _ensure_model(self):
+        if self.model is None:
+            self.model = whisper.load_model(self.model_name, device=self.device)
+
+    def _pcm_bytes_to_audio(self, pcm_bytes: bytes) -> np.ndarray:
+        if not pcm_bytes:
+            return np.zeros(1, dtype=np.float32)
+        audio = np.frombuffer(pcm_bytes, dtype=np.int16).astype(np.float32) / 32768.0
+        return audio
+
+    def _transcribe_sync(self, audio: np.ndarray) -> tuple[List[TranscriptChunk], Optional[str]]:
+        if audio.size == 0:
+            return ([], None)
+        self._ensure_model()
+        audio = whisper.pad_or_trim(audio)
+        result = self.model.transcribe(
+            audio,
+            verbose=False,
+            fp16=self.fp16,
+            condition_on_previous_text=False,
+            temperature=0.0,
+        )
+        chunks: List[TranscriptChunk] = []
+        for seg in result.get("segments", []):
+            text = (seg.get("text") or "").strip()
+            if not text:
+                continue
+            chunks.append(
+                TranscriptChunk(
+                    speaker="Speaker",
+                    text=text,
+                    start=float(seg.get("start") or 0.0),
+                    end=float(seg.get("end") or 0.0),
+                )
+            )
+        lang = result.get("language") if isinstance(result, dict) else None
+        # Normalize to lowercase 2-3 letter code if present
+        try:
+            if isinstance(lang, str):
+                lang = lang.strip().lower()[:8]
+        except Exception:
+            pass
+        return (chunks, lang)
+
+    async def handle_chunk(
+        self,
+        device_id: str,
+        segment_id: str,
+        started_at: datetime,
+        sample_rate: int,
+        bits_per_sample: int,
+        raw_audio: bytes,
+        speech_detected: bool,
+    ) -> None:
+        if not raw_audio:
+            return
+        async with self.lock:
+            stream = self.streams.get(device_id)
+            if not stream or stream.segment_id != segment_id:
+                stream = WhisperStreamState(
+                    device_id=device_id,
+                    segment_id=segment_id,
+                    sample_rate=sample_rate,
+                    bits_per_sample=bits_per_sample,
+                    started_at=started_at,
+                )
+                self.streams[device_id] = stream
+            if speech_detected:
+                stream.active = True
+                stream.has_voice_since_emit = True
+            stream.buffer.extend(raw_audio)
+            buffer_ms = _bytes_to_ms(len(stream.buffer), sample_rate, bits_per_sample)
+            snapshot: Optional[bytes] = None
+            silence_progress_ms: Optional[int] = None
+            if stream.threshold_index < len(self.thresholds_ms):
+                next_threshold = self.thresholds_ms[stream.threshold_index]
+                if buffer_ms >= next_threshold:
+                    stream.threshold_index += 1
+                    stream.last_emit_ms = next_threshold
+                    if stream.has_voice_since_emit:
+                        snapshot = bytes(stream.buffer)
+                        stream.has_voice_since_emit = False
+                    else:
+                        silence_progress_ms = next_threshold
+            if not snapshot and buffer_ms - stream.last_emit_ms >= self.interval_ms:
+                stream.last_emit_ms = buffer_ms
+                if stream.has_voice_since_emit:
+                    snapshot = bytes(stream.buffer)
+                    stream.has_voice_since_emit = False
+                else:
+                    silence_progress_ms = buffer_ms
+        if snapshot:
+            await self._emit_snapshot(stream, snapshot, is_final=False)
+        elif silence_progress_ms is not None:
+            await self._emit_silence_progress(stream, silence_progress_ms)
+
+    async def finalize_segment(
+        self,
+        record: AudioSegmentRecord,
+        pcm_payload: bytes,
+    ) -> None:
+        has_voice = False
+        async with self.lock:
+            current = self.streams.get(record.device_id)
+            if current and current.segment_id == record.id:
+                has_voice = current.active
+                del self.streams[record.device_id]
+        if not has_voice:
+            await self._emit_silence(record)
+            return
+        await self._emit_from_pcm(
+            device_id=record.device_id,
+            segment_id=record.id,
+            started_at=record.started_at,
+            ended_at=record.ended_at,
+            sample_rate=record.sample_rate,
+            bits_per_sample=record.bits_per_sample,
+            pcm_payload=pcm_payload,
+            is_final=True,
+        )
+
+    async def _emit_snapshot(
+        self,
+        stream: WhisperStreamState,
+        pcm_snapshot: bytes,
+        is_final: bool,
+    ) -> None:
+        await self._emit_from_pcm(
+            device_id=stream.device_id,
+            segment_id=stream.segment_id,
+            started_at=stream.started_at,
+            ended_at=datetime.now(tz=timezone.utc),
+            sample_rate=stream.sample_rate,
+            bits_per_sample=stream.bits_per_sample,
+            pcm_payload=pcm_snapshot,
+            is_final=is_final,
+        )
+
+    async def _emit_from_pcm(
+        self,
+        device_id: str,
+        segment_id: str,
+        started_at: datetime,
+        ended_at: datetime,
+        sample_rate: int,
+        bits_per_sample: int,
+        pcm_payload: bytes,
+        is_final: bool,
+    ) -> None:
+        chunks, lang = await asyncio.to_thread(
+            self._transcribe_sync,
+            self._pcm_bytes_to_audio(pcm_payload),
+        )
+        if not chunks:
+            return
+        transcript = AudioTranscriptOut(
+            segment_id=segment_id,
+            device_id=device_id,
+            started_at=started_at.isoformat(),
+            ended_at=ended_at.isoformat(),
+            chunks=chunks,
+            is_final=is_final,
+            language=lang,
+        )
+        if is_final:
+            self.history_store.appendleft(transcript)
+            await persist_transcript_record(transcript)
+        await self.ws_manager.broadcast_device({"type": "audio_transcript", "payload": transcript.model_dump()}, transcript.device_id)
+
+    async def _emit_silence_progress(
+        self,
+        stream: WhisperStreamState,
+        progress_ms: int,
+    ) -> None:
+        transcript = AudioTranscriptOut(
+            segment_id=stream.segment_id,
+            device_id=stream.device_id,
+            started_at=stream.started_at.isoformat(),
+            ended_at=(stream.started_at + timedelta(milliseconds=progress_ms)).isoformat(),
+            chunks=[
+                TranscriptChunk(
+                    speaker="Silence",
+                    text="(silence)",
+                    start=0.0,
+                    end=progress_ms / 1000.0,
+                )
+            ],
+            is_final=False,
+        )
+        await self.ws_manager.broadcast_device({"type": "audio_transcript", "payload": transcript.model_dump()}, transcript.device_id)
+
+    async def _emit_silence(self, record: AudioSegmentRecord) -> None:
+        transcript = AudioTranscriptOut(
+            segment_id=record.id,
+            device_id=record.device_id,
+            started_at=record.started_at.isoformat(),
+            ended_at=record.ended_at.isoformat(),
+            chunks=[
+                TranscriptChunk(
+                    speaker="Silence",
+                    text="(silence)",
+                    start=0.0,
+                    end=float(record.duration_ms) / 1000.0,
+                )
+            ],
+            is_final=True,
+        )
+        self.history_store.appendleft(transcript)
+        await persist_transcript_record(transcript)
+        await self.ws_manager.broadcast_device({"type": "audio_transcript", "payload": transcript.model_dump()}, transcript.device_id)
+
+
+whisper_stream_manager: WhisperStreamManager | None = (
+    WhisperStreamManager(
+        device=WHISPER_DEVICE,
+        model_name=WHISPER_MODEL_NAME,
+        fp16=WHISPER_FP16,
+        interval_ms=WHISPER_STREAM_INTERVAL_MS,
+        history_store=audio_transcript_store,
+        ws_manager=manager,
+    )
+    if TRANSCRIPTION_ENABLED and whisper
+    else None
+)
+
+
+def row_to_segment_out(row) -> AudioSegmentOut:
+    file_path = row["file_path"] if "file_path" in row else None
+    return AudioSegmentOut(
+        id=row["id"],
+        device_id=row["device_id"],
+        sample_rate=row["sample_rate"],
+        bits_per_sample=row["bits_per_sample"],
+        duration_ms=row["duration_ms"],
+        rms=row["rms"],
+        started_at=row["started_at"].isoformat(),
+        ended_at=row["ended_at"].isoformat(),
+        file_path=file_path,
+        file_url=f"{AUDIO_SEGMENT_URL_PREFIX}/{row['id']}",
+    )
+
+
+def _silence_duration_ms(state: AudioSegmentBuffer, now: datetime) -> float:
+    if state.last_voice_at:
+        return (now - state.last_voice_at).total_seconds() * 1000
+    return float(state.duration_ms)
+
+
+def _should_finalize_segment(
+    state: AudioSegmentBuffer,
+    now: datetime,
+    speech_detected: bool,
+) -> bool:
+    if not state.buffer and not (state.temp_path and state.temp_path.exists()):
+        return False
+    silence_ms = _silence_duration_ms(state, now)
+    if state.duration_ms >= SEGMENT_MAX_MS or state.duration_ms >= SEGMENT_TARGET_MS:
+        return True
+    if (
+        not speech_detected
+        and state.duration_ms >= MIN_SEGMENT_MS
+        and silence_ms >= max(SILENCE_FORCE_FLUSH_MS, SEGMENT_TARGET_MS)
+    ):
+        return True
+    return False
+
+
+async def persist_audio_segment(
+    segment: AudioSegmentRecord,
+    wav_bytes: bytes,
+    file_path: Optional[str],
+) -> None:
+    if not db_pool:
+        return
+    async with db_pool.acquire() as conn:
+        await conn.execute(
+            """
+            INSERT INTO ig_audio_segments (
+                id, device_id, sample_rate, bits_per_sample,
+                duration_ms, rms, data, started_at, ended_at, file_path
+            ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+            ON CONFLICT (id) DO NOTHING;
+            """,
+            segment.id,
+            segment.device_id,
+            segment.sample_rate,
+            segment.bits_per_sample,
+            segment.duration_ms,
+            segment.rms,
+            wav_bytes,
+            segment.started_at,
+            segment.ended_at,
+            file_path,
+        )
+
+
+async def _flush_segment_state(state: AudioSegmentBuffer) -> None:
+    buffer_has_data = bool(state.buffer)
+    temp_file_bytes = None
+    if state.temp_path and state.temp_path.exists():
+        try:
+            temp_file_bytes = state.temp_path.read_bytes()
+        except Exception as exc:
+            print(f"[Audio] Failed to read segment temp file {state.segment_id}: {exc}")
+        finally:
+            try:
+                state.temp_path.unlink()
+            except FileNotFoundError:
+                pass
+    if not buffer_has_data and not temp_file_bytes:
+        return
+    ended_at = state.last_chunk_at or state.started_at
+    pcm_payload = temp_file_bytes if temp_file_bytes is not None else bytes(state.buffer)
+    if not pcm_payload:
+        return
+    duration_ms = _bytes_to_ms(len(pcm_payload), state.sample_rate, state.bits_per_sample) or state.duration_ms
+    enhanced_pcm, enhanced_rms = enhance_segment_pcm(
+        pcm_payload,
+        state.sample_rate,
+        state.bits_per_sample,
+    )
+    wav_payload = pcm_to_wav(enhanced_pcm, state.sample_rate, state.bits_per_sample)
+    record = AudioSegmentRecord(
+        id=state.segment_id,
+        device_id=state.device_id,
+        sample_rate=state.sample_rate,
+        bits_per_sample=state.bits_per_sample,
+        duration_ms=duration_ms,
+        rms=enhanced_rms,
+        started_at=state.started_at,
+        ended_at=ended_at,
+    )
+    filename = f"{record.id}.wav"
+    # Place segments under UTC date/hour subfolders based on segment start time
+    seg_dt = record.started_at if isinstance(record.started_at, datetime) else datetime.fromisoformat(str(record.started_at))
+    subdir = Path(seg_dt.astimezone(timezone.utc).strftime("%Y/%m/%d/%H"))
+    target_dir = AUDIO_SEGMENTS_DIR / subdir
+    target_dir.mkdir(parents=True, exist_ok=True)
+    disk_path = target_dir / filename
+    try:
+        # Offload final WAV write to thread
+        await asyncio.to_thread(disk_path.write_bytes, wav_payload)
+    except Exception as exc:
+        print(f"[Audio] Failed to write segment {record.id} to disk: {exc}")
+    relative_path = _relativize_path(disk_path)
+    record.file_path = relative_path
+    await persist_audio_segment(record, wav_payload, relative_path)
+    audio_log(
+        f"[Audio] Saved segment {record.id} for {record.device_id} "
+        f"({record.duration_ms} ms, avg RMS {record.rms:.3f})"
+    )
+    segment_out = segment_record_to_out(record)
+    audio_segment_store.append(segment_out)
+    await manager.broadcast_device({"type": "audio_segment", "payload": segment_out.model_dump()}, record.device_id)
+    if whisper_stream_manager:
+        schedule_background(
+            whisper_stream_manager.finalize_segment(record, enhanced_pcm),
+            "whisper_stream_finalize",
+        )
+    state.temp_path = None
+
+
+
+
+async def append_audio_to_segment_buffers(
+    chunk: AudioChunkOut,
+    raw_audio: bytes,
+    speech_detected: bool,
+) -> SegmentAppendResult:
+    now = datetime.fromisoformat(chunk.created_at)
+    segments_to_flush: List[AudioSegmentBuffer] = []
+    result = SegmentAppendResult()
+    transcript_args: Optional[tuple[str, str, datetime, int, int]] = None
+    async with segment_lock:
+        bucket = segment_states.setdefault(chunk.device_id, [])
+
+        state = bucket[-1] if bucket else None
+        if (
+            not state
+            or state.sample_rate != chunk.sample_rate
+            or state.bits_per_sample != chunk.bits_per_sample
+        ):
+            state = _start_segment_state(
+                chunk.device_id,
+                chunk.sample_rate,
+                chunk.bits_per_sample,
+                now,
+            )
+            bucket.append(state)
+
+        state.buffer.extend(raw_audio)
+        await append_chunk_to_file(state, raw_audio)
+        state.duration_ms += chunk.duration_ms
+        state.rms_accumulator += chunk.rms
+        state.rms_count += 1
+        state.last_chunk_at = now
+        if speech_detected:
+            state.last_voice_at = now
+
+        progress_ms = min(state.duration_ms, SEGMENT_TARGET_MS)
+        result = SegmentAppendResult(segment_id=state.segment_id, duration_ms=progress_ms)
+        transcript_args = (
+            state.device_id,
+            state.segment_id,
+            state.started_at,
+            state.sample_rate,
+            state.bits_per_sample,
+            speech_detected,
+        )
+
+        if _should_finalize_segment(state, now, speech_detected):
+            segments_to_flush.append(bucket.pop())
+            overlap_payload = _extract_overlap_payload(state)
+            new_state = _start_segment_state(
+                chunk.device_id,
+                chunk.sample_rate,
+                chunk.bits_per_sample,
+                now,
+            )
+            if overlap_payload:
+                new_state.buffer.extend(overlap_payload)
+                await append_chunk_to_file(new_state, overlap_payload)
+                overlap_ms = _bytes_to_ms(
+                    len(overlap_payload),
+                    new_state.sample_rate,
+                    new_state.bits_per_sample,
+                )
+                new_state.duration_ms += overlap_ms
+                overlap_rms = compute_rms_from_pcm(
+                    overlap_payload,
+                    new_state.bits_per_sample,
+                )
+                new_state.rms_accumulator += overlap_rms
+                new_state.rms_count += 1
+                new_state.last_chunk_at = now
+                if speech_detected:
+                    new_state.last_voice_at = now
+            bucket.append(new_state)
+
+        # Flush idle segments except most recent
+        for stale_state in list(bucket[:-1]):
+            idle_ms = (
+                (now - stale_state.last_chunk_at).total_seconds() * 1000
+                if stale_state.last_chunk_at
+                else SEGMENT_IDLE_FLUSH_MS + 1
+            )
+            if idle_ms >= SEGMENT_IDLE_FLUSH_MS:
+                bucket.remove(stale_state)
+                segments_to_flush.append(stale_state)
+
+        if not bucket:
+            segment_states.pop(chunk.device_id, None)
+
+    for segment in segments_to_flush:
+        if segment:
+            await _flush_segment_state(segment)
+    if whisper_stream_manager and transcript_args:
+        device_id, segment_id, started_at, sample_rate, bits_per_sample, speech_flag = transcript_args
+        schedule_background(
+            whisper_stream_manager.handle_chunk(
+                device_id,
+                segment_id,
+                started_at,
+                sample_rate,
+                bits_per_sample,
+                raw_audio,
+                speech_flag,
+            ),
+            "whisper_stream_chunk",
+        )
+    return result
+
+
+async def flush_idle_segments(force: bool = False) -> None:
+    now = datetime.now(tz=timezone.utc)
+    to_flush: List[AudioSegmentBuffer] = []
+    async with segment_lock:
+        for device_id, bucket in list(segment_states.items()):
+            for state in list(bucket):
+                if not state.last_chunk_at:
+                    continue
+                idle_ms = (now - state.last_chunk_at).total_seconds() * 1000
+                if force or (
+                    idle_ms >= SEGMENT_IDLE_FLUSH_MS and state.duration_ms >= MIN_SEGMENT_MS
+                ):
+                    bucket.remove(state)
+                    to_flush.append(state)
+            if not bucket:
+                del segment_states[device_id]
+    for segment in to_flush:
+        if segment:
+            await _flush_segment_state(segment)
+
+
+async def segment_housekeeper():
+    while True:
+        await asyncio.sleep(2)
+        await flush_idle_segments()
+
+
+def _decode_audio_payload(payload: AudioChunkIn) -> tuple[bytes, float, bool]:
+    try:
+        raw_audio = base64.b64decode(payload.audio_base64.encode(), validate=True)
+    except Exception as exc:
+        raise ValueError(f"Invalid audio_base64 data: {exc}") from exc
+    raw_audio, computed_rms = process_pcm_chunk(raw_audio)
+    speech_detected = detect_speech(
+        raw_audio,
+        payload.sample_rate,
+        payload.bits_per_sample,
+        computed_rms,
+    )
+    return raw_audio, computed_rms, speech_detected
+
+
+async def process_audio_payload(payload: AudioChunkIn) -> AudioChunkOut:
+    raw_audio, computed_rms, speech_detected = _decode_audio_payload(payload)
+    chunk_id = str(uuid.uuid4())
+    now = datetime.now(tz=timezone.utc)
+    chunk = AudioChunkOut(
+        id=chunk_id,
+        device_id=payload.device_id,
+        sample_rate=payload.sample_rate,
+        bits_per_sample=payload.bits_per_sample,
+        duration_ms=payload.duration_ms,
+        rms=round(computed_rms, 4),
+        created_at=now.isoformat(),
+        audio_url=f"/api/v1/audio/{chunk_id}",
+        speech_detected=speech_detected,
+    )
+    append_result = await append_audio_to_segment_buffers(chunk, raw_audio, speech_detected)
+    chunk.segment_duration_ms = append_result.duration_ms
+    chunk.active_segment_id = append_result.segment_id
+
+    audio_store.append(chunk)
+    schedule_background(
+        persist_audio_chunk(chunk, raw_audio),
+        "persist_audio_chunk",
+    )
+    audio_log(
+        "[Audio] Forward chunk "
+        f"{chunk.device_id}#{chunk.id} rms={chunk.rms:.4f} speech={speech_detected} "
+        f"segment={chunk.active_segment_id or 'n/a'} progress={chunk.segment_duration_ms or 0}ms"
+    )
+    await manager.broadcast_device({"type": "audio_chunk", "payload": chunk.model_dump()}, chunk.device_id)
+    return chunk
+
+
+async def process_message_payload(payload: MessageIn) -> MessageOut:
+    entry = _make_entry(payload)
+    photo_bytes: Optional[bytes] = None
+    photo_id: Optional[str] = None
+    if payload.photo_base64:
+        # Offload base64 decoding to thread to avoid blocking event loop
+        try:
+            # Use keyword arg validate=True; wrap to preserve kwarg when offloading
+            photo_bytes = await asyncio.to_thread(
+                lambda s: base64.b64decode(s, validate=True),
+                payload.photo_base64.encode(),
+            )
+        except Exception as exc:
+            raise HTTPException(status_code=400, detail=f"Invalid photo_base64 data: {exc}") from exc
+        photo_id = str(uuid.uuid4())
+        if db_pool:
+            # Provide a URL immediately (data will be persisted in background)
+            entry.photo_url = f"/api/v1/photos/{photo_id}"
+        else:
+            # Disk write is already offloaded inside save_photo_to_disk
+            entry.photo_url = await save_photo_to_disk(photo_id, photo_bytes, payload.photo_mime)
+
+    message_store.append(entry)
+    # Always persist in background to keep request handler free
+    schedule_background(
+        persist_entry(entry, photo_bytes, payload.photo_mime, photo_id),
+        "persist_entry",
+    )
+    await manager.broadcast_device({"type": "message", "payload": entry.model_dump()}, entry.device_id)
+    return entry
+
+
+@app.post("/api/v1/messages", response_model=MessageOut)
+async def ingest_message(payload: MessageIn):
+    return await process_message_payload(payload)
+
+
+@app.websocket("/ws/photo-ingest")
+async def photo_ingest_socket(websocket: WebSocket):
+    # Echo subprotocol if provided by client to keep intermediaries happy
+    proto_hdr = (websocket.headers.get("sec-websocket-protocol") or "").strip()
+    subproto = proto_hdr.split(",")[0].strip() if proto_hdr else None
+    try:
+        if subproto:
+            await websocket.accept(subprotocol=subproto)
+        else:
+            await websocket.accept()
+    except Exception:
+        # Fallback accept without subprotocol if negotiation fails
+        await websocket.accept()
+    try:
+        while True:
+            text_message = await websocket.receive_text()
+            try:
+                payload_dict = json.loads(text_message)
+            except json.JSONDecodeError as exc:
+                print(f"[Photo][WS] Dropping invalid JSON payload: {exc}")
+                continue
+            try:
+                message_payload = MessageIn(**payload_dict)
+            except ValidationError as exc:
+                print(f"[Photo][WS] Validation failed: {exc}")
+                continue
+            try:
+                await process_message_payload(message_payload)
+            except HTTPException as exc:
+                print(f"[Photo][WS] Failed to process payload: {exc.detail}")
+                continue
+    except WebSocketDisconnect:
+        pass
+
+
+@app.get("/api/v1/messages", response_model=List[MessageOut])
+async def list_messages(request: Request, limit: int = 50, before: Optional[str] = None):
+    capped = max(1, min(limit, 200))
+    before_dt: Optional[datetime] = None
+    if before:
+        try:
+            before_dt = datetime.fromisoformat(before)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid 'before' timestamp")
+    uid = await _current_user_id(request)
+    if not uid:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    devices = await _bound_devices(uid)
+    return await fetch_messages(limit=capped, before=before_dt, device_ids=devices)
+
+
+@app.post("/api/v1/audio", response_model=AudioChunkOut)
+async def ingest_audio_chunk(payload: AudioChunkIn):
+    try:
+        chunk = await process_audio_payload(payload)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return chunk
+
+
+@app.get("/api/v1/audio", response_model=List[AudioChunkOut])
+async def list_audio(request: Request, limit: int = 60, before: Optional[str] = None):
+    capped = max(1, min(limit, 200))
+    before_dt: Optional[datetime] = None
+    if before:
+        try:
+            before_dt = datetime.fromisoformat(before)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid 'before' timestamp")
+    uid = await _current_user_id(request)
+    if not uid:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    devices = await _bound_devices(uid)
+    return await fetch_audio_chunks(limit=capped, before=before_dt, device_ids=devices)
+
+
+@app.get("/api/v1/audio/segments", response_model=List[AudioSegmentOut])
+async def list_audio_segments(request: Request, limit: int = 20, before: Optional[str] = None):
+    capped = max(1, min(limit, 100))
+    before_dt: Optional[datetime] = None
+    if before:
+        try:
+            before_dt = datetime.fromisoformat(before)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid 'before' timestamp")
+    uid = await _current_user_id(request)
+    if not uid:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    devices = await _bound_devices(uid)
+    return await fetch_audio_segments(limit=capped, before=before_dt, device_ids=devices)
+
+
+@app.websocket("/ws/stream")
+async def websocket_endpoint(websocket: WebSocket):
+    # Parse session cookie from websocket headers
+    cookies = dict(
+        [tuple(h.strip() for h in kv.split("=", 1)) for kv in (websocket.headers.get("cookie") or "").split(";") if "=" in kv]
+    )
+    uid = _verify_session(cookies.get(SESSION_COOKIE, "")) if cookies else None
+    devices: List[str] = []
+    if uid and db_pool:
+        devices = await _bound_devices(uid)
+    # If unauthenticated, allow nothing
+    allowed: Optional[set[str]] = set(devices) if uid else set()
+    await manager.connect(websocket, allowed_devices=allowed)
+    try:
+        history = await fetch_messages(limit=50, device_ids=devices or None)
+        await websocket.send_json({"type": "history_messages", "data": [m.model_dump() for m in history]})
+        audio_history = await fetch_audio_chunks(limit=60, device_ids=devices or None)
+        await websocket.send_json({"type": "history_audio", "data": [c.model_dump() for c in audio_history]})
+        segment_history = await fetch_audio_segments(limit=20, device_ids=devices or None)
+        await websocket.send_json({"type": "history_audio_segments", "data": [s.model_dump() for s in segment_history]})
+        transcripts_history = await fetch_audio_transcripts(limit=20, device_ids=devices or None)
+        await websocket.send_json(
+            {"type": "history_audio_transcripts", "data": [t.model_dump() for t in transcripts_history]}
+        )
+        while True:
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        await manager.disconnect(websocket)
+
+
+@app.websocket("/ws/audio-ingest")
+async def audio_ingest_socket(websocket: WebSocket):
+    # Echo subprotocol if the client sent one (e.g., "ideasglass-audio")
+    proto_hdr = (websocket.headers.get("sec-websocket-protocol") or "").strip()
+    subproto = proto_hdr.split(",")[0].strip() if proto_hdr else None
+    try:
+        if subproto:
+            await websocket.accept(subprotocol=subproto)
+        else:
+            await websocket.accept()
+    except Exception:
+        await websocket.accept()
+    try:
+        while True:
+            text_message = await websocket.receive_text()
+            try:
+                payload_dict = json.loads(text_message)
+            except json.JSONDecodeError as exc:
+                print(f"[Audio][WS] Dropping invalid JSON payload: {exc}")
+                continue
+            try:
+                chunk_payload = AudioChunkIn(**payload_dict)
+            except ValidationError as exc:
+                print(f"[Audio][WS] Validation failed: {exc}")
+                continue
+            try:
+                await process_audio_payload(chunk_payload)
+            except ValueError as exc:
+                print(f"[Audio][WS] Failed to process chunk: {exc}")
+                continue
+    except WebSocketDisconnect:
+        pass
+
+
+@app.get("/api/v1/photos/{photo_id}")
+async def get_photo(photo_id: str):
+    if not db_pool:
+        raise HTTPException(status_code=404, detail="Photo storage disabled (DATABASE_URL not set).")
+    async with db_pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT data, mime_type FROM ig_photos WHERE id=$1",
+            photo_id,
+        )
+    if not row:
+        raise HTTPException(status_code=404, detail="Photo not found.")
+    return Response(content=bytes(row["data"]), media_type=row["mime_type"])
+
+
+@app.get("/api/v1/audio/{audio_id}")
+async def get_audio(audio_id: str):
+    if not db_pool:
+        raise HTTPException(status_code=404, detail="Audio storage disabled (DATABASE_URL not set).")
+    async with db_pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT data, sample_rate, bits_per_sample FROM ig_audio_chunks WHERE id=$1",
+            audio_id,
+        )
+    if not row:
+        raise HTTPException(status_code=404, detail="Audio not found.")
+    pcm_bytes: bytes = bytes(row["data"])
+    sample_rate = row["sample_rate"]
+    bits_per_sample = row["bits_per_sample"]
+    wav_payload = pcm_to_wav(pcm_bytes, sample_rate, bits_per_sample)
+    return Response(content=wav_payload, media_type="audio/wav")
+
+
+@app.get("/api/v1/audio/segments/{segment_id}")
+async def get_audio_segment(segment_id: str):
+    if not db_pool:
+        raise HTTPException(status_code=404, detail="Audio storage disabled (DATABASE_URL not set).")
+    async with db_pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT data, file_path FROM ig_audio_segments WHERE id=$1",
+            segment_id,
+        )
+    if not row:
+        raise HTTPException(status_code=404, detail="Segment not found.")
+    file_path = row.get("file_path")
+    if file_path:
+        disk_path = BASE_DIR / file_path
+        if disk_path.exists():
+            return FileResponse(disk_path, media_type="audio/wav", filename=f"{segment_id}.wav")
+        # Fallback for legacy file paths saved under the previous package folder
+        legacy = Path(__file__).parent.parent / "ngrok_bridge" / file_path
+        if legacy.exists():
+            return FileResponse(legacy, media_type="audio/wav", filename=f"{segment_id}.wav")
+    return Response(content=bytes(row["data"]), media_type="audio/wav")
+
+
+@app.get("/api/v1/audio/segments/{segment_id}/transcript", response_model=AudioTranscriptOut)
+async def get_audio_segment_transcript(segment_id: str):
+    transcript = await fetch_transcript_by_segment(segment_id)
+    if transcript:
+        return transcript
+    raise HTTPException(status_code=404, detail="Transcript not found.")
+
+
+@app.get("/healthz")
+async def healthcheck():
+    return {
+        "status": "ok",
+        "messages": len(message_store),
+        "segment_target_ms": SEGMENT_TARGET_MS,
+        "segment_overlap_ms": SEGMENT_OVERLAP_MS,
+    }
+
+
+@app.get("/")
+async def serve_index():
+    return FileResponse(STATIC_DIR / "index.html")
+
+
+app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+def _relativize_path(path: Path) -> str:
+    try:
+        return str(path.relative_to(BASE_DIR))
+    except ValueError:
+        return str(path)
+
+
+def schedule_background(coro: Coroutine, label: str) -> None:
+    task = asyncio.create_task(coro)
+
+    def _log_result(t: asyncio.Task) -> None:
+        try:
+            t.result()
+        except Exception as exc:  # pragma: no cover - best effort logging
+            print(f"[AsyncTask] {label} failed: {exc}")
+
+    task.add_done_callback(_log_result)
+
+
+def segment_record_to_out(record: AudioSegmentRecord) -> AudioSegmentOut:
+    return AudioSegmentOut(
+        id=record.id,
+        device_id=record.device_id,
+        sample_rate=record.sample_rate,
+        bits_per_sample=record.bits_per_sample,
+        duration_ms=record.duration_ms,
+        rms=record.rms,
+        started_at=record.started_at.isoformat(),
+        ended_at=record.ended_at.isoformat(),
+        file_path=record.file_path,
+        file_url=f"{AUDIO_SEGMENT_URL_PREFIX}/{record.id}",
+    )
+
+
+async def append_chunk_to_file(state: AudioSegmentBuffer, raw_audio: bytes) -> None:
+    if not state.temp_path:
+        return
+    try:
+        # Offload disk I/O to thread to avoid blocking the event loop
+        def _append(path: Path, data: bytes) -> None:
+            with path.open("ab") as temp_file:
+                temp_file.write(data)
+
+        await asyncio.to_thread(_append, state.temp_path, raw_audio)
+    except Exception as exc:
+        print(f"[Audio] Failed to append segment {state.segment_id}: {exc}")
+def _env_flag(name: str, default: bool = True) -> bool:
+    val = os.getenv(name)
+    if val is None:
+        return default
+    return str(val).strip().lower() not in {"0", "false", "no", "off"}
+
+AUDIO_LOG_SUPPRESS = _env_flag("IDEASGLASS_AUDIO_LOG_SUPPRESS", True)
+
+def audio_log(msg: str) -> None:
+    if not AUDIO_LOG_SUPPRESS:
+        print(msg)

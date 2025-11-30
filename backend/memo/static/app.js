@@ -23,6 +23,8 @@ const photoModalClose = document.getElementById("photoModalClose");
 const modalImage = document.getElementById("modalImage");
 const modalMetaPrimary = document.getElementById("modalMetaPrimary");
 const modalMetaSecondary = document.getElementById("modalMetaSecondary");
+const headerTitleEl = document.querySelector('header h1');
+const headerSubtitleEl = document.querySelector('header .subtitle');
 // Tabs
 const bottomNav = document.getElementById("bottomNav");
 const tabButtons = bottomNav ? Array.from(bottomNav.querySelectorAll('.tab-btn')) : [];
@@ -78,6 +80,14 @@ const goalStatusInput = document.getElementById('goalStatusInput');
 const goalProgressInput = document.getElementById('goalProgressInput');
 const goalSaveBtn = document.getElementById('goalSaveBtn');
 const goalDeleteBtn = document.getElementById('goalDeleteBtn');
+const goalChatMessagesEl = document.getElementById('goalChatMessages');
+const goalChatInput = document.getElementById('goalChatInput');
+const goalChatSend = document.getElementById('goalChatSend');
+const goalChatStorageKey = "aiMemoChatMessages";
+const chatAutoReplyToggle = document.getElementById('chatAutoReply');
+const chatAttachPhoto = document.getElementById('chatAttachPhoto');
+const chatAttachVoice = document.getElementById('chatAttachVoice');
+const chatAttachFile = document.getElementById('chatAttachFile');
 let currentGoalId = null;
 // Prophecy/Life goal panel + detail
 const prophecyPanel = document.getElementById('prophecyPanel');
@@ -141,6 +151,59 @@ const bleScanBtn = document.getElementById('bleScanBtn');
 const bleStatus = document.getElementById('bleStatus');
 const bleDeviceList = document.getElementById('bleDeviceList');
 
+const formatChatTime = (ts) => {
+  const d = new Date(ts);
+  return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+};
+
+let goalChatMessages = [];
+
+function loadGoalChatMessages() {
+  try {
+    const stored = localStorage.getItem(goalChatStorageKey);
+    if (stored) {
+      goalChatMessages = JSON.parse(stored);
+    } else {
+      goalChatMessages = [
+        { text: "Drop quick memos here—like a DM to yourself.", ts: Date.now(), author: "AI Memo" },
+        { text: "They stay on this device and won't block your live feed.", ts: Date.now(), author: "AI Memo" },
+      ];
+      localStorage.setItem(goalChatStorageKey, JSON.stringify(goalChatMessages));
+    }
+  } catch (err) {
+    console.error("Failed to load chat messages", err);
+    goalChatMessages = [];
+  }
+}
+
+function saveGoalChatMessages() {
+  try {
+    localStorage.setItem(goalChatStorageKey, JSON.stringify(goalChatMessages));
+  } catch (err) {
+    console.error("Failed to save chat messages", err);
+  }
+}
+
+function renderGoalChat() {
+  if (!goalChatMessagesEl) return;
+  goalChatMessagesEl.innerHTML = "";
+  goalChatMessages.forEach((msg) => {
+    const bubble = document.createElement("div");
+    bubble.className = "chat-bubble" + (msg.author === "You" ? " self" : "");
+    bubble.innerHTML = `<div class="chat-text">${msg.text}</div><div class="chat-meta">${msg.author || "You"} · ${formatChatTime(msg.ts)}</div>`;
+    goalChatMessagesEl.appendChild(bubble);
+  });
+  goalChatMessagesEl.scrollTop = goalChatMessagesEl.scrollHeight;
+}
+
+function addGoalChatMessage(text) {
+  const trimmed = text.trim();
+  if (!trimmed) return;
+  goalChatMessages.push({ text: trimmed, ts: Date.now(), author: "You" });
+  saveGoalChatMessages();
+  renderGoalChat();
+}
+
 // ---- i18n: language detection, persistence, and application ----
 const langSelect = document.getElementById('langSelect');
 const LANG_KEY = 'ig.lang';
@@ -150,7 +213,7 @@ const I18N = {
     'header.subtitle': 'Catch ideas as they happen',
     'nav.live': 'Live',
     'nav.ideas': 'Ideas',
-    'nav.goal': 'Goal',
+    'nav.goal': 'Chat',
     'nav.creation': 'Creation',
     'nav.settings': 'Settings',
     'live.photos': 'Photos',
@@ -175,7 +238,7 @@ const I18N = {
     'header.subtitle': '随时捕捉灵感',
     'nav.live': '直播',
     'nav.ideas': '想法',
-    'nav.goal': '目标',
+    'nav.goal': '聊天',
     'nav.creation': '创作',
     'nav.settings': '设置',
     'live.photos': '照片',
@@ -200,7 +263,7 @@ const I18N = {
     'header.subtitle': '隨時捕捉靈感',
     'nav.live': '直播',
     'nav.ideas': '想法',
-    'nav.goal': '目標',
+    'nav.goal': '聊天',
     'nav.creation': '創作',
     'nav.settings': '設定',
     'live.photos': '照片',
@@ -225,7 +288,7 @@ const I18N = {
     'header.subtitle': 'ひらめきを、その瞬間に。',
     'nav.live': 'ライブ',
     'nav.ideas': 'アイデア',
-    'nav.goal': '目標',
+    'nav.goal': '聊天',
     'nav.creation': 'クリエーション',
     'nav.settings': '設定',
     'live.photos': '写真',
@@ -674,7 +737,7 @@ const AUDIO_LOG_SUPPRESS = true;
 function logWave(event, details = {}) {
   if (AUDIO_LOG_SUPPRESS) return;
   // eslint-disable-next-line no-console
-  console.log(`[IdeasGlass][wave] ${event}`, details);
+  console.log(`[AI Memo][wave] ${event}`, details);
 }
 
 function updateBatteryStatus(pct, volt) {
@@ -838,7 +901,7 @@ function buildEntryElement(entry) {
   card.className = "gallery-card";
   const img = document.createElement("img");
   img.src = entry.photo_url;
-  img.alt = entry.message || "IdeasGlass photo";
+  img.alt = entry.message || "AI Memo photo";
   img.loading = "lazy";
   card.appendChild(img);
   const badge = document.createElement("div");
@@ -1055,6 +1118,21 @@ function setActiveTab(tab) {
   try { document.body.classList.add('header-fixed'); } catch {}
   updateHeaderOffset();
   updateLoginOverlay();
+  const titleMap = { live: 'AI Memo', ideas: 'Ideas', goal: 'Chat', creation: 'Creation', settings: 'Settings' };
+  const subtitleMap = {
+    live: 'Catch ideas as they happen',
+    ideas: 'Rank and refine your ideas',
+    goal: 'DM yourself memos',
+    creation: 'Turn ideas into outputs',
+    settings: 'Preferences',
+  };
+  if (headerTitleEl) headerTitleEl.textContent = titleMap[tab] || 'AI Memo';
+  if (headerSubtitleEl) headerSubtitleEl.textContent = subtitleMap[tab] || 'Catch ideas as they happen';
+  const showBattery = tab === 'live';
+  const showToggle = tab === 'goal';
+  if (batteryStatusEl) batteryStatusEl.style.display = showBattery ? 'inline-flex' : 'none';
+  const headerToggle = document.querySelector('.header-toggle');
+  if (headerToggle) headerToggle.style.display = showToggle ? 'inline-flex' : 'none';
   if (tab === 'ideas') {
     try { refreshIdeas(); } catch {}
   }
@@ -2518,7 +2596,7 @@ async function refreshIdeas() {
     ideasGrid.innerHTML = '';
     if (!Array.isArray(items) || items.length === 0) {
       const empty = document.createElement('p');
-      empty.textContent = 'No ideas yet. Generate samples or keep talking—IdeasGlass will surface ideas here.';
+      empty.textContent = 'No ideas yet. Generate samples or keep talking—AI Memo will surface ideas here.';
       ideasGrid.appendChild(empty);
       return;
     }
@@ -2708,7 +2786,7 @@ async function requestBleDevice() {
     const UART_UUID = '6e400001-b5a3-f393-e0a9-e50e24dcca9e';
     const CMD_UUID  = '6e400002-b5a3-f393-e0a9-e50e24dcca9e';
     const TLM_UUID  = '6e400003-b5a3-f393-e0a9-e50e24dcca9e';
-    const filters = [{ namePrefix: 'IdeasGlass' }];
+    const filters = [{ namePrefix: 'AI Memo' }];
     let device = null;
     try {
       device = await navigator.bluetooth.requestDevice({ filters, optionalServices: [UART_UUID, 0x180A] });
@@ -2766,3 +2844,32 @@ if (bleScanBtn) {
   }
   bleScanBtn.addEventListener('click', requestBleDevice);
 }
+
+// ---- Goal chat (AI Memo) ----
+if (goalChatMessagesEl && goalChatInput && goalChatSend) {
+  loadGoalChatMessages();
+  renderGoalChat();
+  const handleSend = () => {
+    addGoalChatMessage(goalChatInput.value || "");
+    goalChatInput.value = "";
+    goalChatInput.focus();
+  };
+  goalChatSend.addEventListener('click', handleSend);
+  goalChatInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSend();
+    }
+  });
+}
+
+if (chatAutoReplyToggle) {
+  chatAutoReplyToggle.checked = false;
+}
+
+const attachLog = (kind) => () => {
+  addGoalChatMessage(`${kind} feature coming soon.`);
+};
+chatAttachPhoto?.addEventListener('click', attachLog('Photo'));
+chatAttachVoice?.addEventListener('click', attachLog('Voice'));
+chatAttachFile?.addEventListener('click', attachLog('File'));

@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-    <title>IdeasGlass</title>
+    <title>AI Memo</title>
     <link rel="manifest" href="/static/manifest.webmanifest" />
     <link rel="stylesheet" href="/static/styles.css" />
     <link rel="icon" type="image/png" href="/static/icons/icon-192.png" />
@@ -12,11 +12,16 @@
   <body class="header-fixed">
     <header>
       <div>
-        <h1>IdeasGlass</h1>
+        <h1>AI Memo</h1>
         <p class="subtitle" data-i18n="header.subtitle">Catch ideas as they happen</p>
       </div>
       <div class="header-actions">
         <span id="batteryStatus" class="battery-pill" title="Battery">🔋 --%</span>
+        <label class="toggle-row header-toggle" for="chatAutoReply">
+          <span class="muted">Respond</span>
+          <input type="checkbox" id="chatAutoReply" class="switch">
+          <span class="switch-handle" aria-hidden="true"></span>
+        </label>
         <select id="langSelect" class="lang-select" aria-label="Language">
           <option value="en">English</option>
           <option value="zh-Hant">繁體中文</option>
@@ -119,8 +124,8 @@
     <!-- Login overlay (shown on Live when not signed in) -->
     <div id="loginOverlay" class="login-overlay hidden">
       <div class="login-overlay-backdrop"></div>
-      <div class="login-overlay-card" role="dialog" aria-label="Sign in to IdeasGlass">
-        <h3>Welcome to IdeasGlass</h3>
+      <div class="login-overlay-card" role="dialog" aria-label="Sign in to AI Memo">
+        <h3>Welcome to AI Memo</h3>
         <p class="overlay-sub">Sign in to continue</p>
         <form id="overlayAuthForm" class="overlay-auth-form" action="javascript:void(0)">
           <input id="overlayEmail" type="email" placeholder="Email" />
@@ -141,7 +146,7 @@
       <main>
         <section class="ideas-panel">
           <div class="ideas-header">
-            <h2 data-i18n="ideas.plural">Ideas</h2>
+            <h2 class="tab-heading" data-i18n="ideas.plural">Ideas</h2>
             <div class="ideas-actions">
               <button id="seedIdeasBtn" type="button" class="ghost-btn">Generate Samples</button>
             </div>
@@ -194,7 +199,122 @@
 
     <div id="goalView" class="view hidden">
       <main>
-        <section class="goals-panel">
+        <section class="chat-panel">
+          <div class="chat-header" hidden>
+            <h2>AI Memo Chat</h2>
+            <p class="muted">Quickly jot thoughts like a DM thread; saved locally.</p>
+          </div>
+          <div id="goalChatMessages" class="chat-feed" aria-live="polite"></div>
+          <div class="chat-input-bar">
+            <div class="chat-actions">
+              <button id="chatAttachPhoto" type="button" aria-label="Attach photo">📷</button>
+              <button id="chatAttachVoice" type="button" aria-label="Record voice">🎤</button>
+              <button id="chatAttachFile" type="button" aria-label="Upload file">📎</button>
+            </div>
+            <input id="goalChatInput" type="text" placeholder="Type a memo…" aria-label="Memo input" autocomplete="off" />
+            <button id="goalChatSend" type="button">Send</button>
+          </div>
+        </section>
+        <section class="goals-panel hidden-goal-legacy">
+          <div class="goals-header">
+            <h2 data-i18n="goal.plural">Goals</h2>
+            <div class="goals-actions">
+              <button id="seedGoalsBtn" type="button" class="ghost-btn">Generate Samples</button>
+            </div>
+          </div>
+          <p class="goals-sub">Ranked outcomes with progress, deadlines, and status.</p>
+          <div id="goalsGrid" class="goals-grid"></div>
+        </section>
+      </main>
+    </div>
+
+    <!-- Goal detail sub-page (push-style) -->
+    <div id="goalDetailView" class="hidden">
+      <main>
+        <section class="goals-panel hidden-goal-legacy">
+          <div class="goals-header">
+            <button id="goalDetailBack" class="ghost-btn" type="button" data-i18n="btn.back_to_goals">← Back to Goals</button>
+            <h2 data-i18n="goal.singular">Chat</h2>
+            <div class="goals-actions">
+              <button id="goalDeleteBtn" type="button" class="ghost-btn">Delete</button>
+            </div>
+          </div>
+          <div class="goal-form">
+            <label class="gf-label">Outcome</label>
+            <input id="goalOutcomeInput" class="gf-input" placeholder="Outcome" />
+            <label class="gf-label">Details</label>
+            <textarea id="goalDetailsInput" class="gf-textarea" rows="4" placeholder="Details"></textarea>
+            <div class="gf-row">
+              <div class="gf-col">
+                <label class="gf-label">Priority</label>
+                <input id="goalPriorityInput" class="gf-input" placeholder="H/M/L" />
+              </div>
+              <div class="gf-col">
+                <label class="gf-label">Status</label>
+                <input id="goalStatusInput" class="gf-input" placeholder="Not started / In progress / Done" />
+              </div>
+            </div>
+            <div class="gf-row">
+              <div class="gf-col">
+                <label class="gf-label">Progress (%)</label>
+                <input id="goalProgressInput" class="gf-input" type="number" min="0" max="100" step="1" />
+              </div>
+              <div class="gf-col">
+                <label class="gf-label">Deadline</label>
+                <input id="goalDeadlineInput" class="gf-input" type="date" />
+              </div>
+            </div>
+            <button id="goalSaveBtn" type="button">Save</button>
+            <div id="goalStatus" class="status"></div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <div id="creationView" class="view hidden">
+      <main>
+        <section class="creation-panel">
+          <div class="creation-header">
+            <h2 class="tab-heading" data-i18n="creation.plural">Creation</h2>
+            <div class="creation-actions">
+              <button id="seedCreationsBtn" type="button" class="ghost-btn">Generate Samples</button>
+              <button id="createFromIdeaBtn" type="button">Create from Idea</button>
+            </div>
+          </div>
+          <p class="creation-sub">Turn ideas into outputs: research proposals, business plans, videos, books, code, music.</p>
+          <div id="creationsGrid" class="creations-grid"></div>
+        </section>
+      </main>
+    </div>
+
+    <!-- Creation detail sub-page (push-style) -->
+    <div id="creationDetailView" class="hidden">
+      <main>
+        <section class="creation-panel">
+          <div class="creation-header">
+            <button id="creationDetailBack" class="ghost-btn" type="button">← Back to Creation</button>
+            <h2 id="creationDetailTitle">Creation</h2>
+            <span></span>
+          </div>
+          <p id="creationDetailMeta" class="creation-meta"></p>
+          <div class="creation-sections">
+            <h4>Sections</h4>
+            <ul id="creationSections"></ul>
+          </div>
+          <div class="creation-assets">
+            <h4>Assets</h4>
+            <ul id="creationAssets"></ul>
+          </div>
+          <div class="creation-publish">
+            <a id="creationOutcomeLink" href="#" target="_blank" rel="noopener">Open published output</a>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <div id="settingsView" class="view hidden">
+      <main>
+        <section class="goals-panel hidden-goal-legacy">
           <div id="prophecyPanel" class="prophecy-card">
             <div class="prophecy-left">
               <div class="prophecy-title">Prophecy Diary</div>
@@ -223,7 +343,7 @@
         <section class="goals-panel">
           <div class="goals-header">
             <button id="goalDetailBack" class="ghost-btn" type="button">← Back to Goals</button>
-            <h2>Goal</h2>
+            <h2>Chat</h2>
             <div class="goals-actions">
               <button id="goalDeleteBtn" type="button" class="ghost-btn">Delete</button>
             </div>
@@ -471,7 +591,7 @@
 
         <section id="bluetoothPanel" class="card">
           <h2>Bluetooth (beta)</h2>
-          <p class="install-help">Discover your IdeasGlass device over Bluetooth LE.
+          <p class="install-help">Discover your AI Memo device over Bluetooth LE.
             <small class="muted">Android Chrome/Edge only; iOS Safari/Chrome do not support Web Bluetooth.</small>
           </p>
           <div class="ble-actions">
@@ -481,19 +601,10 @@
           <ul id="bleDeviceList" class="ble-list"></ul>
         </section>
 
-        <section id="installPanel" class="card">
-          <h2>Install</h2>
-          <p class="install-help">Install this PWA for a native-like IdeasGlass dashboard.</p>
-          <button id="installBtn" type="button" hidden>Add to Home Screen</button>
-          <small class="muted">On iOS, use “Share” → “Add to Home Screen”.</small>
-        </section>
+        
         </div>
       </main>
     </div>
-
-    <footer>
-      <p>Install this page on Android/iOS for a native-like IdeasGlass dashboard.</p>
-    </footer>
 
     <!-- Photo modal -->
     <div id="photoModal" class="modal hidden" role="dialog" aria-modal="true" aria-label="Photo details">
@@ -517,13 +628,9 @@
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18h6M10 15h4M8 10a6 6 0 1 1 8 0c-1.2 1.1-2 2.2-2 3.5V15H10v-1.5c0-1.3-.8-2.4-2-3.5z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
         <span data-i18n="nav.ideas">Ideas</span>
       </button>
-      <button class="tab-btn" data-tab="goal" aria-label="Goal">
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/>
-          <circle cx="12" cy="12" r="5" fill="none" stroke="currentColor" stroke-width="2"/>
-          <circle cx="12" cy="12" r="2" fill="currentColor"/>
-        </svg>
-        <span data-i18n="nav.goal">Goal</span>
+      <button class="tab-btn" data-tab="goal" aria-label="Chat">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v10H7l-3 3V5z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <span data-i18n="nav.goal">Chat</span>
       </button>
       <button class="tab-btn" data-tab="creation" aria-label="Creation">
         <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 8v8M8 12h8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>

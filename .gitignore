@@ -7,6 +7,8 @@ __pycache__/
 backend/ngrok_bridge/audio_segments/
 # current audio output directory (large, runtime-generated)
 backend/glass/audio_segments/
+backend/memo/audio_segments/
+backend/memo_legacy/audio_segments/
 
 # Local-only symlinks (do not include in repo)
 whisperX
