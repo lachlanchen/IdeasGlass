@@ -161,6 +161,55 @@
       </main>
     </div>
 
+    <div id="memoDetailView" class="hidden">
+      <main>
+        <section class="memo-detail-panel">
+          <div class="subpage-header">
+            <button id="memoDetailBack" class="ghost-btn" type="button">← Back</button>
+            <h2>Edit Memo</h2>
+            <span></span>
+          </div>
+          <form id="memoEditForm" class="memo-edit-form">
+            <label>Content<textarea id="memoEditContent" rows="3" required></textarea></label>
+            <label>Type
+              <select id="memoEditType">
+                <option value="task">Task</option>
+                <option value="plan">Plan</option>
+                <option value="agenda">Agenda</option>
+                <option value="idea">Idea</option>
+              </select>
+            </label>
+            <div class="memo-inline">
+              <label>Urgency
+                <select id="memoEditUrgency">
+                  <option value="low">Low</option>
+                  <option value="medium" selected>Medium</option>
+                  <option value="high">High</option>
+                </select>
+              </label>
+              <label>Importance
+                <select id="memoEditImportance">
+                  <option value="low">Low</option>
+                  <option value="medium" selected>Medium</option>
+                  <option value="high">High</option>
+                </select>
+              </label>
+            </div>
+            <label>When
+              <input id="memoEditDatetime" type="datetime-local">
+            </label>
+            <div class="memo-actions-row">
+              <button id="memoDeleteBtn" class="ghost-btn" type="button">Delete</button>
+              <div class="spacer"></div>
+              <button id="memoCompleteBtn" class="ghost-btn" type="button">Complete</button>
+              <button id="memoSaveBtn" class="primary-btn" type="submit">Save</button>
+            </div>
+            <div id="memoEditStatus" class="muted" aria-live="polite"></div>
+          </form>
+        </section>
+      </main>
+    </div>
+
     <!-- Idea detail sub-page (push-style) -->
     <div id="ideaDetailView" class="hidden">
       <main>

@@ -2212,6 +2212,14 @@ class MemoConfirmIn(BaseModel):
     id: str
 
 
+class MemoUpdateIn(BaseModel):
+    memo_type: Optional[str] = None
+    datetime: Optional[str] = None
+    urgency: Optional[str] = None
+    importance: Optional[str] = None
+    content: Optional[str] = None
+
+
 @app.post("/api/v1/memo/confirm", response_model=List[MemoItem])
 async def confirm_memo(payload: MemoConfirmIn, request: Request):
     uid = await _current_user_id(request)
@@ -2241,6 +2249,68 @@ async def discard_memo(payload: MemoConfirmIn, request: Request):
                 uid,
             )
     return await list_memo_candidates(request)
+
+
+@app.patch("/api/v1/memo/{memo_id}", response_model=MemoItem)
+async def update_memo(memo_id: str, payload: MemoUpdateIn, request: Request):
+    uid = await _current_user_id(request)
+    if not uid:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    fields = []
+    values = []
+    if payload.memo_type:
+        fields.append("memo_type=$%d" % (len(values) + 1))
+        values.append(payload.memo_type)
+    if payload.datetime is not None:
+        fields.append("datetime=$%d" % (len(values) + 1))
+        values.append(payload.datetime)
+    if payload.urgency:
+        fields.append("urgency=$%d" % (len(values) + 1))
+        values.append(payload.urgency)
+    if payload.importance:
+        fields.append("importance=$%d" % (len(values) + 1))
+        values.append(payload.importance)
+    if payload.content is not None:
+        fields.append("content=$%d" % (len(values) + 1))
+        values.append(payload.content)
+    if not fields:
+        raise HTTPException(status_code=400, detail="No fields to update")
+    values.extend([memo_id, uid])
+    if db_pool:
+        async with db_pool.acquire() as conn:
+            await conn.execute(
+                f"UPDATE ig_memos SET {', '.join(fields)} WHERE id=$%d AND user_id=$%d" % (len(values) - 1, len(values)),
+                *values,
+            )
+            row = await conn.fetchrow(
+                "SELECT id, memo_type, datetime, urgency, importance, content, status, created_at FROM ig_memos WHERE id=$1 AND user_id=$2",
+                memo_id,
+                uid,
+            )
+            if not row:
+                raise HTTPException(status_code=404, detail="Not found")
+            return MemoItem(
+                id=row["id"],
+                type=row["memo_type"],
+                datetime=row["datetime"],
+                urgency=row["urgency"],
+                importance=row["importance"],
+                content=row["content"],
+                status=row["status"],
+                created_at=row["created_at"].isoformat() if row["created_at"] else None,
+            )
+    raise HTTPException(status_code=503, detail="DB unavailable")
+
+
+@app.delete("/api/v1/memo/{memo_id}", response_model=List[MemoItem])
+async def delete_memo(memo_id: str, request: Request):
+    uid = await _current_user_id(request)
+    if not uid:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    if db_pool:
+        async with db_pool.acquire() as conn:
+            await conn.execute("DELETE FROM ig_memos WHERE id=$1 AND user_id=$2", memo_id, uid)
+    return await list_memo_saved(request)
 
 
 @app.get("/api/v1/memo/chat", response_model=List[MemoChatMessage])

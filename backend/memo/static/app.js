@@ -93,7 +93,20 @@ const memoCandidatesUrl = "/api/v1/memo/candidates";
 const memoSavedUrl = "/api/v1/memo/saved";
 const memoConfirmUrl = "/api/v1/memo/confirm";
 const memoDiscardUrl = "/api/v1/memo/discard";
+const memoUpdateUrl = (id) => `/api/v1/memo/${id}`;
 let currentGoalId = null;
+const memoDetailView = document.getElementById('memoDetailView');
+const memoDetailBack = document.getElementById('memoDetailBack');
+const memoEditForm = document.getElementById('memoEditForm');
+const memoEditContent = document.getElementById('memoEditContent');
+const memoEditType = document.getElementById('memoEditType');
+const memoEditUrgency = document.getElementById('memoEditUrgency');
+const memoEditImportance = document.getElementById('memoEditImportance');
+const memoEditDatetime = document.getElementById('memoEditDatetime');
+const memoEditStatus = document.getElementById('memoEditStatus');
+const memoSaveBtn = document.getElementById('memoSaveBtn');
+const memoCompleteBtn = document.getElementById('memoCompleteBtn');
+const memoDeleteBtn = document.getElementById('memoDeleteBtn');
 // Prophecy/Life goal panel + detail
 const prophecyPanel = document.getElementById('prophecyPanel');
 const prophecyViewBtn = document.getElementById('prophecyViewBtn');
@@ -169,6 +182,7 @@ let memoSaved = [];
 const savedMemosKey = "aiMemoSavedMemos";
 const seenMemoTexts = new Set();
 let chatAutoStick = true;
+let currentMemoEditing = null;
 
 function loadGoalChatMessages() {
   try {
@@ -268,7 +282,7 @@ function renderMemoCandidates() {
     const card = document.createElement("div");
     card.className = "memo-card";
     const disableConfirm = !m.id;
-    card.innerHTML = `<h4>${(m.type || '').toUpperCase()}</h4><div class="memo-meta">Urgency ${m.urgency} · Importance ${m.importance}</div><p class="memo-content">${m.content}</p><div class="memo-actions"><button data-idx="${idx}" class="memo-confirm solid" ${disableConfirm ? 'disabled' : ''}>Confirm</button><button data-idx="${idx}" class="memo-discard">Discard</button></div>`;
+    card.innerHTML = `<h4>${(m.type || '').toUpperCase()}</h4><div class="memo-meta">Urgency ${m.urgency} · Importance ${m.importance}</div><p class="memo-content">${m.content}</p><div class="memo-actions"><button data-idx="${idx}" class="memo-confirm solid" ${disableConfirm ? 'disabled' : ''}>Confirm</button><button data-idx="${idx}" class="memo-discard">Discard</button><button data-idx="${idx}" class="memo-edit">Edit</button></div>`;
     memoCandidatesEl.appendChild(card);
   });
   memoCandidatesEl.querySelectorAll(".memo-confirm").forEach((btn) => {
@@ -290,6 +304,12 @@ function renderMemoCandidates() {
       }
     });
   });
+  memoCandidatesEl.querySelectorAll(".memo-edit").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const i = parseInt(btn.getAttribute("data-idx"), 10);
+      if (memoCandidates[i] && memoCandidates[i].id) openMemoDetail(memoCandidates[i]);
+    });
+  });
 }
 
 function renderMemoSaved() {
@@ -298,8 +318,15 @@ function renderMemoSaved() {
   memoSaved.forEach((m) => {
     const card = document.createElement("div");
     card.className = "memo-card";
-    card.innerHTML = `<h4>${m.type.toUpperCase()}</h4><div class="memo-meta">${m.datetime || "Anytime"} · Urgency ${m.urgency} · Importance ${m.importance}</div><p class="memo-content">${m.content}</p>`;
+    card.innerHTML = `<h4>${m.type.toUpperCase()}</h4><div class="memo-meta">${m.datetime || "Anytime"} · Urgency ${m.urgency} · Importance ${m.importance}</div><p class="memo-content">${m.content}</p><div class="memo-actions"><button data-id="${m.id}" class="memo-edit">Edit</button></div>`;
     memoSavedEl.appendChild(card);
+  });
+  memoSavedEl.querySelectorAll(".memo-edit").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const id = btn.getAttribute("data-id");
+      const mem = memoSaved.find((x) => x.id === id);
+      if (mem) openMemoDetail(mem);
+    });
   });
 }
 
@@ -371,6 +398,80 @@ async function discardMemo(id) {
     console.warn("Discard memo failed", e);
   }
 }
+
+function openMemoDetail(m) {
+  if (!memoDetailView || !memoEditForm) return;
+  currentMemoEditing = m;
+  memoEditContent.value = m.content || "";
+  memoEditType.value = m.type || "task";
+  memoEditUrgency.value = m.urgency || "medium";
+  memoEditImportance.value = m.importance || "medium";
+  memoEditDatetime.value = m.datetime ? m.datetime.slice(0, 16) : "";
+  memoEditStatus.textContent = "";
+  memoDetailView.classList.remove('hidden');
+  ideasView?.classList.add('hidden');
+  document.body && document.body.classList.add('hide-header');
+}
+
+async function saveMemoDetail() {
+  if (!currentMemoEditing || !currentMemoEditing.id) return;
+  const payload = {
+    content: memoEditContent.value || "",
+    memo_type: memoEditType.value || "task",
+    urgency: memoEditUrgency.value || "medium",
+    importance: memoEditImportance.value || "medium",
+    datetime: memoEditDatetime.value ? memoEditDatetime.value : null,
+  };
+  try {
+    const res = await fetch(memoUpdateUrl(currentMemoEditing.id), {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      memoEditStatus.textContent = "Save failed";
+      return;
+    }
+    const updated = await res.json();
+    memoCandidates = memoCandidates.map((c) => (c.id === updated.id ? updated : c));
+    memoSaved = memoSaved.map((c) => (c.id === updated.id ? updated : c));
+    renderMemoCandidates();
+    renderMemoSaved();
+    memoEditStatus.textContent = "Saved ✔";
+  } catch (e) {
+    memoEditStatus.textContent = "Save failed";
+  }
+}
+
+async function completeMemoDetail() {
+  if (!currentMemoEditing || !currentMemoEditing.id) return;
+  await confirmMemo(currentMemoEditing.id);
+  closeMemoDetail();
+}
+
+async function deleteMemoDetail() {
+  if (!currentMemoEditing || !currentMemoEditing.id) return;
+  try {
+    await fetch(memoUpdateUrl(currentMemoEditing.id), { method: "DELETE" });
+    memoCandidates = memoCandidates.filter((c) => c.id !== currentMemoEditing.id);
+    memoSaved = memoSaved.filter((c) => c.id !== currentMemoEditing.id);
+    renderMemoCandidates();
+    renderMemoSaved();
+  } catch {}
+  closeMemoDetail();
+}
+
+function closeMemoDetail() {
+  memoDetailView?.classList.add('hidden');
+  ideasView?.classList.remove('hidden');
+  document.body && document.body.classList.remove('hide-header');
+  currentMemoEditing = null;
+}
+
+memoDetailBack?.addEventListener('click', (e) => { e.preventDefault(); closeMemoDetail(); });
+memoEditForm?.addEventListener('submit', (e) => { e.preventDefault(); saveMemoDetail(); });
+memoCompleteBtn?.addEventListener('click', (e) => { e.preventDefault(); completeMemoDetail(); });
+memoDeleteBtn?.addEventListener('click', (e) => { e.preventDefault(); deleteMemoDetail(); });
 
 // ---- i18n: language detection, persistence, and application ----
 const langSelect = document.getElementById('langSelect');
