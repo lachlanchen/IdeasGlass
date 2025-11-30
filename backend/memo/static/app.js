@@ -168,6 +168,7 @@ let memoCandidates = [];
 let memoSaved = [];
 const savedMemosKey = "aiMemoSavedMemos";
 const seenMemoTexts = new Set();
+let chatAutoStick = true;
 
 function loadGoalChatMessages() {
   try {
@@ -222,7 +223,9 @@ function renderGoalChat() {
     bubble.innerHTML = `<div class="chat-text">${msg.text}</div><div class="chat-meta">${msg.author || "You"} · ${formatChatTime(msg.ts)}</div>`;
     goalChatMessagesEl.appendChild(bubble);
   });
-  goalChatMessagesEl.scrollTop = goalChatMessagesEl.scrollHeight;
+  if (chatAutoStick && goalChatMessagesEl) {
+    goalChatMessagesEl.scrollTop = goalChatMessagesEl.scrollHeight;
+  }
 }
 
 async function persistChatMessage(msg) {
@@ -3035,6 +3038,11 @@ if (goalChatMessagesEl && goalChatInput && goalChatSend) {
   loadGoalChatMessages();
   renderMemoSaved();
   renderGoalChat();
+  goalChatMessagesEl.addEventListener('scroll', () => {
+    if (!goalChatMessagesEl) return;
+    const distanceFromBottom = goalChatMessagesEl.scrollHeight - goalChatMessagesEl.scrollTop - goalChatMessagesEl.clientHeight;
+    chatAutoStick = distanceFromBottom < 120;
+  }, { passive: true });
   const handleSend = () => {
     appendChatMessage(goalChatInput.value || "", "You", { triggerSuggest: true, persist: true });
     goalChatInput.value = "";
