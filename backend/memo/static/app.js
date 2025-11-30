@@ -1259,6 +1259,10 @@ function setActiveTab(tab) {
   if (batteryStatusEl) batteryStatusEl.style.display = showBattery ? 'inline-flex' : 'none';
   const headerToggle = document.querySelector('.header-toggle');
   if (headerToggle) headerToggle.style.display = showToggle ? 'inline-flex' : 'none';
+  // Always refresh memo lists when entering Memo tab (mapped to Ideas view)
+  if ((tab === 'memo' || tab === 'ideas') && state.authed) {
+    try { loadMemoLists(); } catch {}
+  }
   if (tab === 'ideas') {
     try { refreshIdeas(); } catch {}
   }
@@ -1981,7 +1985,7 @@ if (tabButtons.length) {
   // Restore previously selected tab (default to live)
   let saved = null;
   try { saved = localStorage.getItem('ig.selectedTab'); } catch {}
-  const valid = new Set(['live','ideas','goal','creation','settings']);
+  const valid = new Set(['live','ideas','memo','goal','creation','settings']);
   setActiveTab(valid.has(saved) ? saved : 'live');
   // Defer overlay update until after first auth check
   setTimeout(() => { try { updateLoginOverlay && updateLoginOverlay(); } catch {} }, 0);
@@ -2565,6 +2569,15 @@ async function refreshAccount() {
   updateLoginOverlay();
   // Load preferences after auth state is known
   try { await refreshSettings(); } catch {}
+  // Load memo candidates/saved once authenticated
+  if (authed) {
+    try { await loadMemoLists(); } catch {}
+  } else {
+    memoCandidates = [];
+    memoSaved = [];
+    renderMemoCandidates();
+    renderMemoSaved();
+  }
 }
 
 authRegisterBtn?.addEventListener("click", async () => {
