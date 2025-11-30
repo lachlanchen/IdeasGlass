@@ -272,6 +272,18 @@ class MemoSuggestOut(BaseModel):
     memo: List[MemoItem] = []
 
 
+class MemoChatMessage(BaseModel):
+    id: Optional[str] = None
+    author: str
+    content: str
+    created_at: Optional[str] = None
+
+
+class MemoChatPost(BaseModel):
+    author: str
+    content: str
+
+
 def call_openai_memo(messages: List[str]) -> List[MemoItem]:
     api_key = os.getenv("OPENAI_API_KEY")
     model = os.getenv("MEMO_OPENAI_MODEL", "gpt-4o-mini")
@@ -1062,6 +1074,20 @@ async def init_db() -> None:
         )
         await conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_ig_memos_user_status ON ig_memos(user_id, status, created_at DESC)"
+        )
+        await conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS ig_memo_chat (
+                id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                author TEXT NOT NULL,
+                content TEXT NOT NULL,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            );
+            """
+        )
+        await conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_ig_memo_chat_user ON ig_memo_chat(user_id, created_at DESC)"
         )
 
 
@@ -2215,6 +2241,55 @@ async def discard_memo(payload: MemoConfirmIn, request: Request):
                 uid,
             )
     return await list_memo_candidates(request)
+
+
+@app.get("/api/v1/memo/chat", response_model=List[MemoChatMessage])
+async def list_memo_chat(request: Request, limit: int = 200):
+    uid = await _current_user_id(request)
+    if not uid:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    out: List[MemoChatMessage] = []
+    if db_pool:
+        async with db_pool.acquire() as conn:
+            rows = await conn.fetch(
+                "SELECT id, author, content, created_at FROM ig_memo_chat WHERE user_id=$1 ORDER BY created_at ASC LIMIT $2",
+                uid,
+                max(1, min(limit, 500)),
+            )
+            for r in rows:
+                out.append(
+                    MemoChatMessage(
+                        id=r["id"],
+                        author=r["author"],
+                        content=r["content"],
+                        created_at=r["created_at"].isoformat() if r["created_at"] else None,
+                    )
+                )
+    return out
+
+
+@app.post("/api/v1/memo/chat", response_model=MemoChatMessage)
+async def append_memo_chat(payload: MemoChatPost, request: Request):
+    uid = await _current_user_id(request)
+    if not uid:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    text = (payload.content or "").strip()
+    if not text:
+        raise HTTPException(status_code=400, detail="Empty content")
+    if len(text) > 4000:
+        raise HTTPException(status_code=400, detail="Content too long")
+    mid = str(uuid.uuid4())
+    created = datetime.utcnow().isoformat() + "Z"
+    if db_pool:
+        async with db_pool.acquire() as conn:
+            await conn.execute(
+                "INSERT INTO ig_memo_chat (id, user_id, author, content) VALUES ($1,$2,$3,$4)",
+                mid,
+                uid,
+                payload.author or "You",
+                text,
+            )
+    return MemoChatMessage(id=mid, author=payload.author or "You", content=text, created_at=created)
 
 
 @app.post("/api/v1/devices/bind")

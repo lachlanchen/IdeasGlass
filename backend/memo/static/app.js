@@ -195,6 +195,24 @@ function saveGoalChatMessages() {
   }
 }
 
+async function loadServerChatHistory() {
+  if (!state.authed) return;
+  try {
+    const res = await fetch("/api/v1/memo/chat");
+    if (!res.ok) return;
+    const data = await res.json();
+    goalChatMessages = (data || []).map((m) => ({
+      text: m.content || "",
+      ts: m.created_at ? Date.parse(m.created_at) : Date.now(),
+      author: m.author || "AI Memo",
+    }));
+    saveGoalChatMessages();
+    renderGoalChat();
+  } catch (e) {
+    console.warn("Load server chat failed", e);
+  }
+}
+
 function renderGoalChat() {
   if (!goalChatMessagesEl) return;
   goalChatMessagesEl.innerHTML = "";
@@ -207,13 +225,29 @@ function renderGoalChat() {
   goalChatMessagesEl.scrollTop = goalChatMessagesEl.scrollHeight;
 }
 
-function addGoalChatMessage(text) {
-  const trimmed = text.trim();
+async function persistChatMessage(msg) {
+  if (!state.authed) return;
+  try {
+    await fetch("/api/v1/memo/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ author: msg.author || "You", content: msg.text }),
+    });
+  } catch (e) {
+    console.warn("Persist chat failed", e);
+  }
+}
+
+function appendChatMessage(text, author = "You", opts = {}) {
+  const { triggerSuggest = false, persist = true } = opts;
+  const trimmed = (text || "").trim();
   if (!trimmed) return;
-  goalChatMessages.push({ text: trimmed, ts: Date.now(), author: "You" });
+  const msg = { text: trimmed, ts: Date.now(), author };
+  goalChatMessages.push(msg);
   saveGoalChatMessages();
   renderGoalChat();
-  requestAiMemos();
+  if (persist) persistChatMessage(msg);
+  if (triggerSuggest) requestAiMemos();
 }
 
 function classifyMemo(text) {
@@ -2583,6 +2617,7 @@ async function refreshAccount() {
   // Load memo candidates/saved once authenticated
   if (authed) {
     try { await loadMemoLists(); } catch {}
+    try { await loadServerChatHistory(); } catch {}
   } else {
     memoCandidates = [];
     memoSaved = [];
@@ -3001,7 +3036,7 @@ if (goalChatMessagesEl && goalChatInput && goalChatSend) {
   renderMemoSaved();
   renderGoalChat();
   const handleSend = () => {
-    addGoalChatMessage(goalChatInput.value || "");
+    appendChatMessage(goalChatInput.value || "", "You", { triggerSuggest: true, persist: true });
     goalChatInput.value = "";
     goalChatInput.focus();
   };
@@ -3045,6 +3080,9 @@ async function requestAiMemos() {
     // Refresh from DB to ensure IDs are present and persisted
     await loadMemoLists();
     const payload = { if_response: data.if_response, response: data.response || "", memo: memoCandidates };
+    if (data.if_response && data.response && data.response.trim()) {
+      appendChatMessage(data.response.trim(), "AI Memo", { triggerSuggest: false, persist: true });
+    }
     console.log("[AI Memo] Candidates JSON (api)", payload);
   } catch (err) {
     console.warn("Memo suggest error", err);
