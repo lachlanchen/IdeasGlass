@@ -212,6 +212,7 @@ const I18N = {
   'en': {
     'header.subtitle': 'Catch ideas as they happen',
     'nav.live': 'Live',
+    'nav.memo': 'Memo',
     'nav.ideas': 'Ideas',
     'nav.goal': 'Chat',
     'nav.creation': 'Creation',
@@ -237,6 +238,7 @@ const I18N = {
   'zh-Hans': {
     'header.subtitle': '随时捕捉灵感',
     'nav.live': '直播',
+    'nav.memo': '备忘',
     'nav.ideas': '想法',
     'nav.goal': '聊天',
     'nav.creation': '创作',
@@ -262,6 +264,7 @@ const I18N = {
   'zh-Hant': {
     'header.subtitle': '隨時捕捉靈感',
     'nav.live': '直播',
+    'nav.memo': '備忘',
     'nav.ideas': '想法',
     'nav.goal': '聊天',
     'nav.creation': '創作',
@@ -287,6 +290,7 @@ const I18N = {
   'ja': {
     'header.subtitle': 'ひらめきを、その瞬間に。',
     'nav.live': 'ライブ',
+    'nav.memo': 'メモ',
     'nav.ideas': 'アイデア',
     'nav.goal': '聊天',
     'nav.creation': 'クリエーション',
@@ -1086,10 +1090,11 @@ function initLoadMoreObserver() {
 }
 
 function setActiveTab(tab) {
+  const viewTab = tab === 'memo' ? 'ideas' : tab;
   const views = { live: liveView, ideas: ideasView, goal: goalView, creation: creationView, settings: settingsView };
   Object.entries(views).forEach(([k, el]) => {
     if (!el) return;
-    el.classList.toggle('hidden', k !== tab);
+    el.classList.toggle('hidden', k !== viewTab);
   });
   // Ensure any sub-pages/modals from other tabs are hidden when switching tabs
   try {
@@ -1118,9 +1123,10 @@ function setActiveTab(tab) {
   try { document.body.classList.add('header-fixed'); } catch {}
   updateHeaderOffset();
   updateLoginOverlay();
-  const titleMap = { live: 'AI Memo', ideas: 'Ideas', goal: 'Chat', creation: 'Creation', settings: 'Settings' };
+  const titleMap = { live: 'AI Memo', memo: 'Memo', ideas: 'Ideas', goal: 'Chat', creation: 'Creation', settings: 'Settings' };
   const subtitleMap = {
     live: 'Catch ideas as they happen',
+    memo: 'Save quick memos',
     ideas: 'Rank and refine your ideas',
     goal: 'DM yourself memos',
     creation: 'Turn ideas into outputs',
