@@ -1423,4 +1423,6 @@ footer {
 .memo-actions-row { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
 .memo-actions-row .spacer { flex:1; }
 .memo-edit-form .primary-btn { padding:10px 14px; border-radius:12px; border:1px solid rgba(15,23,42,0.08); background: linear-gradient(120deg,#38bdf8,#10b981); font-weight:700; color:#0f172a; }
+.toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(var(--bottom-nav-height, 70px) + 110px); background: rgba(15,23,42,0.9); color: #f8fafc; padding: 10px 14px; border-radius: 14px; border:1px solid rgba(148,163,184,0.4); box-shadow: 0 16px 36px rgba(15,23,42,0.28); opacity: 0; pointer-events: none; transition: opacity 0.25s ease; z-index: 1200; }
+.toast.show { opacity: 1; }
 .hidden-goal-legacy { display: none !important; }

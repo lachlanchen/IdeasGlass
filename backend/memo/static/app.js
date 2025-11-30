@@ -94,6 +94,7 @@ const memoSavedUrl = "/api/v1/memo/saved";
 const memoConfirmUrl = "/api/v1/memo/confirm";
 const memoDiscardUrl = "/api/v1/memo/discard";
 const memoUpdateUrl = (id) => `/api/v1/memo/${id}`;
+const toastEl = document.getElementById('toast');
 let currentGoalId = null;
 const memoDetailView = document.getElementById('memoDetailView');
 const memoDetailBack = document.getElementById('memoDetailBack');
@@ -183,6 +184,20 @@ const savedMemosKey = "aiMemoSavedMemos";
 const seenMemoTexts = new Set();
 let chatAutoStick = true;
 let currentMemoEditing = null;
+let toastTimer = null;
+
+function showToast(msg) {
+  if (!toastTimer && toastEl) toastEl.classList.remove('hidden');
+  if (!toastEl) return;
+  toastEl.textContent = msg || "";
+  toastEl.classList.add('show');
+  if (toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => {
+    toastEl.classList.remove('show');
+    toastEl.classList.add('hidden');
+    toastTimer = null;
+  }, 2200);
+}
 
 function loadGoalChatMessages() {
   try {
@@ -3174,6 +3189,7 @@ async function requestAiMemos() {
     console.warn("Memo suggest skipped: not authenticated");
     return;
   }
+  const prevCount = memoCandidates.length;
   const latest = goalChatMessages.slice(-10).map((m) => m.text);
   try {
     const res = await fetch(memoSuggestUrl, {
@@ -3188,6 +3204,12 @@ async function requestAiMemos() {
     const data = await res.json();
     // Refresh from DB to ensure IDs are present and persisted
     await loadMemoLists();
+    const delta = memoCandidates.length - prevCount;
+    if (delta > 0) {
+      showToast(`Added ${delta} memo ${delta === 1 ? 'candidate' : 'candidates'}`);
+    } else {
+      showToast('Memos refreshed');
+    }
     const payload = { if_response: data.if_response, response: data.response || "", memo: memoCandidates };
     if (data.if_response && data.response && data.response.trim()) {
       appendChatMessage(data.response.trim(), "AI Memo", { triggerSuggest: false, persist: true });
