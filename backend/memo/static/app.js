@@ -212,7 +212,6 @@ function addGoalChatMessage(text) {
   goalChatMessages.push({ text: trimmed, ts: Date.now(), author: "You" });
   saveGoalChatMessages();
   renderGoalChat();
-  addCandidateFromMessage(trimmed);
   requestAiMemos();
 }
 
@@ -224,35 +223,21 @@ function classifyMemo(text) {
   return "idea";
 }
 
-function loadSavedMemos() {
-  try {
-    const stored = localStorage.getItem(savedMemosKey);
-    if (stored) memoSaved = JSON.parse(stored);
-  } catch {}
-}
-
-function saveSavedMemos() {
-  try { localStorage.setItem(savedMemosKey, JSON.stringify(memoSaved)); } catch {}
-}
-
 function renderMemoCandidates() {
   if (!memoCandidatesEl) return;
   memoCandidatesEl.innerHTML = "";
   memoCandidates.forEach((m, idx) => {
     const card = document.createElement("div");
     card.className = "memo-card";
-    card.innerHTML = `<h4>${m.type.toUpperCase()}</h4><div class="memo-meta">Urgency ${m.urgency} · Importance ${m.importance}</div><p class="memo-content">${m.content}</p><div class="memo-actions"><button data-idx="${idx}" class="memo-confirm solid">Confirm</button></div>`;
+    const disableConfirm = !m.id;
+    card.innerHTML = `<h4>${(m.type || '').toUpperCase()}</h4><div class="memo-meta">Urgency ${m.urgency} · Importance ${m.importance}</div><p class="memo-content">${m.content}</p><div class="memo-actions"><button data-idx="${idx}" class="memo-confirm solid" ${disableConfirm ? 'disabled' : ''}>Confirm</button></div>`;
     memoCandidatesEl.appendChild(card);
   });
   memoCandidatesEl.querySelectorAll(".memo-confirm").forEach((btn) => {
     btn.addEventListener("click", () => {
       const i = parseInt(btn.getAttribute("data-idx"), 10);
-      if (memoCandidates[i]) {
-        memoSaved.unshift(memoCandidates[i]);
-        memoCandidates.splice(i, 1);
-        saveSavedMemos();
-        renderMemoCandidates();
-        renderMemoSaved();
+      if (memoCandidates[i] && memoCandidates[i].id) {
+        confirmMemo(memoCandidates[i].id);
       }
     });
   });
@@ -282,13 +267,6 @@ function addCandidateFromMessage(msgText) {
   };
   memoCandidates.unshift(memo);
   seenMemoTexts.add(key);
-  const payload = {
-    if_response: chatAutoReplyToggle ? chatAutoReplyToggle.checked : false,
-    response: "",
-    memo: memoCandidates,
-  };
-  console.log("[AI Memo] Candidates JSON (new)", payload);
-  renderMemoCandidates();
 }
 
 async function loadMemoLists() {
@@ -2987,7 +2965,6 @@ if (bleScanBtn) {
 // ---- Goal chat (AI Memo) ----
 if (goalChatMessagesEl && goalChatInput && goalChatSend) {
   loadGoalChatMessages();
-  loadSavedMemos();
   renderMemoSaved();
   renderGoalChat();
   const handleSend = () => {
@@ -3016,6 +2993,10 @@ chatAttachVoice?.addEventListener('click', attachLog('Voice'));
 chatAttachFile?.addEventListener('click', attachLog('File'));
 
 async function requestAiMemos() {
+  if (!state.authed) {
+    console.warn("Memo suggest skipped: not authenticated");
+    return;
+  }
   const latest = goalChatMessages.slice(-10).map((m) => m.text);
   try {
     const res = await fetch(memoSuggestUrl, {
@@ -3028,14 +3009,8 @@ async function requestAiMemos() {
       return;
     }
     const data = await res.json();
-    memoCandidates = (data.memo || []).map((m) => ({
-      type: m.type || "idea",
-      datetime: m.datetime || null,
-      urgency: m.urgency || "medium",
-      importance: m.importance || "medium",
-      content: m.content || "",
-    }));
-    renderMemoCandidates();
+    // Refresh from DB to ensure IDs are present and persisted
+    await loadMemoLists();
     const payload = { if_response: data.if_response, response: data.response || "", memo: memoCandidates };
     console.log("[AI Memo] Candidates JSON (api)", payload);
   } catch (err) {
