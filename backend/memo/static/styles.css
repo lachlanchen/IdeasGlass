@@ -1331,6 +1331,12 @@ footer {
 .bottom-nav .tab-btn span {
   line-height: 1;
 }
+.bottom-nav .tab-btn .tab-emoji {
+  font-size: 22px;
+  line-height: 1;
+  display: block;
+  transform: translateY(2px);
+}
 
 /* Creation panel */
 .creation-panel { background:#fff; border-radius:22px; padding: 0.9rem clamp(0.8rem,2vw,1.4rem); box-shadow: 0 25px 60px rgba(15,23,42,0.08); border:1px solid rgba(15,23,42,0.05); }
