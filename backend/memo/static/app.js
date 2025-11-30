@@ -185,6 +185,7 @@ const seenMemoTexts = new Set();
 let chatAutoStick = true;
 let currentMemoEditing = null;
 let toastTimer = null;
+let lastSuggestedTs = 0;
 
 function showToast(msg) {
   if (!toastTimer && toastEl) toastEl.classList.remove('hidden');
@@ -280,6 +281,10 @@ function appendChatMessage(text, author = "You", opts = {}) {
   renderGoalChat();
   if (persist) persistChatMessage(msg);
   if (triggerSuggest) requestAiMemos();
+}
+
+function appendSystemMessage(text) {
+  appendChatMessage(text, "System", { triggerSuggest: false, persist: false });
 }
 
 function classifyMemo(text) {
@@ -3189,8 +3194,14 @@ async function requestAiMemos() {
     console.warn("Memo suggest skipped: not authenticated");
     return;
   }
+  const userMsgs = goalChatMessages.filter((m) => m.author === "You" && m.ts > lastSuggestedTs);
+  if (!userMsgs.length) {
+    showToast("No new messages to analyze");
+    return;
+  }
   const prevCount = memoCandidates.length;
-  const latest = goalChatMessages.slice(-10).map((m) => m.text);
+  appendSystemMessage(`Sending ${userMsgs.length} new message${userMsgs.length > 1 ? 's' : ''} to AI…`);
+  const latest = userMsgs.map((m) => m.text);
   try {
     const res = await fetch(memoSuggestUrl, {
       method: 'POST',
@@ -3207,9 +3218,12 @@ async function requestAiMemos() {
     const delta = memoCandidates.length - prevCount;
     if (delta > 0) {
       showToast(`Added ${delta} memo ${delta === 1 ? 'candidate' : 'candidates'}`);
+      appendSystemMessage(`AI extracted ${delta} memo${delta === 1 ? '' : 's'}.`);
     } else {
-      showToast('Memos refreshed');
+      showToast('No new memos from latest messages');
+      appendSystemMessage('AI found no new memos.');
     }
+    lastSuggestedTs = Math.max(lastSuggestedTs, ...userMsgs.map((m) => m.ts || 0));
     const payload = { if_response: data.if_response, response: data.response || "", memo: memoCandidates };
     if (data.if_response && data.response && data.response.trim()) {
       appendChatMessage(data.response.trim(), "AI Memo", { triggerSuggest: false, persist: true });
@@ -3217,5 +3231,6 @@ async function requestAiMemos() {
     console.log("[AI Memo] Candidates JSON (api)", payload);
   } catch (err) {
     console.warn("Memo suggest error", err);
+    appendSystemMessage("AI memo extraction failed.");
   }
 }
