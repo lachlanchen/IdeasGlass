@@ -144,15 +144,19 @@
 
     <div id="ideasView" class="view hidden">
       <main>
-        <section class="ideas-panel">
-          <div class="ideas-header">
-            <h2 class="tab-heading" data-i18n="ideas.plural">Ideas</h2>
-            <div class="ideas-actions">
-              <button id="seedIdeasBtn" type="button" class="ghost-btn">Generate Samples</button>
-            </div>
+        <section class="memo-panel">
+          <div class="memo-header">
+            <h2>Memo Candidates</h2>
+            <p class="memo-sub">New memos extracted from chat; confirm to save.</p>
           </div>
-          <p class="ideas-sub">Ranked by importance based on occurrence × urgency × recency.</p>
-          <div id="ideasGrid" class="ideas-grid"></div>
+          <div id="memoCandidates" class="memo-grid"></div>
+        </section>
+        <section class="memo-panel">
+          <div class="memo-header">
+            <h2>Saved Memos</h2>
+            <p class="memo-sub">Confirmed memos stay here.</p>
+          </div>
+          <div id="memoSaved" class="memo-grid"></div>
         </section>
       </main>
     </div>

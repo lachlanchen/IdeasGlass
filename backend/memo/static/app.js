@@ -150,6 +150,8 @@ const langPrefStatus = document.getElementById('langPrefStatus');
 const bleScanBtn = document.getElementById('bleScanBtn');
 const bleStatus = document.getElementById('bleStatus');
 const bleDeviceList = document.getElementById('bleDeviceList');
+const memoCandidatesEl = document.getElementById('memoCandidates');
+const memoSavedEl = document.getElementById('memoSaved');
 
 const formatChatTime = (ts) => {
   const d = new Date(ts);
@@ -157,6 +159,10 @@ const formatChatTime = (ts) => {
 };
 
 let goalChatMessages = [];
+let memoCandidates = [];
+let memoSaved = [];
+const savedMemosKey = "aiMemoSavedMemos";
+const seenMemoTexts = new Set();
 
 function loadGoalChatMessages() {
   try {
@@ -202,6 +208,85 @@ function addGoalChatMessage(text) {
   goalChatMessages.push({ text: trimmed, ts: Date.now(), author: "You" });
   saveGoalChatMessages();
   renderGoalChat();
+  generateMemoCandidates();
+}
+
+function classifyMemo(text) {
+  const lower = text.toLowerCase();
+  if (/[0-9]{1,2}(:|am|pm|：)/i.test(text) || lower.includes("tomorrow") || lower.includes("today")) return "agenda";
+  if (lower.includes("plan")) return "plan";
+  if (lower.includes("task") || lower.includes("todo") || lower.includes("to do") || lower.includes("report") || lower.includes("buy")) return "task";
+  return "idea";
+}
+
+function loadSavedMemos() {
+  try {
+    const stored = localStorage.getItem(savedMemosKey);
+    if (stored) memoSaved = JSON.parse(stored);
+  } catch {}
+}
+
+function saveSavedMemos() {
+  try { localStorage.setItem(savedMemosKey, JSON.stringify(memoSaved)); } catch {}
+}
+
+function renderMemoCandidates() {
+  if (!memoCandidatesEl) return;
+  memoCandidatesEl.innerHTML = "";
+  memoCandidates.forEach((m, idx) => {
+    const card = document.createElement("div");
+    card.className = "memo-card";
+    card.innerHTML = `<h4>${m.type.toUpperCase()}</h4><div class="memo-meta">Urgency ${m.urgency} · Importance ${m.importance}</div><p class="memo-content">${m.content}</p><div class="memo-actions"><button data-idx="${idx}" class="memo-confirm">Confirm</button></div>`;
+    memoCandidatesEl.appendChild(card);
+  });
+  memoCandidatesEl.querySelectorAll(".memo-confirm").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const i = parseInt(btn.getAttribute("data-idx"), 10);
+      if (memoCandidates[i]) {
+        memoSaved.unshift(memoCandidates[i]);
+        memoCandidates.splice(i, 1);
+        saveSavedMemos();
+        renderMemoCandidates();
+        renderMemoSaved();
+      }
+    });
+  });
+}
+
+function renderMemoSaved() {
+  if (!memoSavedEl) return;
+  memoSavedEl.innerHTML = "";
+  memoSaved.forEach((m) => {
+    const card = document.createElement("div");
+    card.className = "memo-card";
+    card.innerHTML = `<h4>${m.type.toUpperCase()}</h4><div class="memo-meta">${m.datetime || "Anytime"} · Urgency ${m.urgency} · Importance ${m.importance}</div><p class="memo-content">${m.content}</p>`;
+    memoSavedEl.appendChild(card);
+  });
+}
+
+function generateMemoCandidates() {
+  memoCandidates = [];
+  goalChatMessages.forEach((msg) => {
+    const key = msg.text.trim();
+    if (!key || seenMemoTexts.has(key)) return;
+    const type = classifyMemo(key);
+    const memo = {
+      type,
+      datetime: null,
+      urgency: "medium",
+      importance: type === "idea" ? "medium" : "high",
+      content: key,
+    };
+    memoCandidates.push(memo);
+    seenMemoTexts.add(key);
+  });
+  const payload = {
+    if_response: chatAutoReplyToggle ? chatAutoReplyToggle.checked : false,
+    response: "",
+    memo: memoCandidates,
+  };
+  console.log("[AI Memo] Candidates JSON", payload);
+  renderMemoCandidates();
 }
 
 // ---- i18n: language detection, persistence, and application ----
@@ -2854,6 +2939,9 @@ if (bleScanBtn) {
 // ---- Goal chat (AI Memo) ----
 if (goalChatMessagesEl && goalChatInput && goalChatSend) {
   loadGoalChatMessages();
+  loadSavedMemos();
+  renderMemoSaved();
+  generateMemoCandidates();
   renderGoalChat();
   const handleSend = () => {
     addGoalChatMessage(goalChatInput.value || "");
