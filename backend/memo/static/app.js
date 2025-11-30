@@ -371,14 +371,15 @@ async function loadMemoLists() {
       fetch(memoCandidatesUrl).then(r => r.ok ? r.json() : []),
       fetch(memoSavedUrl).then(r => r.ok ? r.json() : []),
     ]);
+    memoSaved = saved || [];
+    const seen = new Set((memoSaved || []).map((m) => (m.content || "").trim().toLowerCase()).filter(Boolean));
     const uniq = new Set();
     memoCandidates = (cand || []).filter((m) => {
       const key = (m.content || "").trim().toLowerCase();
-      if (!key || uniq.has(key)) return false;
+      if (!key || seen.has(key) || uniq.has(key) || !key) return false;
       uniq.add(key);
       return true;
     });
-    memoSaved = saved || [];
     memoCandidates.forEach((m) => { if (m.content) seenMemoTexts.add(m.content); });
     renderMemoCandidates();
     renderMemoSaved();
@@ -3194,14 +3195,18 @@ async function requestAiMemos() {
     console.warn("Memo suggest skipped: not authenticated");
     return;
   }
-  const userMsgs = goalChatMessages.filter((m) => m.author === "You" && m.ts > lastSuggestedTs);
-  if (!userMsgs.length) {
+  const latestUser = [...goalChatMessages].reverse().find((m) => m.author === "You");
+  if (!latestUser) {
     showToast("No new messages to analyze");
     return;
   }
+  if (latestUser.ts && latestUser.ts <= lastSuggestedTs) {
+    showToast("Already analyzed latest message");
+    return;
+  }
   const prevCount = memoCandidates.length;
-  appendSystemMessage(`Sending ${userMsgs.length} new message${userMsgs.length > 1 ? 's' : ''} to AI…`);
-  const latest = userMsgs.map((m) => m.text);
+  appendSystemMessage(`Sending 1 new message to AI…`);
+  const latest = [latestUser.text];
   try {
     const res = await fetch(memoSuggestUrl, {
       method: 'POST',
@@ -3223,7 +3228,7 @@ async function requestAiMemos() {
       showToast('No new memos from latest messages');
       appendSystemMessage('AI found no new memos.');
     }
-    lastSuggestedTs = Math.max(lastSuggestedTs, ...userMsgs.map((m) => m.ts || 0));
+    lastSuggestedTs = Math.max(lastSuggestedTs, latestUser.ts || Date.now());
     const payload = { if_response: data.if_response, response: data.response || "", memo: memoCandidates };
     if (data.if_response && data.response && data.response.trim()) {
       appendChatMessage(data.response.trim(), "AI Memo", { triggerSuggest: false, persist: true });
