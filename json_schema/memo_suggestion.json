@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "MemoSuggestion",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["if_response", "response", "memo"],
+  "properties": {
+    "if_response": {
+      "type": "boolean",
+      "description": "Whether to show the AI-crafted response back in the chat."
+    },
+    "response": {
+      "type": "string",
+      "description": "Optional short reply to display in chat (empty string if none)."
+    },
+    "memo": {
+      "type": "array",
+      "description": "List of memos extracted from recent chat.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["type", "urgency", "importance", "content"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Server-assigned ID when persisted."
+          },
+          "type": {
+            "type": "string",
+            "enum": ["idea", "task", "plan", "reminder"],
+            "description": "Memo category."
+          },
+          "urgency": {
+            "type": "string",
+            "enum": ["low", "medium", "high"],
+            "description": "How soon attention is needed."
+          },
+          "importance": {
+            "type": "string",
+            "enum": ["low", "medium", "high"],
+            "description": "Impact if addressed."
+          },
+          "datetime": {
+            "type": ["string", "null"],
+            "format": "date-time",
+            "description": "When the memo should happen, if known."
+          },
+          "content": {
+            "type": "string",
+            "description": "Human-readable memo text."
+          },
+          "status": {
+            "type": "integer",
+            "enum": [0, 1],
+            "description": "0=candidate, 1=saved."
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When the memo was first created."
+          }
+        }
+      }
+    }
+  }
+}
