@@ -88,6 +88,7 @@ const chatAutoReplyToggle = document.getElementById('chatAutoReply');
 const chatAttachPhoto = document.getElementById('chatAttachPhoto');
 const chatAttachVoice = document.getElementById('chatAttachVoice');
 const chatAttachFile = document.getElementById('chatAttachFile');
+const memoSuggestUrl = "/api/v1/memo/suggest";
 let currentGoalId = null;
 // Prophecy/Life goal panel + detail
 const prophecyPanel = document.getElementById('prophecyPanel');
@@ -209,6 +210,7 @@ function addGoalChatMessage(text) {
   saveGoalChatMessages();
   renderGoalChat();
   addCandidateFromMessage(trimmed);
+  requestAiMemos();
 }
 
 function classifyMemo(text) {
@@ -2963,3 +2965,31 @@ const attachLog = (kind) => () => {
 chatAttachPhoto?.addEventListener('click', attachLog('Photo'));
 chatAttachVoice?.addEventListener('click', attachLog('Voice'));
 chatAttachFile?.addEventListener('click', attachLog('File'));
+
+async function requestAiMemos() {
+  const latest = goalChatMessages.slice(-10).map((m) => m.text);
+  try {
+    const res = await fetch(memoSuggestUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ messages: latest, if_response: chatAutoReplyToggle ? chatAutoReplyToggle.checked : false }),
+    });
+    if (!res.ok) {
+      console.warn("Memo suggest failed", res.status);
+      return;
+    }
+    const data = await res.json();
+    memoCandidates = (data.memo || []).map((m) => ({
+      type: m.type || "idea",
+      datetime: m.datetime || null,
+      urgency: m.urgency || "medium",
+      importance: m.importance || "medium",
+      content: m.content || "",
+    }));
+    renderMemoCandidates();
+    const payload = { if_response: data.if_response, response: data.response || "", memo: memoCandidates };
+    console.log("[AI Memo] Candidates JSON (api)", payload);
+  } catch (err) {
+    console.warn("Memo suggest error", err);
+  }
+}

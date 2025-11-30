@@ -19,6 +19,8 @@ from typing import Any, Coroutine, Dict, List, Optional, Tuple
 import wave
 import math
 import numpy as np
+import requests
+import requests
 
 import asyncpg
 from fastapi import (
@@ -33,6 +35,8 @@ from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, ValidationError, EmailStr
 import webrtcvad
+from openai import OpenAI
+from openai import OpenAI
 def _inject_cudnn_library_path() -> None:
     if os.name != "posix":
         return
@@ -244,6 +248,172 @@ class RegisterIn(BaseModel):
 class AuthOut(BaseModel):
     user_id: str
     email: str
+
+
+class MemoItem(BaseModel):
+    type: str
+    datetime: Optional[str] = None
+    urgency: Optional[str] = None
+    importance: Optional[str] = None
+    content: str
+
+
+class MemoSuggestIn(BaseModel):
+    messages: List[str]
+    if_response: bool = False
+
+
+class MemoSuggestOut(BaseModel):
+    if_response: bool = False
+    response: str = ""
+    memo: List[MemoItem] = []
+
+
+def call_openai_memo(messages: List[str]) -> List[MemoItem]:
+    api_key = os.getenv("OPENAI_API_KEY")
+    model = os.getenv("MEMO_OPENAI_MODEL", "gpt-4o-mini")
+    if not api_key:
+        raise RuntimeError("OPENAI_API_KEY not set")
+    client = OpenAI(api_key=api_key)
+    prompt = """You are an assistant that extracts memo items from chat history.
+Return JSON: { "memo": [ { "type": "agenda|task|plan|idea", "datetime": "<ISO8601 or null>", "urgency": "low|medium|high", "importance": "low|medium|high", "content": "<short>" } ] }
+Only include items that are actionable or worth remembering."""
+    content = "\n".join(messages[-20:])
+    resp = client.chat.completions.create(
+        model=model,
+        response_format={"type": "json_object"},
+        messages=[
+            {"role": "system", "content": prompt},
+            {"role": "user", "content": content},
+        ],
+        timeout=20,
+    )
+    data = json.loads(resp.choices[0].message.content)
+    items: List[MemoItem] = []
+    for m in data.get("memo", []):
+        items.append(
+            MemoItem(
+                type=m.get("type", "idea"),
+                datetime=m.get("datetime"),
+                urgency=m.get("urgency", "medium"),
+                importance=m.get("importance", "medium"),
+                content=m.get("content", ""),
+            )
+        )
+    return items
+
+
+def call_deepseek_memo(messages: List[str]) -> List[MemoItem]:
+    api_key = os.getenv("DEEPSEEK_API_KEY")
+    model = os.getenv("MEMO_DEEPSEEK_MODEL", "deepseek-chat")
+    if not api_key:
+        raise RuntimeError("DEEPSEEK_API_KEY not set")
+    prompt = """You are an assistant that extracts memo items from chat history.
+Return JSON: { "memo": [ { "type": "agenda|task|plan|idea", "datetime": "<ISO8601 or null>", "urgency": "low|medium|high", "importance": "low|medium|high", "content": "<short>" } ] }"""
+    content = "\n".join(messages[-20:])
+    payload = {
+        "model": model,
+        "messages": [
+            {"role": "system", "content": prompt},
+            {"role": "user", "content": content},
+        ],
+        "response_format": {"type": "json_object"},
+    }
+    resp = requests.post(
+        "https://api.deepseek.com/chat/completions",
+        headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+        json=payload,
+        timeout=20,
+    )
+    resp.raise_for_status()
+    data = resp.json()
+    text = data["choices"][0]["message"]["content"]
+    parsed = json.loads(text)
+    items: List[MemoItem] = []
+    for m in parsed.get("memo", []):
+        items.append(
+            MemoItem(
+                type=m.get("type", "idea"),
+                datetime=m.get("datetime"),
+                urgency=m.get("urgency", "medium"),
+                importance=m.get("importance", "medium"),
+                content=m.get("content", ""),
+            )
+        )
+    return items
+
+def call_openai_memo(messages: List[str]) -> List[MemoItem]:
+    api_key = os.getenv("OPENAI_API_KEY")
+    model = os.getenv("MEMO_OPENAI_MODEL", "gpt-4o-mini")
+    if not api_key:
+        raise RuntimeError("OPENAI_API_KEY not set")
+    client = OpenAI(api_key=api_key)
+    prompt = """You are an assistant that extracts memo items from chat history.
+Return JSON: { "memo": [ { "type": "agenda|task|plan|idea", "datetime": "<ISO8601 or null>", "urgency": "low|medium|high", "importance": "low|medium|high", "content": "<short>" } ] }
+Only include items that are actionable or worth remembering."""
+    content = "\\n".join(messages[-20:])
+    resp = client.chat.completions.create(
+        model=model,
+        response_format={"type": "json_object"},
+        messages=[
+            {"role": "system", "content": prompt},
+            {"role": "user", "content": content},
+        ],
+        timeout=20,
+    )
+    data = json.loads(resp.choices[0].message.content)
+    items: List[MemoItem] = []
+    for m in data.get("memo", []):
+        items.append(
+            MemoItem(
+                type=m.get("type", "idea"),
+                datetime=m.get("datetime"),
+                urgency=m.get("urgency", "medium"),
+                importance=m.get("importance", "medium"),
+                content=m.get("content", ""),
+            )
+        )
+    return items
+
+
+def call_deepseek_memo(messages: List[str]) -> List[MemoItem]:
+    api_key = os.getenv("DEEPSEEK_API_KEY")
+    model = os.getenv("MEMO_DEEPSEEK_MODEL", "deepseek-chat")
+    if not api_key:
+        raise RuntimeError("DEEPSEEK_API_KEY not set")
+    prompt = """You are an assistant that extracts memo items from chat history.
+Return JSON: { "memo": [ { "type": "agenda|task|plan|idea", "datetime": "<ISO8601 or null>", "urgency": "low|medium|high", "importance": "low|medium|high", "content": "<short>" } ] }"""
+    content = "\\n".join(messages[-20:])
+    payload = {
+        "model": model,
+        "messages": [
+            {"role": "system", "content": prompt},
+            {"role": "user", "content": content},
+        ],
+        "response_format": {"type": "json_object"},
+    }
+    resp = requests.post(
+        "https://api.deepseek.com/chat/completions",
+        headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+        json=payload,
+        timeout=20,
+    )
+    resp.raise_for_status()
+    data = resp.json()
+    text = data["choices"][0]["message"]["content"]
+    parsed = json.loads(text)
+    items: List[MemoItem] = []
+    for m in parsed.get("memo", []):
+        items.append(
+            MemoItem(
+                type=m.get("type", "idea"),
+                datetime=m.get("datetime"),
+                urgency=m.get("urgency", "medium"),
+                importance=m.get("importance", "medium"),
+                content=m.get("content", ""),
+            )
+        )
+    return items
 
 
 class LoginIn(BaseModel):
@@ -963,6 +1133,25 @@ async def login(payload: LoginIn, response: Response):
     token = _issue_session(row["id"])
     response.set_cookie(SESSION_COOKIE, token, httponly=True, samesite="lax", max_age=SESSION_TTL_SECONDS, path="/")
     return AuthOut(user_id=row["id"], email=row["email"])
+
+
+@app.post("/api/v1/memo/suggest", response_model=MemoSuggestOut)
+async def suggest_memo(body: MemoSuggestIn, request: Request) -> MemoSuggestOut:
+    uid = await _current_user_id(request)
+    if not uid:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    items: List[MemoItem] = []
+    errors = []
+    try:
+        items = call_openai_memo(body.messages)
+    except Exception as e:
+        errors.append(str(e))
+        try:
+            items = call_deepseek_memo(body.messages)
+        except Exception as e2:
+            errors.append(str(e2))
+            raise HTTPException(status_code=500, detail="LLM memo generation failed; " + "; ".join(errors))
+    return MemoSuggestOut(if_response=body.if_response, response="", memo=items)
 
 
 @app.post("/api/v1/auth/logout")
