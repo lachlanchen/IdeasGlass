@@ -208,7 +208,7 @@ function addGoalChatMessage(text) {
   goalChatMessages.push({ text: trimmed, ts: Date.now(), author: "You" });
   saveGoalChatMessages();
   renderGoalChat();
-  generateMemoCandidates();
+  addCandidateFromMessage(trimmed);
 }
 
 function classifyMemo(text) {
@@ -264,28 +264,25 @@ function renderMemoSaved() {
   });
 }
 
-function generateMemoCandidates() {
-  memoCandidates = [];
-  goalChatMessages.forEach((msg) => {
-    const key = msg.text.trim();
-    if (!key || seenMemoTexts.has(key)) return;
-    const type = classifyMemo(key);
-    const memo = {
-      type,
-      datetime: null,
-      urgency: "medium",
-      importance: type === "idea" ? "medium" : "high",
-      content: key,
-    };
-    memoCandidates.push(memo);
-    seenMemoTexts.add(key);
-  });
+function addCandidateFromMessage(msgText) {
+  const key = msgText.trim();
+  if (!key || seenMemoTexts.has(key)) return;
+  const type = classifyMemo(key);
+  const memo = {
+    type,
+    datetime: null,
+    urgency: "medium",
+    importance: type === "idea" ? "medium" : "high",
+    content: key,
+  };
+  memoCandidates.unshift(memo);
+  seenMemoTexts.add(key);
   const payload = {
     if_response: chatAutoReplyToggle ? chatAutoReplyToggle.checked : false,
     response: "",
     memo: memoCandidates,
   };
-  console.log("[AI Memo] Candidates JSON", payload);
+  console.log("[AI Memo] Candidates JSON (new)", payload);
   renderMemoCandidates();
 }
 
@@ -2941,7 +2938,6 @@ if (goalChatMessagesEl && goalChatInput && goalChatSend) {
   loadGoalChatMessages();
   loadSavedMemos();
   renderMemoSaved();
-  generateMemoCandidates();
   renderGoalChat();
   const handleSend = () => {
     addGoalChatMessage(goalChatInput.value || "");
