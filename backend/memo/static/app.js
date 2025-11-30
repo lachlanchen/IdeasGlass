@@ -2870,7 +2870,7 @@ if (goalChatMessagesEl && goalChatInput && goalChatSend) {
 }
 
 if (chatAutoReplyToggle) {
-  chatAutoReplyToggle.checked = false;
+  chatAutoReplyToggle.checked = true;
 }
 
 const attachLog = (kind) => () => {
