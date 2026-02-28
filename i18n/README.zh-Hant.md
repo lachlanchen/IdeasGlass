@@ -1,32 +1,38 @@
 [English](../README.md) · [العربية](README.ar.md) · [Español](README.es.md) · [Français](README.fr.md) · [日本語](README.ja.md) · [한국어](README.ko.md) · [Tiếng Việt](README.vi.md) · [中文 (简体)](README.zh-Hans.md) · [中文（繁體）](README.zh-Hant.md) · [Deutsch](README.de.md) · [Русский](README.ru.md)
 
 
-<p align="center">
-  <img src="https://raw.githubusercontent.com/lachlanchen/lachlanchen/main/logos/banner.png" alt="LazyingArt banner" />
-</p>
+[![LazyingArt banner](https://github.com/lachlanchen/lachlanchen/raw/main/figs/banner.png)](https://github.com/lachlanchen/lachlanchen/blob/main/figs/banner.png)
 
 # IdeasGlass
 
-*一款可穿戴 AI 眼鏡，將想法轉化為行動、收入與創作動能。*
+*一款可穿戴 AI 眼鏡，能將想法轉化為行動、收益與創作動能。*
 
-> 以語音為先的可穿戴 AI 管線：從 ESP32 眼鏡採集，在 FastAPI 中處理，並透過即時 PWA 儀表盤監控與控制。
+> 以語音為先的可穿戴 AI 流水線：來自 ESP32 眼鏡的擷取、後端處理，以及透過即時 PWA 儀表板進行監控與控制。
 
-![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python&logoColor=white)
-![FastAPI](https://img.shields.io/badge/FastAPI-backend-009688?logo=fastapi&logoColor=white)
-![ESP32](https://img.shields.io/badge/ESP32-XIAO__ESP32S3-111111?logo=espressif&logoColor=white)
-![PWA](https://img.shields.io/badge/PWA-dashboard-5A0FC8?logo=pwa&logoColor=white)
+![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python&logoColor=white&style=flat-square)
+![FastAPI](https://img.shields.io/badge/FastAPI-Backend-009688?logo=fastapi&logoColor=white&style=flat-square)
+![ESP32](https://img.shields.io/badge/ESP32-XIAO__ESP32S3-111111?logo=espressif&logoColor=white&style=flat-square)
+![PWA](https://img.shields.io/badge/PWA-Dashboard-5A0FC8?logo=pwa&logoColor=white&style=flat-square)
+![Streaming](https://img.shields.io/badge/Streaming-WebSocket%20%2B%20Whisper-0EA5E9?style=flat-square)
+![Locale](https://img.shields.io/badge/Localized-i18n-0F766E?style=flat-square)
+
+| 通道 | 用途 |
+|---|---|
+| 🎙️ 可穿戴擷取 | ESP32 眼鏡準即時傳送音訊、照片與遙測資料 |
+| 🧠 後端智慧 | FastAPI 接收串流、轉譯、分段並持久化中繼資料 |
+| 🖥️ 儀表板 | PWA 即時顯示波形、轉錄文字與設備/帳號狀態 |
 
 <table>
   <tr>
     <td align="center" style="padding:6px 10px;">
-      <b>生態系</b><br/>
+      <b>生態</b><br/>
       <a href="https://lazying.art">LazyingArt</a>
       · <a href="https://onlyideas.art">OnlyIdeas</a>
       · <a href="https://chat.lazying.art">EchoMind</a>
       · <a href="https://coin.lazying.art">LazyingArt Coin</a>
     </td>
     <td align="center" style="padding:6px 10px;">
-      <b>支持 IdeasGlass</b><br/>
+      <b>Support IdeasGlass</b><br/>
       <a href="https://chat.lazying.art/donate"><img src="figs/donate_button.svg" alt="Donate" height="32" style="vertical-align: middle;"/></a>
     </td>
   </tr>
@@ -36,63 +42,63 @@
   <img src="figs/ideas.lazying.art_main.png" alt="IdeasGlass App UI" width="49%" style="max-width:49%;display:inline-block;vertical-align:middle;"/>
   <img src="figs/ideasglass_hardware.png" alt="IdeasGlass hardware" width="49%" style="max-width:49%;display:inline-block;vertical-align:middle;"/>
   <br/>
-  <sub>App UI（左）· 硬體（右）</sub>
+  <sub>App UI（左） · 硬體（右）</sub>
 </div>
 
 在 <a href="https://onlyideas.art">onlyideas.art</a> 探索社群實驗。
 
 ## 🚀 概覽
 
-IdeasGlass 是一個以 AI 為核心、以語音互動為優先的可穿戴系統，用於捕捉並執行想法。在本倉庫中，主要執行路徑是：
+IdeasGlass 是一個以 AI 為先的可穿戴系統，用於語音優先的靈感擷取與落地執行。在這個倉庫裡，主要運行路徑為：
 
-- `backend/glass/`：提供 FastAPI API、WebSocket 接入、基於 Whisper 的轉錄，以及可安裝的 PWA 儀表盤。
-- `IdeaGlass/firmware/ideasglass_arduino/IdeasGlassClient/`：用於 XIAO ESP32S3 韌體，負責流式傳輸遙測/音訊/照片。
+- `backend/glass/`：FastAPI API、WebSocket 接收、基於 Whisper 的轉錄，以及可安裝的 PWA 儀表板。
+- `IdeaGlass/firmware/ideasglass_arduino/IdeasGlassClient/`：XIAO ESP32S3 固件，負責串流遙測/音訊/照片。
 
-如果你是第一次接觸此倉庫，請先從這兩處開始。
+如果你是第一次接觸本倉庫，建議先從這裡開始。
 
-### 快速一覽
+### 一覽
 
-| 區域 | 主要位置 | 作用 |
+| 區域 | 主要位置 | 職責 |
 |---|---|---|
-| 後端 API + PWA | `backend/glass/` | FastAPI 端點、WebSocket 接入/分發、轉錄、儀表盤 |
-| 韌體 | `IdeaGlass/firmware/ideasglass_arduino/IdeasGlassClient/` | ESP32 採集/流式客戶端 |
-| 網橋說明 | `references/ideasglass_bridge.md` | TLS/WAN 穩定性說明與部署實戰建議 |
-| README 翻譯 | `i18n/` | 與規範英文 README 同步的多語言文件 |
+| 後端 API 與 PWA | `backend/glass/` | FastAPI 端點、WebSocket 接收/推播、轉錄、儀表板 |
+| 韌體 | `IdeaGlass/firmware/ideasglass_arduino/IdeasGlassClient/` | ESP32 擷取與串流用戶端 |
+| 橋接說明 | `references/ideasglass_bridge.md` | TLS/WAN 穩定性說明及部署現場建議 |
+| README 多語言版本 | `i18n/` | 由英文 README 版主版本同步維護的多語文件 |
 
-## ✨ 為什麼是 IdeasGlass
+## ✨ 為何選擇 IdeasGlass
 
-IdeasGlass 是一款面向“持續湧現創意人群”的 AI 可穿戴設備。無論你是在移動中口述概念，還是正在進行直播，它都能在靈感出現的瞬間完成捕捉、翻譯、整理並推動執行。
+IdeasGlass 是為想法不斷湧現的人而生的 AI 可穿戴設備。無論你是邊走邊口述構想，還是在直播中靈光乍現，它都能在同一瞬間捕捉、轉譯、整理並推進創作落地。
 
 ## 🧩 功能
 
 ### 產品願景功能
 
-- **創作原生硬體**：輕量眼鏡與可穿戴輸入，圍繞語音優先捕捉與細微手勢快捷操作設計。
-- **即時翻譯**：即時語言檢測/翻譯，讓你在跨團隊或跨受衆創作時無需切換工具。
-- **EchoMind 副駕**：與 `chat.lazying.art` 深度聯動，用於頭腦風暴、腳本草擬與多語言內容輔導。
-- **頻道自動駕駛**：自動生成大綱、長影片腳本、短內容鉤點，並安排發佈到 YouTube 或其他渠道。
-- **高光與短片**：自動挑選精彩片段，生成縮略圖、字幕與可直接發佈到社交平台的短影片。
-- **收入層**：連接 LazyingArt Coin，實現打賞、積分結算與鏈上資產轉換。
-- **支出與專注**：跟蹤運營支出，識別高收益內容形式，並提煉你的個人優勢用於下一輪項目。
+- **創作原生硬體**：輕量化眼鏡與可穿戴輸入，專為語音優先擷取設計，並支援微妙手勢捷徑。
+- **即時翻譯**：即時語言偵測與翻譯，讓你在不同團隊或受眾間協作時無需切換工具。
+- **EchoMind 副駕駛**：與 `chat.lazying.art` 深度配對，用於腦力激盪、腳本起草與多語內容指導。
+- **頻道自動駕駛**：自動生成大綱、長篇腳本、短片開場鉤子，並將上傳排程到 YouTube 或其他渠道。
+- **重點片段與短影片**：自動擷取高光時刻，生成縮圖、字幕與社群可用短片。
+- **收益層**：連接 LazyingArt Coin，提供打賞、點數派發與鏈上資產轉換。
+- **支出與專注**：追蹤營運花費，揭示高轉化格式，並將你的個人強項濃縮為下一個專案方向。
 
-### 倉庫/執行時功能
+### 倉庫與運行特性
 
-- FastAPI 後端，提供 REST + WebSocket 端點用於接入（`/api/v1/audio`, `/ws/audio-ingest`）與即時流分發（`/ws/stream`）。
-- 具可預期行為的音訊分段（預設約 15 秒，帶重疊）並寫入 `backend/glass/audio_segments/`。
-- 可選 openai-whisper 流式轉錄，支持可配置的延遲閾值。
-- 可選 Postgres 持久化（`DATABASE_URL`），覆蓋消息、照片、音訊塊、分段、轉錄資料。
-- PWA 儀表盤支持即時波形、轉錄更新，並可在桌面/移動端安裝。
-- 支持 XIAO ESP32S3 Sense 攝像頭 + 麥克風流程的 Arduino 韌體。
+- FastAPI 後端提供 REST 與 WebSocket 端點，用於接入（`/api/v1/audio`、`/ws/audio-ingest`）與即時串流推播（`/ws/stream`）。
+- 將音訊做決定性分段（預設約 15 秒，含重疊）並儲存到 `backend/glass/audio_segments/`。
+- 可選的 openai-whisper 串流轉錄，具備可設定延遲門檻。
+- 可選 PostgreSQL 持久化（`DATABASE_URL`）用於訊息、照片、音訊區塊、片段與轉錄紀錄。
+- PWA 儀表板支援即時波形、轉錄更新，並可在桌面與行動端安裝。
+- 支援 Seeed XIAO ESP32S3 Sense 相機與麥克風的 Arduino 固件。
 
-## 🔄 範例工作流程
+## 🔄 範例流程
 
-1. **捕捉**：口述或勾勒一個概念；IdeasGlass 會轉錄、翻譯並標註意圖。
-2. **共創**：EchoMind 打磨想法，生成腳本，並給出面向不同平台的 CTA 建議。
-3. **發佈**：頻道代理自動產出高光影片、圖集素材，並附帶元資料上傳。
-4. **變現**：積分透過 LazyingArt Coin（`coin.lazying.art`）流轉，收益同步到你偏好的錢包。
-5. **覆盤**：支出、觸達與互動儀表盤幫助你識別下一步該重點加碼的方向。
+1. **擷取**：說出或速寫構想，IdeasGlass 會轉錄、翻譯並標記意圖。
+2. **共同創作**：EchoMind 提煉想法、起草腳本，並針對各平台提供 CTA 建議。
+3. **發布**：頻道代理自動產生精華影片、圖庫圖片並附帶中繼資料上傳。
+4. **變現**：點數透過 LazyingArt Coin（`coin.lazying.art`）流轉，並與你偏好的錢包進行結算同步。
+5. **回顧**：支出、觸及與互動儀表板顯示下一步加碼重點。
 
-## 🗂️ 項目結構
+## 🗂️ 專案結構
 
 ```text
 IdeasGlass/
@@ -125,20 +131,20 @@ IdeasGlass/
 └── seeed_studio_xiao_esp32s3_dev/
 ```
 
-## 🧰 前置條件
+## 🧰 先決條件
 
 - Python 3.10+
-- `pip`（或帶兼容 Python 的 conda 環境）
-- 可選：NVIDIA GPU + CUDA/cuDNN（用於更快的 Whisper 推理）
-- 可選：PostgreSQL（用於持久化）
-- 韌體側：Arduino IDE 或 `arduino-cli`、Seeed XIAO ESP32S3 Sense，且啓用 PSRAM
+- `pip`（或具備相容 Python 的 conda 環境）
+- 可選：NVIDIA GPU + CUDA/cuDNN，用於加速 Whisper 推理
+- 可選：PostgreSQL，用於持久化儲存
+- 韌體側：Arduino IDE 或 `arduino-cli`、Seeed XIAO ESP32S3 Sense、啟用 PSRAM
 
-| 組件 | 要求 | 說明 |
+| 元件 | 要求 | 說明 |
 |---|---|---|
-| 後端執行時 | Python 3.10+, `pip` | 使用 venv 或 conda（`glass`） |
-| GPU 加速（可選） | NVIDIA + CUDA/cuDNN | 提升 Whisper 延遲表現 |
-| 持久化（可選） | PostgreSQL | 透過 `DATABASE_URL` 啓用 |
-| 韌體工具鏈 | Arduino IDE / `arduino-cli` | 使用 XIAO ESP32S3 配置並啓用 PSRAM |
+| 後端執行環境 | Python 3.10+, `pip` | 使用 venv 或 conda（`glass`） |
+| GPU 加速（可選） | NVIDIA + CUDA/cuDNN | 降低 Whisper 延遲 |
+| 持久化（可選） | PostgreSQL | 透過 `DATABASE_URL` 啟用 |
+| 韌體工具鏈 | Arduino IDE / `arduino-cli` | 使用啟用 PSRAM 的 XIAO ESP32S3 設定 |
 
 ## ⚙️ 安裝
 
@@ -151,15 +157,15 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### 韌體前置準備
+### 韌體先決條件
 
-- 將 `IdeaGlass/firmware/ideasglass_arduino/wifi_credentials.example.h` 複製為 `wifi_credentials.h`（推薦），並填寫 SSID/密碼。
-- 在 Arduino IDE 中選擇開發板 `ESP32 -> XIAO_ESP32S3`，並設置 `PSRAM: OPI PSRAM`。
-- 分區方案：`Default with spiffs (3MB APP/1.5MB SPIFFS)`；若不需要檔案系統可使用 `Maximum APP`。
+- 將 `IdeaGlass/firmware/ideasglass_arduino/wifi_credentials.example.h` 複製為 `wifi_credentials.h`（建議）並填入 SSID 與密碼。
+- 在 Arduino IDE 中選擇開發板 `ESP32 -> XIAO_ESP32S3`，並設定 `PSRAM: OPI PSRAM`。
+- 分區方案：`Default with spiffs (3MB APP/1.5MB SPIFFS)`，或在不需要檔案系統時使用 `Maximum APP`。
 
-## ▶️ 使用
+## ▶️ 使用方法
 
-### 執行後端（uvicorn）
+### 啟動後端（uvicorn）
 
 ```bash
 IDEASGLASS_WHISPER_MODEL=base IDEASGLASS_WHISPER_DEVICE=cuda \
@@ -171,37 +177,37 @@ uvicorn backend.glass.app:app \
   --reload
 ```
 
-### 執行後端（輔助腳本）
+### 啟動後端（輔助）
 
 ```bash
 python backend/glass/serve.py --whisper-model base --whisper-device cuda --reload
 ```
 
-### 打開儀表盤
+### 開啟儀表板
 
 - `http://localhost:8765/`
 - `http://localhost:8765/healthz`
 
-| Endpoint | 用途 |
+| 介面 | 用途 |
 |---|---|
-| `/` | 主儀表盤（支持 PWA 安裝） |
-| `/healthz` | 後端存活檢查 |
-| `/ws/audio-ingest` | 設備接入 WebSocket |
-| `/ws/stream` | 面向儀表盤客戶端的即時流分發 |
+| `/` | 主儀表板（支援 PWA） |
+| `/healthz` | 後端存活性檢查 |
+| `/ws/audio-ingest` | 設備擷取 WebSocket |
+| `/ws/stream` | 即時串流推播至儀表板客戶端 |
 
-### 登錄並綁定設備
+### 登入並綁定設備
 
-1. 在儀表盤的 Settings/Account 區域註冊或登錄。
-2. 在 `Bind device` 欄位中綁定你的設備 ID。
-3. 只有已綁定設備會向你的帳號推流。
+1. 在儀表板的「設定/帳號」區域註冊或登入。
+2. 在 `Bind device` 欄位綁定你的設備 ID。
+3. 只有已綁定的設備會串流到你的帳號。
 
-生成設備 ID + 二維碼圖像：
+產生設備 ID 與 QR 圖片：
 
 ```bash
 python backend/glass/tools/generate_device_id.py --out logs/device-id.png
 ```
 
-透過 API 綁定（需要 cookie 會話）：
+透過 API 綁定（需要 cookie 工作階段）：
 
 ```bash
 curl -X POST http://localhost:8765/api/v1/devices/bind \
@@ -210,13 +216,13 @@ curl -X POST http://localhost:8765/api/v1/devices/bind \
   -b cookies.txt -c cookies.txt
 ```
 
-驗證當前帳號與已綁定設備：
+確認目前帳號與已綁定設備：
 
 ```bash
 curl -s http://localhost:8765/api/v1/auth/me -b cookies.txt -c cookies.txt | jq
 ```
 
-可選遷移（將歷史資料重命名到新設備 ID）：
+可選遷移（將歷史資料重新命名到新設備 ID）：
 
 ```bash
 curl -X POST http://localhost:8765/api/v1/devices/rename \
@@ -225,7 +231,7 @@ curl -X POST http://localhost:8765/api/v1/devices/rename \
   -b cookies.txt -c cookies.txt
 ```
 
-### 韌體建構/上傳（Arduino CLI）
+### 韌體編譯/上傳（Arduino CLI）
 
 ```bash
 FQBN='esp32:esp32:XIAO_ESP32S3:PartitionScheme=default_8MB,PSRAM=opi'
@@ -236,41 +242,41 @@ bin/arduino-cli compile --fqbn "$FQBN" "$SKETCH"
 bin/arduino-cli upload -p "$PORT" --fqbn "$FQBN" "$SKETCH"
 ```
 
-若連接埠被佔用：`fuser -k /dev/ttyACM0`。
-若權限不足：`sudo usermod -aG dialout $USER` 後重新登錄（或臨時執行 `sudo chmod a+rw /dev/ttyACM0`）。
+若序列埠被佔用：`fuser -k /dev/ttyACM0`。
+若出現權限不足：執行 `sudo usermod -aG dialout $USER` 後重新登入（或暫時執行 `sudo chmod a+rw /dev/ttyACM0`）。
 
 ### 韌體電源互動（XIAO ESP32S3）
 
-- 上電時長按按鈕約 0.8 秒啟動。
-- 執行中長按約 2.5 秒進入深度睡眠。
-- 執行中短按仍會觸發採集。
+- 開機時長按約 0.8 秒啟動。
+- 運行中長按約 2.5 秒進入深度睡眠。
+- 運行中短按仍可觸發擷取。
 
-## 🛠️ 配置
+## 🛠️ 設定
 
-### 核心環境變量
+### 核心環境變數
 
 - `DATABASE_URL`：可選的 Postgres DSN，用於持久化存儲。
 - `IDEASGLASS_WHISPER_MODEL`：`base`（預設）、`small`、`medium`、`large-v3`、`large-v3-turbo`。
 - `IDEASGLASS_WHISPER_DEVICE`：`cuda` 或 `cpu`。
-- `IDEASGLASS_WHISPER_FP16`：`1` 表示 GPU 混合精度，`0` 表示 CPU 模式。
-- `IDEASGLASS_TRANSCRIBE`：`1`（預設）啓用轉錄，`0` 關閉。
-- `IDEASGLASS_TRANSCRIPT_INTERVAL_MS`：滾動轉錄推送間隔。
-- `IDEASGLASS_TRANSCRIPT_THRESHOLDS_MS`：逗號分隔閾值（預設 `3000,6000,15000`）。
+- `IDEASGLASS_WHISPER_FP16`：`1` 表示 GPU 混合精度，`0` 表示 CPU 安全模式。
+- `IDEASGLASS_TRANSCRIBE`：`1`（預設）啟用轉錄，`0` 停用轉錄。
+- `IDEASGLASS_TRANSCRIPT_INTERVAL_MS`：滾動轉錄間隔。
+- `IDEASGLASS_TRANSCRIPT_THRESHOLDS_MS`：逗號分隔的閾值（預設 `3000,6000,15000`）。
 
-| Variable | Default / options | Effect |
+| 變數 | 預設/選項 | 效果 |
 |---|---|---|
-| `DATABASE_URL` | unset by default | Enables Postgres persistence for account/device data |
-| `IDEASGLASS_WHISPER_MODEL` | `base` (`small`, `medium`, `large-v3`, `large-v3-turbo`) | Controls accuracy vs latency |
-| `IDEASGLASS_WHISPER_DEVICE` | `cuda` or `cpu` | Inference backend |
-| `IDEASGLASS_WHISPER_FP16` | `1` GPU, `0` CPU-safe | Mixed precision control |
-| `IDEASGLASS_TRANSCRIBE` | `1` | Toggle transcription pipeline |
-| `IDEASGLASS_TRANSCRIPT_INTERVAL_MS` | runtime configured | Rolling transcript push interval |
-| `IDEASGLASS_TRANSCRIPT_THRESHOLDS_MS` | `3000,6000,15000` | Progressive transcript emission thresholds |
+| `DATABASE_URL` | 預設未設定 | 為帳號/設備資料啟用 Postgres 永久儲存 |
+| `IDEASGLASS_WHISPER_MODEL` | `base`（含 `small`、`medium`、`large-v3`、`large-v3-turbo`） | 控制精準度與延遲平衡 |
+| `IDEASGLASS_WHISPER_DEVICE` | `cuda` 或 `cpu` | 推論後端 |
+| `IDEASGLASS_WHISPER_FP16` | `1`（GPU），`0`（CPU 安全） | 混合精度控制 |
+| `IDEASGLASS_TRANSCRIBE` | `1` | 切換轉錄流程 |
+| `IDEASGLASS_TRANSCRIPT_INTERVAL_MS` | 運行時設定 | 滾動轉錄推送間隔 |
+| `IDEASGLASS_TRANSCRIPT_THRESHOLDS_MS` | `3000,6000,15000` | 漸進式轉錄輸出閾值 |
 
 安全的 `DATABASE_URL` 範例：
 
-- `export DATABASE_URL="postgresql://<db_user>@localhost/ideasglass_db"`（peer/local auth）
-- `export DATABASE_URL="postgresql://<db_user>:<db_password>@localhost/ideasglass_db"`（password auth）
+- `export DATABASE_URL="postgresql://<db_user>@localhost/ideasglass_db"`（本機/peer 認證）
+- `export DATABASE_URL="postgresql://<db_user>:<db_password>@localhost/ideasglass_db"`（密碼認證）
 
 ### 音訊增益與分段參數
 
@@ -281,20 +287,20 @@ bin/arduino-cli upload -p "$PORT" --fqbn "$FQBN" "$SKETCH"
 - `IDEASGLASS_SPEECH_MARGIN`（預設 `0.005`）
 - `IDEASGLASS_SEGMENT_TARGET_MS`（預設 `15000`）
 - `IDEASGLASS_SEGMENT_OVERLAP_MS`（預設 `2000`）
-- `IDEASGLASS_SEGMENT_GAIN_TARGET`（預設繼承 chunk gain target）
+- `IDEASGLASS_SEGMENT_GAIN_TARGET`（預設繼承區塊增益目標）
 
-| Audio knob | Default | Purpose |
+| 音訊參數 | 預設值 | 用途 |
 |---|---|---|
-| `IDEASGLASS_GAIN_TARGET` | `0.032` | Target RMS normalization |
-| `IDEASGLASS_GAIN_MAX` | `1.8` | Upper clamp for gain amplification |
-| `IDEASGLASS_GAIN_MIN_RMS` | `0.008` | Floor to avoid amplifying near-silence |
-| `IDEASGLASS_SPEECH_RMS` | `0.03` | Speech activity RMS baseline |
-| `IDEASGLASS_SPEECH_MARGIN` | `0.005` | Margin around speech threshold |
-| `IDEASGLASS_SEGMENT_TARGET_MS` | `15000` | Segment length target |
-| `IDEASGLASS_SEGMENT_OVERLAP_MS` | `2000` | Segment overlap for continuity |
-| `IDEASGLASS_SEGMENT_GAIN_TARGET` | inherits chunk gain | Segment-level normalization target |
+| `IDEASGLASS_GAIN_TARGET` | `0.032` | 目標 RMS 正規化 |
+| `IDEASGLASS_GAIN_MAX` | `1.8` | 增益放大上限 |
+| `IDEASGLASS_GAIN_MIN_RMS` | `0.008` | 避免放大近乎靜音區段 |
+| `IDEASGLASS_SPEECH_RMS` | `0.03` | 語音活動 RMS 基準 |
+| `IDEASGLASS_SPEECH_MARGIN` | `0.005` | 語音閾值邊界緩衝 |
+| `IDEASGLASS_SEGMENT_TARGET_MS` | `15000` | 分段目標長度 |
+| `IDEASGLASS_SEGMENT_OVERLAP_MS` | `2000` | 透過重疊保留連續性 |
+| `IDEASGLASS_SEGMENT_GAIN_TARGET` | 繼承區塊增益 | 分段層級正規化目標 |
 
-### 模型預拉取（可選）
+### 模型預先載入（可選）
 
 ```bash
 python backend/glass/tools/prefetch_whisper_models.py \
@@ -305,23 +311,23 @@ python backend/glass/tools/prefetch_whisper_models.py \
 
 ## 🧪 範例
 
-### 生成並綁定設備 ID
+### 產生並綁定設備 ID
 
 ```bash
 python backend/glass/tools/generate_device_id.py --out logs/device-id.png
 ```
 
-然後在下列文件中設置 `kDeviceId`：
+接著在以下檔案設定 `kDeviceId`：
 
 - `IdeaGlass/firmware/ideasglass_arduino/IdeasGlassClient/IdeasGlassClient.ino`
 
-儀表盤流程：
+儀表板流程：
 
-1. 在 Settings 中註冊/登錄。
-2. 在 Account 面板綁定設備。
-3. 只有已綁定設備會向你的帳號推流。
+1. 在「設定」中註冊/登入。
+2. 在「帳號」面板綁定設備。
+3. 只有已綁定的設備才會向你的帳號推送串流。
 
-### REST 接入範例
+### REST 接口範例
 
 ```bash
 curl -X POST http://localhost:8765/api/v1/messages \
@@ -335,7 +341,7 @@ curl -X POST http://localhost:8765/api/v1/messages \
   -d '{
     "device_id":"dev-001",
     "message":"photo demo",
-    "photo_base64":"'"$(base64 -w0 sample.jpg)"'",
+    "photo_base64":"'"$(base64 -w0 sample.jpg)'"",
     "photo_mime":"image/jpeg"
   }'
 ```
@@ -350,7 +356,7 @@ curl -X POST http://localhost:8765/api/v1/audio \
     "bits_per_sample":16,
     "duration_ms":250,
     "rms":0.05,
-    "audio_base64":"'"$(base64 -w0 temp.raw)"'"
+    "audio_base64":"'"$(base64 -w0 temp.raw)'"'
   }'
 ```
 
@@ -361,9 +367,9 @@ curl -o latest.wav http://localhost:8765/api/v1/audio/segments/<segment-id>
 
 ## 🧭 開發說明
 
-### 重點區域
+### 重點方向
 
-本倉庫包含多條後端路線。當前貢獻與執行重點為 `backend/glass/`，除非另有說明。
+此倉庫包含多條後端路徑。除非另有要求，當前貢獻者指引與主要運行重點為 `backend/glass/`。
 
 ### 靜態/語法檢查
 
@@ -371,109 +377,66 @@ curl -o latest.wav http://localhost:8765/api/v1/audio/segments/<segment-id>
 python -m compileall backend/glass/app.py
 ```
 
-### 開發者文件
+### 開發文件
 
 - [IdeasGlass Object Analysis](OmiGlass/docs/ideasglass_analysis.mdx)
 - [Arduino Hardware Blueprint](OmiGlass/docs/ideasglass_arduino_hardware.md)
 - [Multi-platform App / PWA Plan](OmiGlass/docs/ideasglass_pwa_plan.md)
 - [Bridge & Arduino HTTPS Client](docs/ideasglass_bridge.md)
 
-> 註：在當前倉庫快照中，上述部分歷史連結似乎已移動（例如，bridge 說明現在位於 `references/ideasglass_bridge.md`）。原始連結作為規範 README 內容已保留。
+> 註：在目前的倉庫快照中，上述部分歷史連結可能已移動（例如橋接說明目前位於 `references/ideasglass_bridge.md`）。原始連結仍保留為英文 README 的標準內容。
 
 ### 快速設備綁定（保留流程）
 
-- 生成 ID（在 conda `glass` 中）：`python backend/glass/tools/generate_device_id.py`
-- 在韌體中設置：`IdeaGlass/firmware/ideasglass_arduino/IdeasGlassClient/IdeasGlassClient.ino`（`kDeviceId`）
-- 執行後端並打開 `http://localhost:8765`，註冊/登錄，然後在 Account 面板綁定設備 ID
+- 產生 ID（在 conda `glass`）：`python backend/glass/tools/generate_device_id.py`
+- 在韌體中設定：`IdeaGlass/firmware/ideasglass_arduino/IdeasGlassClient/IdeasGlassClient.ino`（`kDeviceId`）
+- 啟動後端並開啟 `http://localhost:8765`，註冊/登入後在帳號面板綁定設備 ID
 
-## 🆘 故障排查
+## 🆘 疑難排解
 
-- **連接埠已被佔用：** 改用其他連接埠啟動後端，並更新客戶端設置。
-- **串口被佔用：** `fuser -k /dev/ttyACM0`。
-- **Linux 串口權限不足：** `sudo usermod -aG dialout $USER`，然後重新登錄。
-- **Postgres 不可用：** 後端可在無 DB 模式下提供部分功能；請檢查 `DATABASE_URL` 並重新啟動。
-- **Whisper 性能問題：** 使用更小模型（`base`/`small`），或透過 `IDEASGLASS_TRANSCRIBE=0` 關閉轉錄。
-- **ESP32 TLS/時間同步不穩定：** 檢查 Wi-Fi、NTP 可用性（UDP/123）及證書/主機配置；詳見 `references/ideasglass_bridge.md`。
-- **即時波形無更新：** 檢查後端日誌和瀏覽器控制檯中的 `[IdeasGlass][wave]`，並確認 `/ws/stream` 連接狀態。
+- **埠已被佔用：** 將後端改在其他埠執行，並更新客戶端設定。
+- **序列埠忙碌：** `fuser -k /dev/ttyACM0`。
+- **Linux 序列埠權限不足：** `sudo usermod -aG dialout $USER` 後重新登入。
+- **Postgres 不可用：** 後端可在無資料庫情況下部分運作；請檢查 `DATABASE_URL` 並重啟。
+- **Whisper 效能問題：** 使用較小的模型（`base`/`small`）或透過 `IDEASGLASS_TRANSCRIBE=0` 停用轉錄。
+- **ESP32 TLS/時間同步不穩定：** 檢查 Wi-Fi、NTP 可用性（UDP/123）及憑證/主機設定；參閱 `references/ideasglass_bridge.md` 的現場說明。
+- **即時波形無更新：** 檢查後端日誌與瀏覽器主控台中的 `[IdeasGlass][wave]` 追蹤，並確認 `/ws/stream` 連線是否正常。
 
-## 🌐 生態連結
+## 🌐 生態鏈接
 
-🧠 **EchoMind** — 面向學習與創作的多語言 AI 夥伴。  
+🧠 **EchoMind** — 多語學習與創作輔助 AI 助手。  
 [chat.lazying.art](https://chat.lazying.art)
 
-🌱 **OnlyIdeas** — 將大膽概念轉化為產品的研究社群。  
+🌱 **OnlyIdeas** — 研究到產品轉化的勇敢創意社群。  
 [onlyideas.art](https://onlyideas.art)
 
-💸 **LazyEarn** — 將小勝轉化為收入的自動化工具。  
+💸 **LazyEarn** — 將小成果自動轉化為收入的自動化流程。  
 [earn.lazying.art](https://earn.lazying.art)
 
-📚 **LazyLearn** — 物理與化學學習路徑及筆記。  
+📚 **LazyLearn** — 物理與化學課程與筆記本。  
 [learn.lazying.art](https://learn.lazying.art)
 
-🤖 **IdeasRobot** — 將想法轉化為草稿、任務與貼文發佈的代理。  
+🤖 **IdeasRobot** — 將靈感轉為草稿、任務與貼文的助理。  
 [robot.lazying.art](https://robot.lazying.art)
 
-👓 **IdeasGlass** — 捕捉、翻譯並自動生成高光短片。  
+👓 **IdeasGlass** — 擷取、翻譯並自動生成精華短片。  
 [glass.lazying.art](https://glass.lazying.art)
 
-🪙 **LazyingArt Coin** — 連接貢獻回報與鏈上價值的獎勵/結算系統。  
+🪙 **LazyingArt Coin** — 將貢獻與鏈上價值連接的獎勵與結算體系。  
 [coin.lazying.art](https://coin.lazying.art)
 
-🧪 **IDEAS** — 研究筆記與隨筆文集。  
+🧪 **IDEAS** — 研究筆記與文章彙刊。  
 [ideas.onlyideas.art](https://ideas.onlyideas.art)
 
-🎨 **LazyingArt** — OnlyIdeas、EchoMind、LazyEdit 與 IdeasGlass 背後的工作室。  
+🎨 **LazyingArt** — 承載 OnlyIdeas、EchoMind、LazyEdit 與 IdeasGlass 的工作室。  
 [lazying.art](https://lazying.art)
 
-## ❤️ 支持與聯繫
+## 🙏 感謝
 
-- ご支援は IdeasGlass のハードウェア試作・運用を加速させ、多くのクリエイターへ還元されます。
-- 你的支持將幫助我們推進硬體、AI 工作流程與生態建設，向社群持續開放。
-- Your support keeps the wearable, agent, and ecosystem roadmap moving.
-
-<div align="center">
-<table style="margin:0 auto; text-align:center; border-collapse:collapse;">
-  <tr>
-    <td style="text-align:center; vertical-align:middle; padding:6px 12px;">
-      <a href="https://chat.lazying.art/donate">https://chat.lazying.art/donate</a>
-    </td>
-    <td style="text-align:center; vertical-align:middle; padding:6px 12px;">
-      <a href="https://chat.lazying.art/donate"><img src="figs/donate_button.svg" alt="Donate" height="44"></a>
-    </td>
-  </tr>
-  <tr>
-    <td style="text-align:center; vertical-align:middle; padding:6px 12px;">
-      <a href="https://paypal.me/RongzhouChen">
-        <img src="https://img.shields.io/badge/PayPal-Donate-003087?logo=paypal&logoColor=white" alt="Donate with PayPal">
-      </a>
-    </td>
-    <td style="text-align:center; vertical-align:middle; padding:6px 12px;">
-      <a href="https://buy.stripe.com/aFadR8gIaflgfQV6T4fw400">
-        <img src="https://img.shields.io/badge/Stripe-Donate-635bff?logo=stripe&logoColor=white" alt="Donate with Stripe">
-      </a>
-    </td>
-  </tr>
-  <tr>
-    <td style="text-align:center; vertical-align:middle; padding:6px 12px;"><strong>WeChat</strong></td>
-    <td style="text-align:center; vertical-align:middle; padding:6px 12px;"><strong>Alipay</strong></td>
-  </tr>
-  <tr>
-    <td style="text-align:center; vertical-align:middle; padding:6px 12px;"><img alt="WeChat QR" src="figs/donate_wechat.png" width="240"/></td>
-    <td style="text-align:center; vertical-align:middle; padding:6px 12px;"><img alt="Alipay QR" src="figs/donate_alipay.png" width="240"/></td>
-  </tr>
-</table>
-</div>
-
-- 合作請發送郵件至 **contact@lazying.art**，郵件主題為 `IdeasGlass`。
-
-IdeasGlass 讓 AI 可穿戴設備不止於“傾聽”，而是開始與你一起“建構”。
-
-## 🙏 致謝
-
-我們站在優秀開源項目的肩膀上，特別感謝：
+我們立足於眾多優秀的開源專案，特別感謝：
 
 - <a href="https://www.omi.me/?ref=LazyingArt" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;justify-content:center;padding:0.45rem 1rem;border-radius:999px;background:#111827;color:#ffffff;font-weight:700;text-decoration:none;">Get OmiGlass (BasedHardware)</a>
-  - **Referral Program** — Use coupon `LazyingArt` to save 10% (30% commission unlocks after 10 sales).
+  - **推薦方案**：使用優惠碼 `LazyingArt` 可節省 10%（累積販售 10 件後解鎖 30% 回饋）。
 
     <div style="display:flex;flex-wrap:wrap;gap:0.4rem;margin:0.3rem 0;">
       <a href="https://www.omi.me/?ref=LazyingArt" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;justify-content:center;padding:0.45rem 1.1rem;border-radius:999px;background:#111827;color:#ffffff;font-weight:700;text-decoration:none;">Get OmiGlass with LazyingArt</a>
@@ -486,17 +449,17 @@ IdeasGlass 讓 AI 可穿戴設備不止於“傾聽”，而是開始與你一�
 
 ## 🛣️ 路線圖
 
-- 強化並文件化 WAN/TLS 場景下端到端音訊流路徑。
-- 持續優化轉錄質量與延遲權衡（模型/設備/閾值預設）。
-- 在儀表盤中擴展設備管理與帳號級多設備工作流程。
-- 將遺留/並行後端路線（`tornado_app`、`memo`、`memo_legacy`、`ngrok_bridge`）與主線路 `backend/glass` 對齊或整合。
-- 維護並持續更新 `i18n/` 下的多語言 README 版本。
+- 加強並記錄跨 WAN/TLS 環境下的端到端音訊串流路徑。
+- 持續改善轉錄品質與延遲權衡（模型/設備/閾值預設）。
+- 擴充設備管理與帳號級多設備協作工作流程。
+- 對齊或整合遺留/平行後端路徑（`tornado_app`、`memo`、`memo_legacy`、`ngrok_bridge`）至主路徑 `backend/glass`。
+- 在 `i18n/` 下維護並更新多語 README 版本。
 
 ## 🤝 貢獻
 
-歡迎貢獻。倉庫特定流程請遵循 `AGENTS.md`。
+歡迎參與貢獻。關於倉庫層級流程，請遵循 `AGENTS.md`。
 
-建議在提交 PR 前進行本地驗證：
+建議在提交 PR 前做本機驗證：
 
 ```bash
 python -m compileall backend/glass/app.py
@@ -504,11 +467,18 @@ python -m compileall backend/glass/app.py
 
 提交變更時：
 
-- Commit 標題保持簡短、動作導向（現在時）。
-- 當行為依賴環境變量時，在 PR 說明中寫明相關變量（例如 `IDEASGLASS_TRANSCRIPT_THRESHOLDS_MS`）。
-- 附上測試證據（後端日誌、儀表盤行為、韌體輸出）。
-- 嚴禁提交密鑰（`DATABASE_URL`、API token、憑證文件）。
+- 保持提交標題簡潔且以動作為導向（使用現在式）。
+- 當行為受相關環境變數影響時，在 PR 說明中註明（例如 `IDEASGLASS_TRANSCRIPT_THRESHOLDS_MS`）。
+- 提供測試證據（後端日誌、儀表板行為、韌體輸出）。
+- 切勿提交機密資訊（例如 `DATABASE_URL`、API token、憑證檔）。
 
-## 📄 許可證
+## 📄 授權
 
-當前倉庫快照中未檢測到頂層 `LICENSE` 文件。在明確許可證文件添加之前，請將使用與再分發視為需要維護者批准。
+此倉庫快照中尚未偵測到頂層 `LICENSE` 檔案。在正式加入明確授權檔前，請將使用與再散布行為視為需取得維護者授權。
+
+
+## ❤️ Support
+
+| Donate | PayPal | Stripe |
+| --- | --- | --- |
+| [![Donate](https://camo.githubusercontent.com/24a4914f0b42c6f435f9e101621f1e52535b02c225764b2f6cc99416926004b7/68747470733a2f2f696d672e736869656c64732e696f2f62616467652f446f6e6174652d4c617a79696e674172742d3045413545393f7374796c653d666f722d7468652d6261646765266c6f676f3d6b6f2d6669266c6f676f436f6c6f723d7768697465)](https://chat.lazying.art/donate) | [![PayPal](https://camo.githubusercontent.com/d0f57e8b016517a4b06961b24d0ca87d62fdba16e18bbdb6aba28e978dc0ea21/68747470733a2f2f696d672e736869656c64732e696f2f62616467652f50617950616c2d526f6e677a686f754368656e2d3030343537433f7374796c653d666f722d7468652d6261646765266c6f676f3d70617970616c266c6f676f436f6c6f723d7768697465)](https://paypal.me/RongzhouChen) | [![Stripe](https://camo.githubusercontent.com/1152dfe04b6943afe3a8d2953676749603fb9f95e24088c92c97a01a897b4942/68747470733a2f2f696d672e736869656c64732e696f2f62616467652f5374726970652d446f6e6174652d3633354246463f7374796c653d666f722d7468652d6261646765266c6f676f3d737472697065266c6f676f436f6c6f723d7768697465)](https://buy.stripe.com/aFadR8gIaflgfQV6T4fw400) |
