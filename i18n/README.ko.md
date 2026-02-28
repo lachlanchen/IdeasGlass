@@ -1,6 +1,7 @@
 [English](../README.md) · [العربية](README.ar.md) · [Español](README.es.md) · [Français](README.fr.md) · [日本語](README.ja.md) · [한국어](README.ko.md) · [Tiếng Việt](README.vi.md) · [中文 (简体)](README.zh-Hans.md) · [中文（繁體）](README.zh-Hant.md) · [Deutsch](README.de.md) · [Русский](README.ru.md)
 
 
+
 [![LazyingArt banner](https://github.com/lachlanchen/lachlanchen/raw/main/figs/banner.png)](https://github.com/lachlanchen/lachlanchen/blob/main/figs/banner.png)
 
 
@@ -22,22 +23,6 @@
 | 🎙️ 웨어러블 캡처 | ESP32 글래스가 오디오, 사진, 텔레메트리를 거의 실시간으로 전송 |
 | 🧠 백엔드 인텔리전스 | FastAPI가 스트림을 수신해 전사, 세그먼트화, 메타데이터 저장 |
 | 🖥️ 대시보드 | PWA에서 실시간 파형, 전사 텍스트, 디바이스/계정 상태 표시 |
-
-<table>
-  <tr>
-    <td align="center" style="padding:6px 10px;">
-      <b>Ecosystem</b><br/>
-      <a href="https://lazying.art">LazyingArt</a>
-      · <a href="https://onlyideas.art">OnlyIdeas</a>
-      · <a href="https://chat.lazying.art">EchoMind</a>
-      · <a href="https://coin.lazying.art">LazyingArt Coin</a>
-    </td>
-    <td align="center" style="padding:6px 10px;">
-      <b>Support IdeasGlass</b><br/>
-      <a href="https://chat.lazying.art/donate"><img src="figs/donate_button.svg" alt="Donate" height="32" style="vertical-align: middle;"/></a>
-    </td>
-  </tr>
-</table>
 
 <div align="center">
   <img src="figs/ideas.lazying.art_main.png" alt="IdeasGlass App UI" width="49%" style="max-width:49%;display:inline-block;vertical-align:middle;"/>
@@ -476,6 +461,8 @@ python -m compileall backend/glass/app.py
 ## 📄 라이선스
 
 이 저장소 스냅샷에는 최상위 `LICENSE` 파일이 감지되지 않았습니다. 명시적인 라이선스 파일이 추가될 때까지는 사용 및 재배포 시 유지관리자 승인 필요.
+
+
 
 
 ## ❤️ Support

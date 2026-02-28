@@ -1,6 +1,7 @@
 [English](../README.md) · [العربية](README.ar.md) · [Español](README.es.md) · [Français](README.fr.md) · [日本語](README.ja.md) · [한국어](README.ko.md) · [Tiếng Việt](README.vi.md) · [中文 (简体)](README.zh-Hans.md) · [中文（繁體）](README.zh-Hant.md) · [Deutsch](README.de.md) · [Русский](README.ru.md)
 
 
+
 [![LazyingArt banner](https://github.com/lachlanchen/lachlanchen/raw/main/figs/banner.png)](https://github.com/lachlanchen/lachlanchen/blob/main/figs/banner.png)
 
 # IdeasGlass
@@ -21,22 +22,6 @@
 | 🎙️ Wearable capture | ESP32 glasses send audio, photos, and telemetry in near-real-time |
 | 🧠 Backend intelligence | FastAPI ingests streams, transcribes, segments, and persists metadata |
 | 🖥️ Dashboard | PWA shows live waveform, transcripts, and device/account status |
-
-<table>
-  <tr>
-    <td align="center" style="padding:6px 10px;">
-      <b>Ecosystem</b><br/>
-      <a href="https://lazying.art">LazyingArt</a>
-      · <a href="https://onlyideas.art">OnlyIdeas</a>
-      · <a href="https://chat.lazying.art">EchoMind</a>
-      · <a href="https://coin.lazying.art">LazyingArt Coin</a>
-    </td>
-    <td align="center" style="padding:6px 10px;">
-      <b>Support IdeasGlass</b><br/>
-      <a href="https://chat.lazying.art/donate"><img src="figs/donate_button.svg" alt="Donate" height="32" style="vertical-align: middle;"/></a>
-    </td>
-  </tr>
-</table>
 
 <div align="center">
   <img src="figs/ideas.lazying.art_main.png" alt="IdeasGlass App UI" width="49%" style="max-width:49%;display:inline-block;vertical-align:middle;"/>
@@ -63,7 +48,7 @@ Nếu bạn mới bắt đầu với repo này, hãy bắt đầu từ đây.
 | Backend API + PWA | `backend/glass/` | Endpoint FastAPI, WebSocket ingest/fanout, phiên âm, dashboard |
 | Firmware | `IdeaGlass/firmware/ideasglass_arduino/IdeasGlassClient/` | Client ESP32 cho thu và phát luồng |
 | Bridge notes | `references/ideasglass_bridge.md` | Ghi chú độ tin cậy TLS/WAN và mẹo triển khai thực tế |
-| Bản dịch README | `i18n/` | Tài liệu đa ngôn ngữ đồng bộ từ README chính |
+| README translations | `i18n/` | Tài liệu đa ngôn ngữ đồng bộ từ README chính |
 
 ## ✨ Tại sao chọn IdeasGlass
 
@@ -117,7 +102,7 @@ IdeasGlass/
 │   ├── memo_legacy/
 │   └── ngrok_bridge/
 ├── IdeaGlass/firmware/ideasglass_arduino/
-│   ├── IdeasGlassClient/IdeasGlassClient.ino
+│   ├── IdeasGlassClient/
 │   ├── config.h
 │   ├── WifiTest/WifiTest.ino
 │   ├── wifi_credentials.example.h
@@ -127,8 +112,10 @@ IdeasGlass/
 ├── development_plan/
 ├── app/
 ├── ops/observability/
+├── ios-app-example/
 ├── figs/
-└── seeed_studio_xiao_esp32s3_dev/
+├── seeed_studio_xiao_esp32s3_dev/
+└── .auto-readme-work/
 ```
 
 ## 🧰 Yêu cầu
@@ -271,7 +258,7 @@ Nếu bị từ chối quyền: chạy `sudo usermod -aG dialout $USER` rồi đ
 | `IDEASGLASS_WHISPER_FP16` | `1` cho GPU, `0` an toàn CPU | Điều khiển mixed precision |
 | `IDEASGLASS_TRANSCRIBE` | `1` | Bật/tắt pipeline transcript |
 | `IDEASGLASS_TRANSCRIPT_INTERVAL_MS` | theo runtime | Chu kỳ đẩy transcript cuộn |
-| `IDEASGLASS_TRANSCRIPT_THRESHOLDS_MS` | `3000,6000,15000` | Ngưỡng emit transcript theo từng mức |
+| `IDEASGLASS_TRANSCRIPT_THRESHOLDS_MS` | `3000,6000,15000` | Ngưỡng phát transcript theo từng mức |
 
 Các ví dụ an toàn `DATABASE_URL`:
 
@@ -341,7 +328,7 @@ curl -X POST http://localhost:8765/api/v1/messages \
   -d '{
     "device_id":"dev-001",
     "message":"photo demo",
-    "photo_base64":"'"$(base64 -w0 sample.jpg)"'",
+    "photo_base64":"'"$(base64 -w0 sample.jpg)'"',
     "photo_mime":"image/jpeg"
   }'
 ```
@@ -356,7 +343,7 @@ curl -X POST http://localhost:8765/api/v1/audio \
     "bits_per_sample":16,
     "duration_ms":250,
     "rms":0.05,
-    "audio_base64":"'"$(base64 -w0 temp.raw)"'"
+    "audio_base64":"'"$(base64 -w0 temp.raw)'"'
   }'
 ```
 
@@ -404,32 +391,17 @@ python -m compileall backend/glass/app.py
 
 ## 🌐 Liên kết hệ sinh thái
 
-🧠 **EchoMind** — Người bạn đồng hành AI đa ngôn ngữ cho học tập và sáng tạo.  
-[chat.lazying.art](https://chat.lazying.art)
-
-🌱 **OnlyIdeas** — Cộng đồng nghiên cứu-to-product cho ý tưởng đậm nét.  
-[onlyideas.art](https://onlyideas.art)
-
-💸 **LazyEarn** — Tự động hóa giúp biến thắng nhỏ thành thu nhập.  
-[earn.lazying.art](https://earn.lazying.art)
-
-📚 **LazyLearn** — Các tuyến Physics & chemistry và notebook học tập.  
-[learn.lazying.art](https://learn.lazying.art)
-
-🤖 **IdeasRobot** — Agent biến ý tưởng thành bản nháp, nhiệm vụ và bài đăng.  
-[robot.lazying.art](https://robot.lazying.art)
-
-👓 **IdeasGlass** — Ghi nhận, dịch, và tự động sản xuất highlight reel.  
-[glass.lazying.art](https://glass.lazying.art)
-
-🪙 **LazyingArt Coin** — Phần thưởng và payout nối đóng góp vào giá trị on-chain.  
-[coin.lazying.art](https://coin.lazying.art)
-
-🧪 **IDEAS** — Sổ tay ghi chú nghiên cứu và bài luận.  
-[ideas.onlyideas.art](https://ideas.onlyideas.art)
-
-🎨 **LazyingArt** — Studio đứng sau OnlyIdeas, EchoMind, LazyEdit, và IdeasGlass.  
-[lazying.art](https://lazying.art)
+| Brand | Purpose | Link |
+|---|---|---|
+| 🧠 EchoMind | Người bạn đồng hành AI đa ngôn ngữ cho học tập và sáng tạo. | [chat.lazying.art](https://chat.lazying.art) |
+| 🌱 OnlyIdeas | Cộng đồng nghiên cứu-to-product cho ý tưởng đậm nét. | [onlyideas.art](https://onlyideas.art) |
+| 💸 LazyEarn | Tự động hóa giúp biến thắng nhỏ thành thu nhập. | [earn.lazying.art](https://earn.lazying.art) |
+| 📚 LazyLearn | Các tuyến Physics & chemistry và notebook học tập. | [learn.lazying.art](https://learn.lazying.art) |
+| 🤖 IdeasRobot | Agent biến ý tưởng thành bản nháp, nhiệm vụ và bài đăng. | [robot.lazying.art](https://robot.lazying.art) |
+| 👓 IdeasGlass | Ghi nhận, dịch, và tự động sản xuất highlight reel. | [glass.lazying.art](https://glass.lazying.art) |
+| 🪙 LazyingArt Coin | Phần thưởng và payout nối đóng góp vào giá trị on-chain. | [coin.lazying.art](https://coin.lazying.art) |
+| 🧪 IDEAS | Sổ tay ghi chú nghiên cứu và bài luận. | [ideas.onlyideas.art](https://ideas.onlyideas.art) |
+| 🎨 LazyingArt | Studio đứng sau OnlyIdeas, EchoMind, LazyEdit, và IdeasGlass. | [lazying.art](https://lazying.art) |
 
 ## 🙏 Lời cảm ơn
 
@@ -450,7 +422,7 @@ Chúng tôi xây dựng trên nền tảng của nhiều dự án mã mở tuy�
 ## 🛣️ Lộ trình
 
 - Củng cố và tài liệu hóa toàn bộ đường truyền streaming âm thanh end-to-end trong môi trường WAN/TLS.
-- Tiếp tục cải thiện tradeoff chất lượng/độ trễ transcript (model/device/ngưỡng preset).
+- Tiếp tục cải thiện tradeoff chất lượng/độ trễ transcript (model/device/threshold preset).
 - Mở rộng quản lý thiết bị và quy trình dashboard cho nhiều thiết bị theo account.
 - Đồng bộ hoặc hợp nhất các track backend cũ/song song (`tornado_app`, `memo`, `memo_legacy`, `ngrok_bridge`) với đường truyền chính `backend/glass`.
 - Duy trì và cập nhật các phiên bản README đa ngôn ngữ trong `i18n/`.

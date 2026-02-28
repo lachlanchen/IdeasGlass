@@ -1,8 +1,8 @@
 [English](README.md) · [العربية](i18n/README.ar.md) · [Español](i18n/README.es.md) · [Français](i18n/README.fr.md) · [日本語](i18n/README.ja.md) · [한국어](i18n/README.ko.md) · [Tiếng Việt](i18n/README.vi.md) · [中文 (简体)](i18n/README.zh-Hans.md) · [中文（繁體）](i18n/README.zh-Hant.md) · [Deutsch](i18n/README.de.md) · [Русский](i18n/README.ru.md)
 
 
-[![LazyingArt banner](https://github.com/lachlanchen/lachlanchen/raw/main/figs/banner.png)](https://github.com/lachlanchen/lachlanchen/blob/main/figs/banner.png)
 
+[![LazyingArt banner](https://github.com/lachlanchen/lachlanchen/raw/main/figs/banner.png)](https://github.com/lachlanchen/lachlanchen/blob/main/figs/banner.png)
 
 # IdeasGlass
 
@@ -23,22 +23,6 @@
 | 🧠 Backend intelligence | FastAPI ingests streams, transcribes, segments, and persists metadata |
 | 🖥️ Dashboard | PWA shows live waveform, transcripts, and device/account status |
 
-<table>
-  <tr>
-    <td align="center" style="padding:6px 10px;">
-      <b>Ecosystem</b><br/>
-      <a href="https://lazying.art">LazyingArt</a>
-      · <a href="https://onlyideas.art">OnlyIdeas</a>
-      · <a href="https://chat.lazying.art">EchoMind</a>
-      · <a href="https://coin.lazying.art">LazyingArt Coin</a>
-    </td>
-    <td align="center" style="padding:6px 10px;">
-      <b>Support IdeasGlass</b><br/>
-      <a href="https://chat.lazying.art/donate"><img src="figs/donate_button.svg" alt="Donate" height="32" style="vertical-align: middle;"/></a>
-    </td>
-  </tr>
-</table>
-
 <div align="center">
   <img src="figs/ideas.lazying.art_main.png" alt="IdeasGlass App UI" width="49%" style="max-width:49%;display:inline-block;vertical-align:middle;"/>
   <img src="figs/ideasglass_hardware.png" alt="IdeasGlass hardware" width="49%" style="max-width:49%;display:inline-block;vertical-align:middle;"/>
@@ -56,6 +40,27 @@ IdeasGlass is an AI-first wearable system for voice-first idea capture and execu
 - `IdeaGlass/firmware/ideasglass_arduino/IdeasGlassClient/` for XIAO ESP32S3 firmware streaming telemetry/audio/photos.
 
 If you are new to this repo, start there first.
+
+## 📚 Table of Contents
+
+- [🚀 Overview](#-overview)
+- [✨ Why IdeasGlass](#-why-ideasglass)
+- [🧩 Features](#-features)
+- [🔄 Sample Workflow](#-sample-workflow)
+- [🗂️ Project Structure](#-project-structure)
+- [🧰 Prerequisites](#-prerequisites)
+- [⚙️ Installation](#️-installation)
+- [▶️ Usage](#️-usage)
+- [🛠️ Configuration](#️-configuration)
+- [🧪 Examples](#-examples)
+- [🧭 Development Notes](#-development-notes)
+- [🆘 Troubleshooting](#️-troubleshooting)
+- [🌐 Ecosystem Links](#-ecosystem-links)
+- [🙏 Acknowledgements](#-acknowledgements)
+- [🛣️ Roadmap](#️-roadmap)
+- [🤝 Contribution](#-contribution)
+- [❤️ Support](#-support)
+- [📄 License](#-license)
 
 ### At a glance
 
@@ -118,7 +123,7 @@ IdeasGlass/
 │   ├── memo_legacy/
 │   └── ngrok_bridge/
 ├── IdeaGlass/firmware/ideasglass_arduino/
-│   ├── IdeasGlassClient/IdeasGlassClient.ino
+│   ├── IdeasGlassClient/
 │   ├── config.h
 │   ├── WifiTest/WifiTest.ino
 │   ├── wifi_credentials.example.h
@@ -128,8 +133,10 @@ IdeasGlass/
 ├── development_plan/
 ├── app/
 ├── ops/observability/
+├── ios-app-example/
 ├── figs/
-└── seeed_studio_xiao_esp32s3_dev/
+├── seeed_studio_xiao_esp32s3_dev/
+└── .auto-readme-work/
 ```
 
 ## 🧰 Prerequisites
@@ -342,7 +349,7 @@ curl -X POST http://localhost:8765/api/v1/messages \
   -d '{
     "device_id":"dev-001",
     "message":"photo demo",
-    "photo_base64":"'"$(base64 -w0 sample.jpg)"'",
+    "photo_base64":"'"$(base64 -w0 sample.jpg)'"',
     "photo_mime":"image/jpeg"
   }'
 ```
@@ -357,7 +364,7 @@ curl -X POST http://localhost:8765/api/v1/audio \
     "bits_per_sample":16,
     "duration_ms":250,
     "rms":0.05,
-    "audio_base64":"'"$(base64 -w0 temp.raw)"'"
+    "audio_base64":"'"$(base64 -w0 temp.raw)'"'
   }'
 ```
 
@@ -405,32 +412,17 @@ python -m compileall backend/glass/app.py
 
 ## 🌐 Ecosystem Links
 
-🧠 **EchoMind** — Multilingual AI companion for learning and creation.  
-[chat.lazying.art](https://chat.lazying.art)
-
-🌱 **OnlyIdeas** — Research-to-product community for bold concepts.  
-[onlyideas.art](https://onlyideas.art)
-
-💸 **LazyEarn** — Automations to turn small wins into income.  
-[earn.lazying.art](https://earn.lazying.art)
-
-📚 **LazyLearn** — Physics & chemistry tracks and notebooks.  
-[learn.lazying.art](https://learn.lazying.art)
-
-🤖 **IdeasRobot** — Agent that turns ideas into drafts, tasks, and posts.  
-[robot.lazying.art](https://robot.lazying.art)
-
-👓 **IdeasGlass** — Capture, translate, and auto-produce highlight reels.  
-[glass.lazying.art](https://glass.lazying.art)
-
-🪙 **LazyingArt Coin** — Rewards and payouts bridging contributions and on-chain value.  
-[coin.lazying.art](https://coin.lazying.art)
-
-🧪 **IDEAS** — Notebook of research notes and essays.  
-[ideas.onlyideas.art](https://ideas.onlyideas.art)
-
-🎨 **LazyingArt** — Studio behind OnlyIdeas, EchoMind, LazyEdit, and IdeasGlass.  
-[lazying.art](https://lazying.art)
+| Brand | Purpose | Link |
+|---|---|---|
+| 🧠 EchoMind | Multilingual AI companion for learning and creation | [chat.lazying.art](https://chat.lazying.art) |
+| 🌱 OnlyIdeas | Research-to-product community for bold concepts | [onlyideas.art](https://onlyideas.art) |
+| 💸 LazyEarn | Automations to turn small wins into income | [earn.lazying.art](https://earn.lazying.art) |
+| 📚 LazyLearn | Physics & chemistry tracks and notebooks | [learn.lazying.art](https://learn.lazying.art) |
+| 🤖 IdeasRobot | Agent that turns ideas into drafts, tasks, and posts | [robot.lazying.art](https://robot.lazying.art) |
+| 👓 IdeasGlass | Capture, translate, and auto-produce highlight reels | [glass.lazying.art](https://glass.lazying.art) |
+| 🪙 LazyingArt Coin | Rewards and payouts bridging contributions and on-chain value | [coin.lazying.art](https://coin.lazying.art) |
+| 🧪 IDEAS | Notebook of research notes and essays | [ideas.onlyideas.art](https://ideas.onlyideas.art) |
+| 🎨 LazyingArt | Studio behind OnlyIdeas, EchoMind, LazyEdit, and IdeasGlass | [lazying.art](https://lazying.art) |
 
 ## 🙏 Acknowledgements
 

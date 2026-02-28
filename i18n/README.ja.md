@@ -1,13 +1,14 @@
 [English](../README.md) · [العربية](README.ar.md) · [Español](README.es.md) · [Français](README.fr.md) · [日本語](README.ja.md) · [한국어](README.ko.md) · [Tiếng Việt](README.vi.md) · [中文 (简体)](README.zh-Hans.md) · [中文（繁體）](README.zh-Hant.md) · [Deutsch](README.de.md) · [Русский](README.ru.md)
 
 
+
 [![LazyingArt banner](https://github.com/lachlanchen/lachlanchen/raw/main/figs/banner.png)](https://github.com/lachlanchen/lachlanchen/blob/main/figs/banner.png)
 
 # IdeasGlass
 
-*アイデアを行動・収益・創造の勢いへと変えるウェアラブルAIグラス。*
+*アイデアを行動へ、収益へ、創造的な勢いへ変える、ウェアラブルAI。*
 
-> 音声ファーストのウェアラブルAIパイプライン。ESP32グラスから収録し、FastAPIで処理し、ライブPWAダッシュボードで監視・操作します。
+> 音声ファーストのウェアラブルAIパイプラインです。ESP32のグラスから音声を取り込み、FastAPIで処理し、ライブPWAダッシュボードで監視・操作できます。
 
 ![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python&logoColor=white&style=flat-square)
 ![FastAPI](https://img.shields.io/badge/FastAPI-Backend-009688?logo=fastapi&logoColor=white&style=flat-square)
@@ -18,87 +19,92 @@
 
 | レーン | 用途 |
 |---|---|
-| 🎙️ ウェアラブル収集 | ESP32グラスが音声・写真・テレメトリをほぼリアルタイムで送信 |
-| 🧠 バックエンドの知能 | FastAPIがストリームを受け取り、文字起こしし、セグメント化し、メタデータを保存 |
-| 🖥️ ダッシュボード | PWAでライブ波形、文字起こし、デバイス/アカウント状態を表示 |
-
-<table>
-  <tr>
-    <td align="center" style="padding:6px 10px;">
-      <b>エコシステム</b><br/>
-      <a href="https://lazying.art">LazyingArt</a>
-      · <a href="https://onlyideas.art">OnlyIdeas</a>
-      · <a href="https://chat.lazying.art">EchoMind</a>
-      · <a href="https://coin.lazying.art">LazyingArt Coin</a>
-    </td>
-    <td align="center" style="padding:6px 10px;">
-      <b>IdeasGlassを支援</b><br/>
-      <a href="https://chat.lazying.art/donate"><img src="figs/donate_button.svg" alt="Donate" height="32" style="vertical-align: middle;"/></a>
-    </td>
-  </tr>
-</table>
+| 🎙️ ウェアラブル収集 | ESP32グラスが音声、写真、テレメトリをほぼリアルタイムで送信 |
+| 🧠 バックエンドの知能 | FastAPIがストリームを取り込み、文字起こしを行い、セグメント化してメタデータを保存 |
+| 🖥️ ダッシュボード | PWAがライブ波形、文字起こし、デバイス/アカウント状態を表示 |
 
 <div align="center">
-  <img src="figs/ideas.lazying.art_main.png" alt="IdeasGlass App UI" width="49%" style="max-width:49%;display:inline-block;vertical-align:middle;"/>
-  <img src="figs/ideasglass_hardware.png" alt="IdeasGlass hardware" width="49%" style="max-width:49%;display:inline-block;vertical-align:middle;"/>
+  <img src="figs/ideas.lazying.art_main.png" alt="IdeasGlassアプリUI" width="49%" style="max-width:49%;display:inline-block;vertical-align:middle;"/>
+  <img src="figs/ideasglass_hardware.png" alt="IdeasGlassハードウェア" width="49%" style="max-width:49%;display:inline-block;vertical-align:middle;"/>
   <br/>
-  <sub>アプリUI（左）· ハードウェア（右）</sub>
+  <sub>アプリUI（左） · ハードウェア（右）</sub>
 </div>
 
-コミュニティ実験は <a href="https://onlyideas.art">onlyideas.art</a> でご覧ください。
+コミュニティの実験は <a href="https://onlyideas.art">onlyideas.art</a> でご確認ください。
 
-## 🚀 概要
+## 🚀 Overview
 
-IdeasGlassは、音声ファーストでアイデアをキャプチャし実行へつなぐAIファーストのウェアラブルです。本リポジトリの主要なランタイム経路は次のとおりです。
+IdeasGlassは、音声ファーストでアイデアをキャプチャして実行につなぐAIファーストのウェアラブルシステムです。主な実行パスは次のとおりです。
 
-- `backend/glass/`：FastAPI API、WebSocket取り込み、Whisperベースの文字起こし、インストール可能なPWAダッシュボード。
-- `IdeaGlass/firmware/ideasglass_arduino/IdeasGlassClient/`：XIAO ESP32S3 ファームウェア（テレメトリ/音声/写真）をストリーミング。
+- `backend/glass/` はFastAPI API、WebSocket取り込み、Whisperベースの文字起こし、およびインストール可能なPWAダッシュボード。
+- `IdeaGlass/firmware/ideasglass_arduino/IdeasGlassClient/` はXIAO ESP32S3ファームウェアで、テレメトリ、音声、写真をストリーミングします。
 
-このリポジトリが初めての方は、まずここから始めてください。
+リポジトリを初めて使う場合は、まずここから始めてください。
 
-### ひと目で把握
+## 📚 Table of Contents
+
+- [🚀 Overview](#-overview)
+- [✨ Why IdeasGlass](#-why-ideasglass)
+- [🧩 Features](#-features)
+- [🔄 Sample Workflow](#-sample-workflow)
+- [🗂️ Project Structure](#-project-structure)
+- [🧰 Prerequisites](#-prerequisites)
+- [⚙️ Installation](#️-installation)
+- [▶️ Usage](#️-usage)
+- [🛠️ Configuration](#️-configuration)
+- [🧪 Examples](#-examples)
+- [🧭 Development Notes](#-development-notes)
+- [🆘 Troubleshooting](#️-troubleshooting)
+- [🌐 Ecosystem Links](#-ecosystem-links)
+- [🙏 Acknowledgements](#-acknowledgements)
+- [🛣️ Roadmap](#️-roadmap)
+- [🤝 Contribution](#-contribution)
+- [❤️ Support](#-support)
+- [📄 License](#-license)
+
+### At a glance
 
 | エリア | 主な場所 | 機能 |
 |---|---|---|
-| バックエンドAPI + PWA | `backend/glass/` | FastAPIエンドポイント、WebSocket取り込み/配信、文字起こし、ダッシュボード |
-| ファームウェア | `IdeaGlass/firmware/ideasglass_arduino/IdeasGlassClient/` | ESP32キャプチャ/ストリーミングクライアント |
-| ブリッジノート | `references/ideasglass_bridge.md` | TLS/WAN信頼性メモとデプロイ時の現場ノウハウ |
-| README翻訳 | `i18n/` | 正本READMEから同期される多言語ドキュメント |
+| Backend API + PWA | `backend/glass/` | FastAPIエンドポイント、WebSocket取り込み/配信、文字起こし、ダッシュボード |
+| Firmware | `IdeaGlass/firmware/ideasglass_arduino/IdeasGlassClient/` | ESP32キャプチャ/ストリーミングクライアント |
+| Bridge notes | `references/ideasglass_bridge.md` | TLS/WAN信頼性ノートとデプロイ時の現場向けヒント |
+| README translations | `i18n/` | 正規READMEから同期された多言語ドキュメント |
 
-## ✨ IdeasGlassの意義
+## ✨ Why IdeasGlass
 
-IdeasGlassは、アイデアが絶えず湧く人向けのAIファーストウェアラブルです。移動中にコンセプトを話しているときでも、ライブ配信をしているときでも、ひらめいた瞬間にクリエイティブを文字起こし・翻訳・整理・実行までつなげます。
+IdeasGlassは、アイデアが絶えず湧く人向けに作られたAIファーストなウェアラブルです。移動しながらコンセプトを口述したりライブ配信をしたりしているときでも、着想した瞬間にクリエイティビティを文字起こし・翻訳・整理・実行へと接続します。
 
-## 🧩 機能
+## 🧩 Features
 
-### 製品ビジョン機能
+### Product vision features
 
-- **制作ネイティブなハードウェア** – 軽量なグラスとウェアラブル入力を採用し、音声ファースト収集と微細なジェスチャーショートカット向けに最適化。
-- **即時翻訳** – リアルタイムの言語検出・翻訳により、ツールを切り替えることなく、チームや視聴者を跨いだアイデア発想が可能。
-- **EchoMindコパイロット** – `chat.lazying.art` と緊密に連携し、ブレインストーミング、台本作成、マルチリンガル・コンテンツコーチングを支援。
-- **チャンネル自動運転** – アウトライン、長尺台本、短尺フックを下書きし、YouTubeなどへアップロードをスケジュール。
-- **ハイライト＆リール** – 重要シーンを自動選別し、サムネイル・字幕・SNS配信用クリップを生成。
-- **収益層** – LazyingArt Coinと接続して、投げ銭、クレジット支払い、オンチェーン資産への変換を実現。
-- **支出と集中力** – 運用コストを追跡し、収益性の高いフォーマットを可視化し、次のプロジェクト候補を強みベースで抽出。
+- **Creation-native hardware** – 軽量なグラスとウェアラブル入力により、音声ファーストの収集とジェスチャーショートカットを前提に設計。
+- **Instant translation** – リアルタイム言語検出・翻訳で、ツール切替なしにチームや視聴者間でアイデアを発想。
+- **EchoMind co-pilot** – `chat.lazying.art` と緊密に連携し、ブレインストーミング、台本作成、多言語コンテンツコーチングを支援。
+- **Channel autopilot** – アウトライン、長編台本、ショート向けフックを下書きし、YouTubeなどへのアップロードをスケジュール。
+- **Highlights & reels** – ハイライトシーンを自動選定し、サムネイル、字幕、SNS対応クリップを生成。
+- **Income layer** – LazyingArt Coinと連携して投げ銭、クレジット決済、オンチェーン資産変換を実現。
+- **Spending & focus** – 運用費用を追跡し、収益性の高いフォーマットを可視化、次プロジェクトの強みを抽出。
 
-### リポジトリ/ランタイム機能
+### Repository/runtime features
 
-- FastAPIバックエンド（REST + WebSocket）で取り込み（`/api/v1/audio`, `/ws/audio-ingest`）とライブストリーム配信（`/ws/stream`）を提供。
-- 決定論的な音声セグメント化（デフォルト約15秒、オーバーラップ付き）を `backend/glass/audio_segments/` に保存。
-- オプションの openai-whisper ストリーミング文字起こし（レイテンシ閾値を設定可能）。
-- オプションのPostgreSQL永続化（`DATABASE_URL`）によるメッセージ、写真、チャンク、セグメント、文字起こしの保存。
-- ライブ波形、文字起こし更新、デスクトップ/モバイル向けインストール対応を備えたPWAダッシュボード。
-- XIAO ESP32S3 Sense のカメラ + マイクフロー向け Arduino ファームウェア対応。
+- FastAPIバックエンドではREST + WebSocket（`/api/v1/audio`, `/ws/audio-ingest`）の取り込みと（`/ws/stream`）ライブ配信を提供。
+- 決定論的な音声セグメント（既定は約15秒・オーバーラップ付き）を `backend/glass/audio_segments/` に保存。
+- openai-whisper のストリーミング文字起こし（レイテンシ閾値設定可能）。
+- 任意のPostgreSQL永続化（`DATABASE_URL`）でメッセージ、写真、チャンク、セグメント、文字起こしを保存。
+- ライブ波形、文字起こし更新、デスクトップ/モバイル対応インストールを持つPWAダッシュボード。
+- XIAO ESP32S3 Senseのカメラ＋マイクフロー用Arduinoファームウェア。
 
-## 🔄 サンプルワークフロー
+## 🔄 Sample Workflow
 
-1. **キャプチャ** – コンセプトを話す、または描写する。IdeasGlassが文字起こし・翻訳・意図タグ付けを実行。
-2. **共創** – EchoMindがアイデアを洗練し、台本を作成し、プラットフォーム別のCTAを提案。
-3. **公開** – チャンネルエージェントがハイライト動画やギャラリー画像を自動生成し、メタデータ付きでアップロード。
-4. **収益化** – クレジットはLazyingArt Coin（`coin.lazying.art`）を経由し、希望のウォレットへ支払いが同期されます。
-5. **振り返り** – 支出、リーチ、エンゲージメントのダッシュボードから次に注力すべき施策を抽出。
+1. **Capture** – アイデアを話す、あるいは図に描く。IdeasGlassが文字起こし、翻訳、意図タグ付けを実行。
+2. **Co-create** – EchoMindがアイデアを洗練し、台本を起草して、各プラットフォーム向けCTAを提案。
+3. **Publish** – チャンネルエージェントがハイライト動画やギャラリー画像を自動生成し、メタデータ付きでアップロード。
+4. **Monetize** – クレジットはLazyingArt Coin（`coin.lazying.art`）を経由して処理され、希望するウォレットに支払いが同期されます。
+5. **Reflect** – 支出、リーチ、エンゲージメントダッシュボードから次に集中すべき点を見極めます。
 
-## 🗂️ プロジェクト構成
+## 🗂️ Project Structure
 
 ```text
 IdeasGlass/
@@ -117,7 +123,7 @@ IdeasGlass/
 │   ├── memo_legacy/
 │   └── ngrok_bridge/
 ├── IdeaGlass/firmware/ideasglass_arduino/
-│   ├── IdeasGlassClient/IdeasGlassClient.ino
+│   ├── IdeasGlassClient/
 │   ├── config.h
 │   ├── WifiTest/WifiTest.ino
 │   ├── wifi_credentials.example.h
@@ -127,28 +133,30 @@ IdeasGlass/
 ├── development_plan/
 ├── app/
 ├── ops/observability/
+├── ios-app-example/
 ├── figs/
-└── seeed_studio_xiao_esp32s3_dev/
+├── seeed_studio_xiao_esp32s3_dev/
+└── .auto-readme-work/
 ```
 
-## 🧰 前提条件
+## 🧰 Prerequisites
 
 - Python 3.10+
-- `pip`（または互換Pythonを持つconda環境）
-- 任意: Whisper推論を高速化するNVIDIA GPU + CUDA/cuDNN
+- `pip`（または互換Pythonのあるconda環境）
+- 任意: Whisper推論高速化のためのNVIDIA GPU + CUDA/cuDNN
 - 任意: PostgreSQL（永続化）
-- ファームウェア: Arduino IDEまたは `arduino-cli`、Seeed XIAO ESP32S3 Sense、PSRAM有効化
+- ファームウェア: Arduino IDE または `arduino-cli`、Seeed XIAO ESP32S3 Sense、PSRAM有効
 
 | コンポーネント | 要件 | メモ |
 |---|---|---|
-| バックエンド実行環境 | Python 3.10+, `pip` | venvまたはconda（`glass`） |
-| GPU加速（任意） | NVIDIA + CUDA/cuDNN | Whisper推論のレイテンシ改善 |
-| 永続化（任意） | PostgreSQL | `DATABASE_URL` で有効化 |
-| ファームウェアツールチェーン | Arduino IDE / `arduino-cli` | PSRAM有効のXIAO ESP32S3プロファイルを使用 |
+| Backend runtime | Python 3.10+, `pip` | venv または conda（`glass`） |
+| GPU acceleration（任意） | NVIDIA + CUDA/cuDNN | Whisperのレイテンシ改善 |
+| Persistence（任意） | PostgreSQL | `DATABASE_URL` で有効化 |
+| Firmware toolchain | Arduino IDE / `arduino-cli` | PSRAM有効のXIAO ESP32S3プロファイルを使用 |
 
-## ⚙️ インストール
+## ⚙️ Installation
 
-### バックエンド依存関係
+### Backend dependencies
 
 ```bash
 cd backend/glass
@@ -157,15 +165,15 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### ファームウェアの前提条件
+### Firmware prerequisites
 
-- `IdeaGlass/firmware/ideasglass_arduino/wifi_credentials.example.h` を（推奨）`wifi_credentials.h` にコピーし、SSID/パスワードを設定。
-- Arduino IDE ではボードを `ESP32 -> XIAO_ESP32S3`、`PSRAM: OPI PSRAM` に設定。
-- パーティション構成: `Default with spiffs (3MB APP/1.5MB SPIFFS)` または、ファイルシステムが不要なら `Maximum APP`。
+- `IdeaGlass/firmware/ideasglass_arduino/wifi_credentials.example.h` を（推奨）`wifi_credentials.h` にコピーし、SSID/パスワードを設定します。
+- Arduino IDE でボードを `ESP32 -> XIAO_ESP32S3`、`PSRAM: OPI PSRAM` に設定します。
+- パーティションは `Default with spiffs (3MB APP/1.5MB SPIFFS)`、またはファイルシステムが不要なら `Maximum APP` を選択します。
 
-## ▶️ 使い方
+## ▶️ Usage
 
-### バックエンド起動（uvicorn）
+### Run backend (uvicorn)
 
 ```bash
 IDEASGLASS_WHISPER_MODEL=base IDEASGLASS_WHISPER_DEVICE=cuda \
@@ -177,13 +185,13 @@ uvicorn backend.glass.app:app \
   --reload
 ```
 
-### バックエンド起動（ヘルパー）
+### Run backend (helper)
 
 ```bash
 python backend/glass/serve.py --whisper-model base --whisper-device cuda --reload
 ```
 
-### ダッシュボードを開く
+### Open dashboard
 
 - `http://localhost:8765/`
 - `http://localhost:8765/healthz`
@@ -191,15 +199,15 @@ python backend/glass/serve.py --whisper-model base --whisper-device cuda --reloa
 | エンドポイント | 目的 |
 |---|---|
 | `/` | メインダッシュボード（PWA対応UI） |
-| `/healthz` | バックエンド死活監視 |
+| `/healthz` | バックエンドの生存確認 |
 | `/ws/audio-ingest` | デバイス取り込みWebSocket |
 | `/ws/stream` | ダッシュボードクライアントへのライブ配信 |
 
-### ログインしてデバイスを紐付ける
+### Login and bind your device
 
-1. ダッシュボードの Settings/Account から登録またはログインします。
-2. `Bind device` 欄にデバイスIDを入力します。
-3. 紐付け済みデバイスのみ、あなたのアカウントへストリーミングされます。
+1. ダッシュボードのSettings/Accountで新規登録またはログインします。
+2. `Bind device` フィールドにデバイスIDを入力します。
+3. デバイス紐付けされたものだけがアカウントにストリーミングされます。
 
 デバイスIDとQR画像の生成:
 
@@ -207,7 +215,7 @@ python backend/glass/serve.py --whisper-model base --whisper-device cuda --reloa
 python backend/glass/tools/generate_device_id.py --out logs/device-id.png
 ```
 
-APIでの紐付け（cookieセッションが必要）:
+API経由で紐付け（cookieセッションが必要）:
 
 ```bash
 curl -X POST http://localhost:8765/api/v1/devices/bind \
@@ -216,13 +224,13 @@ curl -X POST http://localhost:8765/api/v1/devices/bind \
   -b cookies.txt -c cookies.txt
 ```
 
-現在のアカウントと紐付けデバイスの確認:
+現在のアカウントと紐付け済みデバイスを確認:
 
 ```bash
 curl -s http://localhost:8765/api/v1/auth/me -b cookies.txt -c cookies.txt | jq
 ```
 
-過去データを新デバイスIDに移行する（任意）:
+過去データを新しいデバイスIDへ移行する（任意）:
 
 ```bash
 curl -X POST http://localhost:8765/api/v1/devices/rename \
@@ -231,7 +239,7 @@ curl -X POST http://localhost:8765/api/v1/devices/rename \
   -b cookies.txt -c cookies.txt
 ```
 
-### ファームウェアのビルド/アップロード（Arduino CLI）
+### Firmware build/upload (Arduino CLI)
 
 ```bash
 FQBN='esp32:esp32:XIAO_ESP32S3:PartitionScheme=default_8MB,PSRAM=opi'
@@ -242,43 +250,43 @@ bin/arduino-cli compile --fqbn "$FQBN" "$SKETCH"
 bin/arduino-cli upload -p "$PORT" --fqbn "$FQBN" "$SKETCH"
 ```
 
-ポートが使用中: `fuser -k /dev/ttyACM0`。
-権限エラー時: `sudo usermod -aG dialout $USER` を実行し再ログイン（または一時的に `sudo chmod a+rw /dev/ttyACM0`）。
+ポートが使用中の場合: `fuser -k /dev/ttyACM0`。
+権限拒否の場合: `sudo usermod -aG dialout $USER` の後に再ログイン（または一時的に `sudo chmod a+rw /dev/ttyACM0`）。
 
-### ファームウェア電源UX（XIAO ESP32S3）
+### Firmware power UX (XIAO ESP32S3)
 
-- 起動時は約0.8秒長押しして起動。
-- 動作中に約2.5秒長押しでディープスリープへ。
-- 動作中の短押しは引き続きキャプチャを開始。
+- 起動時に約0.8秒長押しして起動します。
+- 動作中に約2.5秒長押しするとディープスリープになります。
+- 動作中の短押しでもキャプチャは引き続き起動します。
 
-## 🛠️ 設定
+## 🛠️ Configuration
 
-### 主な環境変数
+### Core environment variables
 
-- `DATABASE_URL`: 永続化用Postgres DSN（任意）。
+- `DATABASE_URL`: 永続化用のPostgres DSN（任意）。
 - `IDEASGLASS_WHISPER_MODEL`: `base`（既定）、`small`、`medium`、`large-v3`、`large-v3-turbo`。
 - `IDEASGLASS_WHISPER_DEVICE`: `cuda` または `cpu`。
 - `IDEASGLASS_WHISPER_FP16`: GPUでは `1`、CPUでは `0`。
-- `IDEASGLASS_TRANSCRIBE`: 文字起こしを有効化する場合 `1`（既定）、無効化する場合 `0`。
+- `IDEASGLASS_TRANSCRIBE`: `1` で文字起こし有効（既定）、`0` で無効。
 - `IDEASGLASS_TRANSCRIPT_INTERVAL_MS`: ローリング文字起こし間隔。
-- `IDEASGLASS_TRANSCRIPT_THRESHOLDS_MS`: カンマ区切りの閾値（既定 `3000,6000,15000`）。
+- `IDEASGLASS_TRANSCRIPT_THRESHOLDS_MS`: カンマ区切りの閾値（既定値 `3000,6000,15000`）。
 
 | 変数 | 既定値 / 選択肢 | 効果 |
 |---|---|---|
-| `DATABASE_URL` | 既定未設定 | アカウント/デバイス情報のPostgres永続化を有効化 |
+| `DATABASE_URL` | 既定未設定 | アカウント/デバイスデータのPostgres永続化を有効化 |
 | `IDEASGLASS_WHISPER_MODEL` | `base`（`small`、`medium`、`large-v3`、`large-v3-turbo`） | 精度とレイテンシのトレードオフを制御 |
 | `IDEASGLASS_WHISPER_DEVICE` | `cuda` または `cpu` | 推論バックエンド |
 | `IDEASGLASS_WHISPER_FP16` | `1`（GPU）/`0`（CPUセーフ） | 混合精度制御 |
-| `IDEASGLASS_TRANSCRIBE` | `1` | 文字起こしパイプラインを切替 |
+| `IDEASGLASS_TRANSCRIBE` | `1` | 文字起こしパイプラインを切り替え |
 | `IDEASGLASS_TRANSCRIPT_INTERVAL_MS` | 実行時設定 | ローリング文字起こし送信間隔 |
-| `IDEASGLASS_TRANSCRIPT_THRESHOLDS_MS` | `3000,6000,15000` | 段階的文字起こし通知の閾値 |
+| `IDEASGLASS_TRANSCRIPT_THRESHOLDS_MS` | `3000,6000,15000` | 段階的な文字起こし出力の閾値 |
 
 安全な `DATABASE_URL` の例:
 
 - `export DATABASE_URL="postgresql://<db_user>@localhost/ideasglass_db"`（peer/local認証）
 - `export DATABASE_URL="postgresql://<db_user>:<db_password>@localhost/ideasglass_db"`（パスワード認証）
 
-### 音声ゲインとセグメント分割の調整
+### Audio gain and segmentation knobs
 
 - `IDEASGLASS_GAIN_TARGET`（既定 `0.032`）
 - `IDEASGLASS_GAIN_MAX`（既定 `1.8`）
@@ -287,20 +295,20 @@ bin/arduino-cli upload -p "$PORT" --fqbn "$FQBN" "$SKETCH"
 - `IDEASGLASS_SPEECH_MARGIN`（既定 `0.005`）
 - `IDEASGLASS_SEGMENT_TARGET_MS`（既定 `15000`）
 - `IDEASGLASS_SEGMENT_OVERLAP_MS`（既定 `2000`）
-- `IDEASGLASS_SEGMENT_GAIN_TARGET`（既定はチャンクのゲイン目標を継承）
+- `IDEASGLASS_SEGMENT_GAIN_TARGET`（既定はチャンクゲインターゲットを継承）
 
-| 音声調整項目 | 既定値 | 用途 |
+| 音声設定項目 | 既定値 | 用途 |
 |---|---|---|
-| `IDEASGLASS_GAIN_TARGET` | `0.032` | RMS 正規化の目標 |
-| `IDEASGLASS_GAIN_MAX` | `1.8` | ゲイン増幅の上限クリップ |
-| `IDEASGLASS_GAIN_MIN_RMS` | `0.008` | 無音に近い領域の過増幅を防止 |
-| `IDEASGLASS_SPEECH_RMS` | `0.03` | 音声活動判定のRMS基準 |
-| `IDEASGLASS_SPEECH_MARGIN` | `0.005` | 音声しきい値の余裕 |
+| `IDEASGLASS_GAIN_TARGET` | `0.032` | RMS正規化の目標値 |
+| `IDEASGLASS_GAIN_MAX` | `1.8` | ゲイン増幅の上限クランプ |
+| `IDEASGLASS_GAIN_MIN_RMS` | `0.008` | 無音に近い領域を過度に増幅しないための下限 |
+| `IDEASGLASS_SPEECH_RMS` | `0.03` | 音声活動のRMS基準値 |
+| `IDEASGLASS_SPEECH_MARGIN` | `0.005` | 音声しきい値の余白 |
 | `IDEASGLASS_SEGMENT_TARGET_MS` | `15000` | セグメント長の目標 |
-| `IDEASGLASS_SEGMENT_OVERLAP_MS` | `2000` | 連続性を保つための重なり |
+| `IDEASGLASS_SEGMENT_OVERLAP_MS` | `2000` | 継続性を保つための重なり |
 | `IDEASGLASS_SEGMENT_GAIN_TARGET` | チャンクゲインを継承 | セグメント単位の正規化目標 |
 
-### モデル事前取得（任意）
+### Model prefetch (optional)
 
 ```bash
 python backend/glass/tools/prefetch_whisper_models.py \
@@ -309,25 +317,23 @@ python backend/glass/tools/prefetch_whisper_models.py \
   --fp16 1
 ```
 
-## 🧪 例
+## 🧪 Examples
 
-### デバイスIDの生成と紐付け
+### Generate and bind a device ID
 
 ```bash
 python backend/glass/tools/generate_device_id.py --out logs/device-id.png
 ```
 
-次に `kDeviceId` を以下に設定します。
+次に、`IdeaGlass/firmware/ideasglass_arduino/IdeasGlassClient/IdeasGlassClient.ino` の `kDeviceId` を設定します。
 
-- `IdeaGlass/firmware/ideasglass_arduino/IdeasGlassClient/IdeasGlassClient.ino`
-
-ダッシュボード手順:
+ダッシュボード操作手順:
 
 1. Settingsで登録/ログインします。
 2. Accountパネルでデバイスを紐付けます。
 3. 紐付け済みデバイスのみ、あなたのアカウントにストリーミングされます。
 
-### REST取り込み例
+### REST ingest examples
 
 ```bash
 curl -X POST http://localhost:8765/api/v1/messages \
@@ -341,7 +347,7 @@ curl -X POST http://localhost:8765/api/v1/messages \
   -d '{
     "device_id":"dev-001",
     "message":"photo demo",
-    "photo_base64":"'"$(base64 -w0 sample.jpg)"'",
+    "photo_base64":"'"$(base64 -w0 sample.jpg)'"',
     "photo_mime":"image/jpeg"
   }'
 ```
@@ -356,7 +362,7 @@ curl -X POST http://localhost:8765/api/v1/audio \
     "bits_per_sample":16,
     "duration_ms":250,
     "rms":0.05,
-    "audio_base64":"'"$(base64 -w0 temp.raw)"'"
+    "audio_base64":"'"$(base64 -w0 temp.raw)'"'
   }'
 ```
 
@@ -365,78 +371,63 @@ curl http://localhost:8765/api/v1/audio/segments | jq '.[0]'
 curl -o latest.wav http://localhost:8765/api/v1/audio/segments/<segment-id>
 ```
 
-## 🧭 開発メモ
+## 🧭 Development Notes
 
-### 注力領域
+### Focus area
 
-このリポジトリには複数のバックエンドトラックがあります。現時点でのコントリビューター向けガイダンスと実行の主軸は、別途指定がない限り `backend/glass/` です。
+このリポジトリには複数のバックエンドトラックがあります。現時点でのコントリビューター向け指針と実行の主軸は、特に指定がない限り `backend/glass/` です。
 
-### 静的/構文チェック
+### Static/syntax check
 
 ```bash
 python -m compileall backend/glass/app.py
 ```
 
-### 開発者向けドキュメント
+### Developer docs
 
 - [IdeasGlass Object Analysis](OmiGlass/docs/ideasglass_analysis.mdx)
 - [Arduino Hardware Blueprint](OmiGlass/docs/ideasglass_arduino_hardware.md)
 - [Multi-platform App / PWA Plan](OmiGlass/docs/ideasglass_pwa_plan.md)
 - [Bridge & Arduino HTTPS Client](docs/ideasglass_bridge.md)
 
-> 注: 現在のリポジトリスナップショットでは、上記の一部リンクが移動している可能性があります（例: ブリッジノートは現在 `references/ideasglass_bridge.md` にあります）。元リンクは正本READMEの内容として保持しています。
+> Note: In the current repository snapshot, some historical links above appear to have moved (for example, bridge notes now exist at `references/ideasglass_bridge.md`). The original links are preserved as canonical README content.
 
-### クイックデバイス紐付け（保存済みワークフロー）
+### Quick device binding (preserved workflow)
 
-- ID生成（conda `glass`）: `python backend/glass/tools/generate_device_id.py`
-- ファームウェア側へ設定: `IdeaGlass/firmware/ideasglass_arduino/IdeasGlassClient/IdeasGlassClient.ino` (`kDeviceId`)
-- バックエンド起動後、`http://localhost:8765` を開き、登録/ログインしてからAccountパネルでデバイスIDを紐付け
+- Generate ID (in conda `glass`): `python backend/glass/tools/generate_device_id.py`
+- Set it in firmware: `IdeaGlass/firmware/ideasglass_arduino/IdeasGlassClient/IdeasGlassClient.ino` (`kDeviceId`)
+- Run backend and open `http://localhost:8765`, register/login, then bind the device ID in the Account panel
 
-## 🆘 トラブルシューティング
+## 🆘 Troubleshooting
 
-- **ポートが既に使用中:** バックエンドを別ポートで起動し、クライアント設定も更新してください。
-- **シリアルポートが使用中:** `fuser -k /dev/ttyACM0`。
-- **Linuxでシリアル権限拒否:** `sudo usermod -aG dialout $USER` で再ログイン。
-- **Postgresが利用不可:** DBなしでも一部機能は動作します。`DATABASE_URL` を確認して再起動。
-- **Whisper性能の問題:** 小さいモデル（`base`/`small`）を使用するか、`IDEASGLASS_TRANSCRIBE=0` で文字起こしを無効化。
-- **ESP32のTLS/時刻同期の不安定:** Wi-Fi、NTP（UDP/123）、証明書/ホスト設定を確認。詳細は `references/ideasglass_bridge.md`。
-- **ライブ波形更新なし:** バックエンドログとブラウザコンソールの `[IdeasGlass][wave]` トレースを確認し、`/ws/stream` 接続を検証。
+- **Port already in use:** run backend on another port and update client settings.
+- **Serial port busy:** `fuser -k /dev/ttyACM0`.
+- **Linux serial permission denied:** `sudo usermod -aG dialout $USER` and re-login.
+- **Postgres unavailable:** backend can run without DB for partial functionality; verify `DATABASE_URL` and restart.
+- **Whisper performance issues:** use smaller models (`base`/`small`) or disable transcription via `IDEASGLASS_TRANSCRIBE=0`.
+- **TLS/time sync instability on ESP32:** verify Wi-Fi, NTP availability (UDP/123), and cert/host settings; see `references/ideasglass_bridge.md` for detailed field notes.
+- **No live waveform updates:** check backend logs and browser console for `[IdeasGlass][wave]` traces and confirm `/ws/stream` connectivity.
 
-## 🌐 エコシステムリンク
+## 🌐 Ecosystem Links
 
-🧠 **EchoMind** — 学習と制作のための多言語AIコンパニオン。  
-[chat.lazying.art](https://chat.lazying.art)
+| Brand | Purpose | Link |
+|---|---|---|
+| 🧠 EchoMind | 学習と制作のための多言語AIコンパニオン | [chat.lazying.art](https://chat.lazying.art) |
+| 🌱 OnlyIdeas | 研究からプロダクト化へのコミュニティ | [onlyideas.art](https://onlyideas.art) |
+| 💸 LazyEarn | 小さな勝利を収益化する自動化 | [earn.lazying.art](https://earn.lazying.art) |
+| 📚 LazyLearn | 物理と化学のトラック・ノートブック | [learn.lazying.art](https://learn.lazying.art) |
+| 🤖 IdeasRobot | アイデアを下書き、タスク、投稿へ変換するエージェント | [robot.lazying.art](https://robot.lazying.art) |
+| 👓 IdeasGlass | 収集、翻訳、ハイライト自動生成の統合 | [glass.lazying.art](https://glass.lazying.art) |
+| 🪙 LazyingArt Coin | 貢献とオンチェーン価値をつなぐ報酬・決済基盤 | [coin.lazying.art](https://coin.lazying.art) |
+| 🧪 IDEAS | 研究ノートやエッセイのノートブック | [ideas.onlyideas.art](https://ideas.onlyideas.art) |
+| 🎨 LazyingArt | OnlyIdeas、EchoMind、LazyEdit、IdeasGlassを支えるスタジオ | [lazying.art](https://lazying.art) |
 
-🌱 **OnlyIdeas** — 研究からプロダクト化へつなぐコミュニティ。  
-[onlyideas.art](https://onlyideas.art)
+## 🙏 Acknowledgements
 
-💸 **LazyEarn** — 小さな成果を収益化するための自動化。  
-[earn.lazying.art](https://earn.lazying.art)
-
-📚 **LazyLearn** — 物理・化学のトラックやノート。  
-[learn.lazying.art](https://learn.lazying.art)
-
-🤖 **IdeasRobot** — アイデアを下書き・タスク・投稿へ変換するエージェント。  
-[robot.lazying.art](https://robot.lazying.art)
-
-👓 **IdeasGlass** — 収集・翻訳・ハイライト自動生成を行うウェアラブル。  
-[glass.lazying.art](https://glass.lazying.art)
-
-🪙 **LazyingArt Coin** — 貢献とオンチェーン価値を橋渡しする報酬・支払基盤。  
-[coin.lazying.art](https://coin.lazying.art)
-
-🧪 **IDEAS** — 研究ノートとエッセイのノートブック。  
-[ideas.onlyideas.art](https://ideas.onlyideas.art)
-
-🎨 **LazyingArt** — OnlyIdeas、EchoMind、LazyEdit、IdeasGlassを支えるスタジオ。  
-[lazying.art](https://lazying.art)
-
-## 🙏 謝辞
-
-優れたオープンソースプロジェクトの成果の上に成り立っています。以下に感謝します。
+優れたオープンソースプロジェクトの上に成り立っています。感謝します。
 
 - <a href="https://www.omi.me/?ref=LazyingArt" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;justify-content:center;padding:0.45rem 1rem;border-radius:999px;background:#111827;color:#ffffff;font-weight:700;text-decoration:none;">Get OmiGlass (BasedHardware)</a>
-  - **紹介プログラム** — クーポン `LazyingArt` を使うと10%割引（10件販売で30%コミッション解放）。
+  - **Referral Program** — クーポン `LazyingArt` を使うと10%割引（10件販売で30%コミッション開放）。
 
     <div style="display:flex;flex-wrap:wrap;gap:0.4rem;margin:0.3rem 0;">
       <a href="https://www.omi.me/?ref=LazyingArt" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;justify-content:center;padding:0.45rem 1.1rem;border-radius:999px;background:#111827;color:#ffffff;font-weight:700;text-decoration:none;">Get OmiGlass with LazyingArt</a>
@@ -447,17 +438,17 @@ python -m compileall backend/glass/app.py
 - WhisperX: https://github.com/m-bain/whisperX
 - Ollama: https://github.com/ollama/ollama
 
-## 🛣️ ロードマップ
+## 🛣️ Roadmap
 
-- WAN/TLS環境にまたがるエンドツーエンドの音声ストリーミング経路を強化し、文書化を進める。
-- 文字起こし品質とレイテンシのトレードオフ（モデル/デバイス/閾値プリセット）を継続改善。
-- ダッシュボード上のデバイス管理とアカウント単位のマルチデバイス運用フローを拡張。
-- レガシー/並行バックエンド（`tornado_app`、`memo`、`memo_legacy`、`ngrok_bridge`）を主要 `backend/glass` パスへ調整・統合。
-- `i18n/` 配下の多言語README変種を維持・更新。
+- WAN/TLS環境を跨ぐエンドツーエンド音声ストリーミング経路の堅牢化と文書化を進めます。
+- 文字起こし品質とレイテンシのトレードオフ（モデル/デバイス/閾値プリセット）を継続改善します。
+- ダッシュボードでのデバイス管理とアカウント単位のマルチデバイス運用フローを拡張します。
+- レガシー/並列バックエンド（`tornado_app`、`memo`、`memo_legacy`、`ngrok_bridge`）を主要な `backend/glass` パスに整合・統合します。
+- `i18n/` 配下の多言語READMEバリアントを維持・更新します。
 
-## 🤝 コントリビューション
+## 🤝 Contribution
 
-コントリビューション歓迎。リポジトリ固有のワークフローは `AGENTS.md` を参照してください。
+コントリビューションは歓迎です。リポジトリ固有のワークフローは `AGENTS.md` を参照してください。
 
 PR提出前の推奨ローカル検証:
 
@@ -467,18 +458,17 @@ python -m compileall backend/glass/app.py
 
 変更提出時:
 
-- コミット文は短く行動ベース（現在形）で。
-- 振る舞いが環境変数に依存する場合、関連変数（例: `IDEASGLASS_TRANSCRIPT_THRESHOLDS_MS`）をPRノートに記載。
-- テスト根拠（バックエンドログ、ダッシュボード挙動、ファームウェア出力）を添付。
-- 秘密情報（`DATABASE_URL`、APIトークン、認証ファイル）は決してコミットしない。
-
-## 📄 ライセンス
-
-このリポジトリのトップレベルには `LICENSE` が検出されていません。明示的なライセンスファイルが追加されるまで、利用・再配布はメンテナ承認が必要であるものとして扱ってください。
-
+- コミットメッセージは短く、実行動詞ベースで（現在形）。
+- 挙動が環境変数に依存する場合は、関連変数（例: `IDEASGLASS_TRANSCRIPT_THRESHOLDS_MS`）をPRノートに記載します。
+- テスト根拠（バックエンドログ、ダッシュボード挙動、ファームウェア出力）を添付します。
+- 秘密情報（`DATABASE_URL`、APIトークン、資格情報ファイル）は決してコミットしないでください。
 
 ## ❤️ Support
 
 | Donate | PayPal | Stripe |
 | --- | --- | --- |
 | [![Donate](https://camo.githubusercontent.com/24a4914f0b42c6f435f9e101621f1e52535b02c225764b2f6cc99416926004b7/68747470733a2f2f696d672e736869656c64732e696f2f62616467652f446f6e6174652d4c617a79696e674172742d3045413545393f7374796c653d666f722d7468652d6261646765266c6f676f3d6b6f2d6669266c6f676f436f6c6f723d7768697465)](https://chat.lazying.art/donate) | [![PayPal](https://camo.githubusercontent.com/d0f57e8b016517a4b06961b24d0ca87d62fdba16e18bbdb6aba28e978dc0ea21/68747470733a2f2f696d672e736869656c64732e696f2f62616467652f50617950616c2d526f6e677a686f754368656e2d3030343537433f7374796c653d666f722d7468652d6261646765266c6f676f3d70617970616c266c6f676f436f6c6f723d7768697465)](https://paypal.me/RongzhouChen) | [![Stripe](https://camo.githubusercontent.com/1152dfe04b6943afe3a8d2953676749603fb9f95e24088c92c97a01a897b4942/68747470733a2f2f696d672e736869656c64732e696f2f62616467652f5374726970652d446f6e6174652d3633354246463f7374796c653d666f722d7468652d6261646765266c6f676f3d737472697065266c6f676f436f6c6f723d7768697465)](https://buy.stripe.com/aFadR8gIaflgfQV6T4fw400) |
+
+## 📄 License
+
+このリポジトリのトップレベルには `LICENSE` ファイルが検出されていません。明示的なライセンスファイルが追加されるまで、利用・再配布はメンテナーの承認が必要とみなしてください。
