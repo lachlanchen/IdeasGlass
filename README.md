@@ -8,6 +8,8 @@
 
 *A wearable AI glass that turns ideas into actions, income, and creative momentum.*
 
+> Voice-first wearable AI pipeline: capture from ESP32 glasses, process in FastAPI, and monitor/control via a live PWA dashboard.
+
 ![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python&logoColor=white)
 ![FastAPI](https://img.shields.io/badge/FastAPI-backend-009688?logo=fastapi&logoColor=white)
 ![ESP32](https://img.shields.io/badge/ESP32-XIAO__ESP32S3-111111?logo=espressif&logoColor=white)
@@ -38,7 +40,7 @@
 
 Explore community experiments at <a href="https://onlyideas.art">onlyideas.art</a>.
 
-## Overview
+## 🚀 Overview
 
 IdeasGlass is an AI-first wearable system for voice-first idea capture and execution. In this repository, the primary runtime path is:
 
@@ -47,11 +49,20 @@ IdeasGlass is an AI-first wearable system for voice-first idea capture and execu
 
 If you are new to this repo, start there first.
 
-## Why IdeasGlass
+### At a glance
+
+| Area | Primary location | What it does |
+|---|---|---|
+| Backend API + PWA | `backend/glass/` | FastAPI endpoints, WebSocket ingest/fanout, transcription, dashboard |
+| Firmware | `IdeaGlass/firmware/ideasglass_arduino/IdeasGlassClient/` | ESP32 capture/streaming client |
+| Bridge notes | `references/ideasglass_bridge.md` | TLS/WAN reliability notes and deployment field tips |
+| README translations | `i18n/` | Multilingual docs synced from the canonical README |
+
+## ✨ Why IdeasGlass
 
 IdeasGlass is an AI-first wearable built for people who live in streams of ideas. It captures, translates, organizes, and executes on creativity the moment inspiration strikes, whether you are narrating a concept in motion or hosting a live session.
 
-## Features
+## 🧩 Features
 
 ### Product vision features
 
@@ -72,7 +83,7 @@ IdeasGlass is an AI-first wearable built for people who live in streams of ideas
 - PWA dashboard with live waveform, transcript updates, and install support on desktop/mobile.
 - Arduino firmware support for XIAO ESP32S3 Sense camera + mic flows.
 
-## Sample Workflow
+## 🔄 Sample Workflow
 
 1. **Capture** – Speak or sketch a concept; IdeasGlass transcribes, translates, and tags the intent.
 2. **Co-create** – EchoMind refines the idea, drafts scripts, and suggests CTAs tailored for each platform.
@@ -80,7 +91,7 @@ IdeasGlass is an AI-first wearable built for people who live in streams of ideas
 4. **Monetize** – Credits route through LazyingArt Coin (`coin.lazying.art`) and payouts sync with your preferred wallets.
 5. **Reflect** – Spending, reach, and engagement dashboards surface what to double down on next.
 
-## Project Structure
+## 🗂️ Project Structure
 
 ```text
 IdeasGlass/
@@ -113,7 +124,7 @@ IdeasGlass/
 └── seeed_studio_xiao_esp32s3_dev/
 ```
 
-## Prerequisites
+## 🧰 Prerequisites
 
 - Python 3.10+
 - `pip` (or conda environment with compatible Python)
@@ -121,7 +132,14 @@ IdeasGlass/
 - Optional: PostgreSQL for persistence
 - For firmware: Arduino IDE or `arduino-cli`, Seeed XIAO ESP32S3 Sense, PSRAM enabled
 
-## Installation
+| Component | Requirement | Notes |
+|---|---|---|
+| Backend runtime | Python 3.10+, `pip` | Use venv or conda (`glass`) |
+| GPU acceleration (optional) | NVIDIA + CUDA/cuDNN | Improves Whisper latency |
+| Persistence (optional) | PostgreSQL | Enabled via `DATABASE_URL` |
+| Firmware toolchain | Arduino IDE / `arduino-cli` | Use XIAO ESP32S3 profile with PSRAM |
+
+## ⚙️ Installation
 
 ### Backend dependencies
 
@@ -138,7 +156,7 @@ pip install -r requirements.txt
 - In Arduino IDE, use board `ESP32 -> XIAO_ESP32S3` with `PSRAM: OPI PSRAM`.
 - Partition scheme: `Default with spiffs (3MB APP/1.5MB SPIFFS)` or `Maximum APP` when filesystem is not needed.
 
-## Usage
+## ▶️ Usage
 
 ### Run backend (uvicorn)
 
@@ -162,6 +180,13 @@ python backend/glass/serve.py --whisper-model base --whisper-device cuda --reloa
 
 - `http://localhost:8765/`
 - `http://localhost:8765/healthz`
+
+| Endpoint | Purpose |
+|---|---|
+| `/` | Main dashboard (PWA-capable UI) |
+| `/healthz` | Backend liveness check |
+| `/ws/audio-ingest` | Device ingest WebSocket |
+| `/ws/stream` | Live stream fanout to dashboard clients |
 
 ### Login and bind your device
 
@@ -219,7 +244,7 @@ If permission denied: `sudo usermod -aG dialout $USER` then re-login (or tempora
 - Hold ~2.5 s while running to enter deep sleep.
 - Short press while running still triggers capture.
 
-## Configuration
+## 🛠️ Configuration
 
 ### Core environment variables
 
@@ -230,6 +255,16 @@ If permission denied: `sudo usermod -aG dialout $USER` then re-login (or tempora
 - `IDEASGLASS_TRANSCRIBE`: `1` (default) to enable transcription, `0` to disable.
 - `IDEASGLASS_TRANSCRIPT_INTERVAL_MS`: rolling transcript interval.
 - `IDEASGLASS_TRANSCRIPT_THRESHOLDS_MS`: comma-separated thresholds (default `3000,6000,15000`).
+
+| Variable | Default / options | Effect |
+|---|---|---|
+| `DATABASE_URL` | unset by default | Enables Postgres persistence for account/device data |
+| `IDEASGLASS_WHISPER_MODEL` | `base` (`small`, `medium`, `large-v3`, `large-v3-turbo`) | Controls accuracy vs latency |
+| `IDEASGLASS_WHISPER_DEVICE` | `cuda` or `cpu` | Inference backend |
+| `IDEASGLASS_WHISPER_FP16` | `1` GPU, `0` CPU-safe | Mixed precision control |
+| `IDEASGLASS_TRANSCRIBE` | `1` | Toggle transcription pipeline |
+| `IDEASGLASS_TRANSCRIPT_INTERVAL_MS` | runtime configured | Rolling transcript push interval |
+| `IDEASGLASS_TRANSCRIPT_THRESHOLDS_MS` | `3000,6000,15000` | Progressive transcript emission thresholds |
 
 Safe `DATABASE_URL` examples:
 
@@ -247,6 +282,17 @@ Safe `DATABASE_URL` examples:
 - `IDEASGLASS_SEGMENT_OVERLAP_MS` (default `2000`)
 - `IDEASGLASS_SEGMENT_GAIN_TARGET` (defaults to chunk gain target)
 
+| Audio knob | Default | Purpose |
+|---|---|---|
+| `IDEASGLASS_GAIN_TARGET` | `0.032` | Target RMS normalization |
+| `IDEASGLASS_GAIN_MAX` | `1.8` | Upper clamp for gain amplification |
+| `IDEASGLASS_GAIN_MIN_RMS` | `0.008` | Floor to avoid amplifying near-silence |
+| `IDEASGLASS_SPEECH_RMS` | `0.03` | Speech activity RMS baseline |
+| `IDEASGLASS_SPEECH_MARGIN` | `0.005` | Margin around speech threshold |
+| `IDEASGLASS_SEGMENT_TARGET_MS` | `15000` | Segment length target |
+| `IDEASGLASS_SEGMENT_OVERLAP_MS` | `2000` | Segment overlap for continuity |
+| `IDEASGLASS_SEGMENT_GAIN_TARGET` | inherits chunk gain | Segment-level normalization target |
+
 ### Model prefetch (optional)
 
 ```bash
@@ -256,7 +302,7 @@ python backend/glass/tools/prefetch_whisper_models.py \
   --fp16 1
 ```
 
-## Examples
+## 🧪 Examples
 
 ### Generate and bind a device ID
 
@@ -312,7 +358,7 @@ curl http://localhost:8765/api/v1/audio/segments | jq '.[0]'
 curl -o latest.wav http://localhost:8765/api/v1/audio/segments/<segment-id>
 ```
 
-## Development Notes
+## 🧭 Development Notes
 
 ### Focus area
 
@@ -339,7 +385,7 @@ python -m compileall backend/glass/app.py
 - Set it in firmware: `IdeaGlass/firmware/ideasglass_arduino/IdeasGlassClient/IdeasGlassClient.ino` (`kDeviceId`)
 - Run backend and open `http://localhost:8765`, register/login, then bind the device ID in the Account panel
 
-## Troubleshooting
+## 🆘 Troubleshooting
 
 - **Port already in use:** run backend on another port and update client settings.
 - **Serial port busy:** `fuser -k /dev/ttyACM0`.
@@ -349,7 +395,7 @@ python -m compileall backend/glass/app.py
 - **TLS/time sync instability on ESP32:** verify Wi-Fi, NTP availability (UDP/123), and cert/host settings; see `references/ideasglass_bridge.md` for detailed field notes.
 - **No live waveform updates:** check backend logs and browser console for `[IdeasGlass][wave]` traces and confirm `/ws/stream` connectivity.
 
-## Ecosystem Links
+## 🌐 Ecosystem Links
 
 🧠 **EchoMind** — Multilingual AI companion for learning and creation.  
 [chat.lazying.art](https://chat.lazying.art)
@@ -378,7 +424,7 @@ python -m compileall backend/glass/app.py
 🎨 **LazyingArt** — Studio behind OnlyIdeas, EchoMind, LazyEdit, and IdeasGlass.  
 [lazying.art](https://lazying.art)
 
-## Support & Contact
+## ❤️ Support & Contact
 
 - ご支援は IdeasGlass のハードウェア試作・運用を加速させ、多くのクリエイターへ還元されます。
 - 你的支持将帮助我们推进硬件、AI 工作流与生态建设，向社区持续开放。
@@ -421,7 +467,7 @@ python -m compileall backend/glass/app.py
 
 IdeasGlass is where AI wearables stop listening and start building with you.
 
-## Acknowledgements
+## 🙏 Acknowledgements
 
 We stand on the shoulders of great open projects — thank you to:
 
@@ -437,7 +483,7 @@ We stand on the shoulders of great open projects — thank you to:
 - WhisperX: https://github.com/m-bain/whisperX
 - Ollama: https://github.com/ollama/ollama
 
-## Roadmap
+## 🛣️ Roadmap
 
 - Harden and document the end-to-end audio streaming path across WAN/TLS environments.
 - Continue improving transcript quality/latency tradeoffs (model/device/threshold presets).
@@ -445,7 +491,7 @@ We stand on the shoulders of great open projects — thank you to:
 - Align or consolidate legacy/parallel backend tracks (`tornado_app`, `memo`, `memo_legacy`, `ngrok_bridge`) with the primary `backend/glass` path.
 - Maintain and refresh multilingual README variants under `i18n/`.
 
-## Contribution
+## 🤝 Contribution
 
 Contributions are welcome. For repository-specific workflow guidance, follow `AGENTS.md`.
 
@@ -462,6 +508,6 @@ When submitting changes:
 - Include testing evidence (backend logs, dashboard behavior, firmware output).
 - Never commit secrets (`DATABASE_URL`, API tokens, credentials files).
 
-## License
+## 📄 License
 
 No top-level `LICENSE` file was detected in this repository snapshot. Until an explicit license file is added, treat usage and redistribution as requiring maintainer approval.
