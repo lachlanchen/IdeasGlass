@@ -1,8 +1,9 @@
+[English](README.md) · [العربية](i18n/README.ar.md) · [Español](i18n/README.es.md) · [Français](i18n/README.fr.md) · [日本語](i18n/README.ja.md) · [한국어](i18n/README.ko.md) · [Tiếng Việt](i18n/README.vi.md) · [中文 (简体)](i18n/README.zh-Hans.md) · [中文（繁體）](i18n/README.zh-Hant.md) · [Deutsch](i18n/README.de.md) · [Русский](i18n/README.ru.md)
+
 <p align="center">
   <img src="https://raw.githubusercontent.com/lachlanchen/lachlanchen/main/logos/banner.png" alt="LazyingArt banner" />
 </p>
 
-**Languages:** [English](README.md) · [简体中文](i18n/README.zh-Hans.md) · [繁體中文](i18n/README.zh-Hant.md) · [日本語](i18n/README.ja.md) · [한국어](i18n/README.ko.md) · [Tiếng Việt](i18n/README.vi.md) · [العربية](i18n/README.ar.md) · [Français](i18n/README.fr.md) · [Español](i18n/README.es.md)
 
 # IdeasGlass
 
